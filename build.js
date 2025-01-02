@@ -10,7 +10,8 @@ const __dirname = dirname(__filename);
 const scriptsPath = path.join(__dirname, 'src', 'scripts');
 const outputPath = path.join(__dirname, 'dist', 'scripts');
 
-fs.mkdirSync(outputPath, { recursive: true });
+fs.rmdirSync(outputPath, { recursive: true });
+fs.mkdirSync(outputPath);
 
 fs.readdir(scriptsPath, (err, files) => {
   if (err) {
@@ -25,6 +26,7 @@ fs.readdir(scriptsPath, (err, files) => {
       bundle: true,
       platform: 'browser',
       format: 'iife',
+      legalComments: 'inline'
     }).catch(err => {
       console.error('Build failed:', err);
       process.exit(1);
