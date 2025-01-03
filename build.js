@@ -26,7 +26,14 @@ fs.readdir(scriptsPath, (err, files) => {
       bundle: true,
       platform: 'browser',
       format: 'iife',
-      legalComments: 'inline'
+      legalComments: 'inline',
+      banner: {
+        js: `
+window.suno = this instanceof Window ? (() => {
+  throw new Error("This function should be called at a specific breakpoint in the code. Please refer to the repository\u2019s README for more information.");
+})() : this;
+        `,
+      },
     }).catch(err => {
       console.error('Build failed:', err);
       process.exit(1);
