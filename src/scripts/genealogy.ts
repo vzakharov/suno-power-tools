@@ -1,7 +1,7 @@
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { Branded } from "../types";
-import { atLeast, mutate } from "../utils";
+import { atLeast, mutate, uploadTextFile } from "../utils";
 
 export type LinkKind = string; //Branded<'RelationKind', string>;
 
@@ -43,6 +43,16 @@ export class Genealogy {
     Object.assign(this, new Genealogy(...config));
     console.log('Genealogy reset. Run build() to start building it again.');
   };
+
+  async upload() {
+    const json = await uploadTextFile();
+    if ( !json ) {
+      console.log('No file selected, aborting.');
+      return;
+    };
+    const [ rawClips, lastProcessedPage, allPagesProcessed ] = JSON.parse(json);
+    this.reset([ rawClips, lastProcessedPage, allPagesProcessed ]);
+  }
 
   download() {
     const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);

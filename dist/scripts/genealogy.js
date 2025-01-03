@@ -21,6 +21,26 @@ window.suno = this instanceof Window ? (() => {
   function $throw(message) {
     throw new Error(message);
   }
+  async function uploadTextFile() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.click();
+    return new Promise((resolve) => {
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) {
+          return resolve(void 0);
+        }
+        ;
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(reader.result);
+          input.remove();
+        };
+        reader.readAsText(file);
+      };
+    });
+  }
 
   // src/cropping.ts
   //! Background info: For some unknown reason, Suno doesn't keep the data bout the original clip when you crop it.
@@ -78,6 +98,16 @@ window.suno = this instanceof Window ? (() => {
     reset(config = []) {
       Object.assign(this, new _Genealogy(...config));
       console.log("Genealogy reset. Run build() to start building it again.");
+    }
+    async upload() {
+      const json = await uploadTextFile();
+      if (!json) {
+        console.log("No file selected, aborting.");
+        return;
+      }
+      ;
+      const [rawClips, lastProcessedPage, allPagesProcessed] = JSON.parse(json);
+      this.reset([rawClips, lastProcessedPage, allPagesProcessed]);
     }
     download() {
       const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);
