@@ -1,9 +1,12 @@
 export type RawClip = {
   id: string,
   title: string,
-  metadata: {} 
+  image_url: string,
+  metadata: {
+    tags: string,
+  } & ( 
     // An extended/inpainted/etc. clip
-    | {
+    {
       history: [
         {
           id: string,
@@ -33,4 +36,9 @@ export type RawClip = {
     | {
       upsample_clip_id: string,
     }
+    // Crop of a clip
+    | {
+      type: 'edit_crop',
+    }
+  ),
 };

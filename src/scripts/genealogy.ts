@@ -1,4 +1,5 @@
 import { RawClip } from "../baseTypes";
+import { findCropBaseClipId } from "../cropping";
 import { Branded } from "../types";
 import { atLeast, mutate } from "../utils";
 
@@ -88,8 +89,15 @@ export class Genealogy {
 
   private rawClipsById: Record<string, RawClip | undefined> = {};
 
+  private async loadClip(id: string) {
+    await atLeast(1000); //! (to avoid rate limiting)
+    const clip = await window.suno.root.clips.loadClipById(id);
+    this.rawClips.push(clip);
+    return clip;
+  };
+
   private async rawClipById(id: string) {
-    return this.rawClipsById[id] ??= this.rawClips.find(clip => clip.id === id) ?? await window.suno.root.clips.loadClipById(id);
+    return this.rawClipsById[id] ??= this.rawClips.find(clip => clip.id === id) ?? await this.loadClip(id);
   };
 
   private links: Link[] = [];
@@ -102,11 +110,13 @@ export class Genealogy {
         'history' in metadata 
           ? [ metadata.history[0].id, metadata.history[0].type ]
         : 'concat_history' in metadata
-          ? [ metadata.concat_history[1].id, 'concat' ]
+          ? [ metadata.concat_history[1].id, 'join' ]
         : 'cover_clip_id' in metadata
           ? [ metadata.cover_clip_id, 'cover' ]
         : 'upsample_clip_id' in metadata
           ? [ metadata.upsample_clip_id, 'remaster' ]
+        : 'type' in metadata && metadata.type === 'edit_crop'
+          ? [ await findCropBaseClipId(child, this.rawClips), 'crop' ]
         : [ undefined, undefined ];
       if (parentId) {
         this.links.push({

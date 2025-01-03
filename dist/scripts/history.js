@@ -2,7 +2,7 @@
 window.suno = this instanceof Window ? (() => {
   throw new Error("This function should be called at a specific breakpoint in the code. Please refer to the repository’s README for more information.");
 })() : this;
-        
+            
 (() => {
   // src/utils.ts
   function mutate(obj, partial) {
