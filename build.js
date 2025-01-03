@@ -22,10 +22,10 @@ fs.readdir(scriptsPath, (err, files) => {
   files.filter(file => file.endsWith('.ts')).forEach(
     async file => {
       try {
-        const outputFilePath = path.join(outputPath, file.replace('.ts', '.js'));
+        const outfile = path.join(outputPath, file.replace('.ts', '.js'));
         await esbuild.build({
           entryPoints: [path.join(scriptsPath, file)],
-          outfile: outputFilePath,
+          outfile,
           bundle: true,
           platform: 'browser',
           format: 'iife',
@@ -38,7 +38,7 @@ window.suno = this instanceof Window ? (() => {
             `,
           },
         });
-        fs.chmodSync(outputFilePath, '444');
+        fs.chmodSync(outfile, '444');
       } catch (err) {
         console.error('Build failed:', err);
         process.exit(1);
