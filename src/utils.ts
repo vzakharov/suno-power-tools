@@ -46,9 +46,9 @@ export async function areImagesEqual(url1: string, url2: string): Promise<boolea
   const len = data1.length;
   let diff = 0;
   for ( let i = 0; i < len; i += 4 ) {
-    diff += Math.abs(data1[i] - data2[i]);
-    diff += Math.abs(data1[i + 1] - data2[i + 1]);
-    diff += Math.abs(data1[i + 2] - data2[i + 2]);
+    for ( let j = 0; j < 3; j++ ) {
+      diff += Math.abs(data1[i + j] - data2[i + j]);
+    }
   };
   const avgDiff = diff / (len / 4);
   return avgDiff < 10;

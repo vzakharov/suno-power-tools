@@ -13,12 +13,15 @@ window.suno = this instanceof Window ? (() => {
   async function getHistory(id) {
     const result = [];
     while (true) {
-      const { metadata: { concat_history } } = await window.suno.root.clips.loadClipById(id);
-      if (!concat_history) {
+      const { metadata } = await window.suno.root.clips.loadClipById(id);
+      if (!("concat_history" in metadata)) {
         return result;
       }
       ;
-      const [{ id: baseId, type }, { id: modifierId }] = concat_history;
+      const { concat_history: [
+        { id: baseId, type },
+        { id: modifierId }
+      ] } = metadata;
       result.push({ id, baseId, modifierId, type });
       id = baseId;
     }
