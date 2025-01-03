@@ -1,20 +1,22 @@
-import { Clip } from "./baseTypes";
+import { RawClip } from "./baseTypes";
 
 export type SunoManager = {
   root: {
     clips: {
-      loadClipById(id: string): Promise<Clip>,
+      loadClipById(id: string): Promise<RawClip>,
     },
     apiClient: {
       GET(
         url: '/api/feed/v2',
-        params: { 
-          query: { 
-            is_liked?: true,
-            page: number,
-          }}
+        config: {
+          params: { 
+            query: { 
+              is_liked?: true,
+              page: number,
+            }}
+        }
       ): Promise<{ data: { 
-        clips: Clip[],
+        clips: RawClip[],
         current_page: number,
         num_total_results: number,
       } }>,

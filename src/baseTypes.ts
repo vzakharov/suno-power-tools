@@ -1,4 +1,4 @@
-export type Clip = {
+export type RawClip = {
   id: string,
   title: string,
   metadata: {
