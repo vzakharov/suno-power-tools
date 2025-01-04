@@ -1,9 +1,13 @@
+export type ISODateTimeString = `${number}-${number}-${number}T${number}:${number}:${number}.${number}Z`;
+
 export type RawClip = {
   id: string,
   title: string,
+  created_at: ISODateTimeString | null,
   audio_url: string,
   image_url: string,
   metadata: {
+    duration: number,
     tags: string,
   } & ClipHierarchyMetadata,
 };

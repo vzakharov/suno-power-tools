@@ -199,6 +199,50 @@ export class Genealogy {
       filter(this.linkedClips, { parent: undefined });
   };
 
+  private _html: string | undefined;
+
+  get html() {
+    return this._html ??=
+      this.rootClips.map(renderRootClip).join('')
+  };
+
+  openHtml() {
+    const win = window.open();
+    if ( !win ) {
+      console.error('Failed to open new window.');
+      return;
+    };
+    win.document.write(this.html);
+  };
+
+};
+
+function renderRootClip(clip: LinkedClip) {
+  return `<h2>${clipSpan(clip)}</h2>${renderChildren(clip)}`;
+};
+
+function renderChildren(clip: LinkedClip) {
+  return clip.children ? `<ul>${
+    clip.children.map(renderChild).join('')
+  }</ul>` : '';
+};
+
+function renderChild({ clip, kind }: MonoLink) {
+  return `<li> ${kind} -> ${clipSpan(clip)}${renderChildren(clip)}</li>`;
+};
+
+function clipSpan(clip: LinkedClip) {
+  return `<span><a href="https://suno.com/song/${
+    clip.id
+  }" target="_blank">${
+    clip.title
+  }</a><audio controls src="${
+    clip.audio_url
+  }"></audio><img src="${
+    clip.image_url
+  }" alt="${
+    clip.title
+  }" style="max-width: 64px; max-height: 64px;"></span>`;
 };
 
 const gen = new Genealogy();
@@ -213,9 +257,10 @@ export function missingClip(id: string): MissingClip {
     isMissing: true,
     id,
     title: '*Clip not found*',
+    created_at: null,
     audio_url: `https://cdn1.suno.ai/${id}.mp3`, //! (This is not guaranteed to work, but who can blame us for trying?)
     image_url: '',
-    metadata: { tags: '' },
+    metadata: { duration: 0, tags: '' },
   };
 }
 
