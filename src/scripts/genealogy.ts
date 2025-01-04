@@ -1,7 +1,7 @@
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
-import { Branded } from "../types";
-import { atLeast, mutate, uploadTextFile } from "../utils";
+import { find } from "../lodashish";
+import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
 
 export type MissingClip = RawClip & {
   isMissing: true,
@@ -9,7 +9,7 @@ export type MissingClip = RawClip & {
 
 export type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
 
-export type Link = [
+export type SerializedLink = [
   parentId: string,
   childId: string,
   kind: LinkKind,
@@ -17,15 +17,12 @@ export type Link = [
 
 export type MonoLink = {
   kind: LinkKind,
-  clip: RawClip,
+  clip: LinkedClip,
 };
 
-export type RootClip = RawClip & {
-  children?: Link[],
-};
-
-export type BranchClip = RootClip & {
-  parent: Link,
+export type LinkedClip = RawClip & {
+  children?: MonoLink[],
+  parent?: MonoLink,
 };
 
 export type GenealogyConfig = ConstructorParameters<typeof Genealogy>;
@@ -36,16 +33,19 @@ export class Genealogy {
     private rawClips: RawClip[] = [],
     private lastProcessedPage = -1,
     private allPagesProcessed = false,
-    private links: Link[] = [],
+    private links: SerializedLink[] = [],
     private allLinksBuilt = false,
   ) {}
 
   get config(): GenealogyConfig {
     return [ this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt ];
   };
-
-  reset(config: GenealogyConfig = []) {
+  set config(config: GenealogyConfig) {
     Object.assign(this, new Genealogy(...config));
+  };
+
+  reset() {
+    this.config = [];
     console.log('Genealogy reset. Run build() to start building it again.');
   };
 
@@ -55,8 +55,7 @@ export class Genealogy {
       console.log('No file selected, aborting.');
       return;
     };
-    const [ rawClips, lastProcessedPage, allPagesProcessed ] = JSON.parse(json);
-    this.reset([ rawClips, lastProcessedPage, allPagesProcessed ]);
+    this.config = JSON.parse(json);
   }
 
   saveState() {
@@ -114,7 +113,7 @@ export class Genealogy {
     return clip;
   };
 
-  private async rawClipById(id: string) {
+  private getClipByIdSync(id: string) {
     //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
     if ( id.startsWith('m_') )
       id = id.slice(2);
@@ -124,7 +123,11 @@ export class Genealogy {
         isV2AudioFilename(id)
           ? clip.audio_url.includes(id)
           : clip.id === id
-      ) ?? await this.loadClip(id);
+      );
+  };
+
+  private async getClipById(id: string) {
+    return this.getClipByIdSync(id) ?? await this.loadClip(id);
   };
 
   private async buildLinks() {
@@ -158,7 +161,7 @@ export class Genealogy {
         : [ undefined, undefined ];
       if (parentId) {
         this.links.push([
-          (await this.rawClipById(parentId)).id, //! (Because the actual clip ID might be different from the one in the history)
+          (await this.getClipById(parentId)).id, //! (Because the actual clip ID might be different from the one in the history)
           clip.id,
           kind,
         ]);
@@ -166,6 +169,21 @@ export class Genealogy {
     };
     this.allLinksBuilt = true;
     console.log(`Built ${this.links.length} links.`);
+  };
+
+  get linkedClips(): LinkedClip[] {
+    return this.links.reduce((linkedClips, [ parentId, childId, kind ]) => {
+      const parent = find(linkedClips, { id: parentId })
+        ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+      const child = find(linkedClips, { id: childId })
+        ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+      if ( child.parent ) {
+        throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
+      };
+      child.parent = { kind, clip: parent };
+      ( parent.children ??= [] ).push({ kind, clip: child });
+      return linkedClips;
+    }, jsonClone(this.rawClips) as LinkedClip[]);
   };
 
 };

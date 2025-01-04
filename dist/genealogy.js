@@ -5,6 +5,9 @@ window.suno = this instanceof Window ? (() => {
             
 (() => {
   // src/utils.ts
+  function jsonClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
   function mutate(obj, partial) {
     Object.assign(obj, partial);
   }
@@ -100,6 +103,11 @@ window.suno = this instanceof Window ? (() => {
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
   }
 
+  // src/lodashish.ts
+  function find(arr, filter) {
+    return arr.find((item) => Object.entries(filter).every(([key, value]) => item[key] === value));
+  }
+
   // src/scripts/genealogy.ts
   var Genealogy = class _Genealogy {
     constructor(rawClips = [], lastProcessedPage = -1, allPagesProcessed = false, links = [], allLinksBuilt = false) {
@@ -112,8 +120,11 @@ window.suno = this instanceof Window ? (() => {
     get config() {
       return [this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt];
     }
-    reset(config = []) {
+    set config(config) {
       Object.assign(this, new _Genealogy(...config));
+    }
+    reset() {
+      this.config = [];
       console.log("Genealogy reset. Run build() to start building it again.");
     }
     async loadState() {
@@ -123,8 +134,7 @@ window.suno = this instanceof Window ? (() => {
         return;
       }
       ;
-      const [rawClips, lastProcessedPage, allPagesProcessed] = JSON.parse(json);
-      this.reset([rawClips, lastProcessedPage, allPagesProcessed]);
+      this.config = JSON.parse(json);
     }
     saveState() {
       const json = JSON.stringify(this.config);
@@ -178,14 +188,17 @@ window.suno = this instanceof Window ? (() => {
       this.rawClips.push(clip);
       return clip;
     }
-    async rawClipById(id) {
+    getClipByIdSync(id) {
       //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
       if (id.startsWith("m_"))
         id = id.slice(2);
       //! For older (v2) generations, the referenced IDs are actually names of audio_url files, and they end with _\d+. So if the ID ends with _\d+, we need to find a clip with an audio_url including the ID.
       return this.rawClipsById[id] ??= this.rawClips.find(
         (clip) => isV2AudioFilename(id) ? clip.audio_url.includes(id) : clip.id === id
-      ) ?? await this.loadClip(id);
+      );
+    }
+    async getClipById(id) {
+      return this.getClipByIdSync(id) ?? await this.loadClip(id);
     }
     async buildLinks() {
       console.log("Building links...");
@@ -204,7 +217,7 @@ window.suno = this instanceof Window ? (() => {
         ) : [void 0, void 0];
         if (parentId) {
           this.links.push([
-            (await this.rawClipById(parentId)).id,
+            (await this.getClipById(parentId)).id,
             //! (Because the actual clip ID might be different from the one in the history)
             clip.id,
             kind
@@ -214,6 +227,19 @@ window.suno = this instanceof Window ? (() => {
       ;
       this.allLinksBuilt = true;
       console.log(`Built ${this.links.length} links.`);
+    }
+    get linkedClips() {
+      return this.links.reduce((linkedClips, [parentId, childId, kind]) => {
+        const parent = find(linkedClips, { id: parentId }) ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+        const child = find(linkedClips, { id: childId }) ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+        if (child.parent) {
+          throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
+        }
+        ;
+        child.parent = { kind, clip: parent };
+        (parent.children ??= []).push({ kind, clip: child });
+        return linkedClips;
+      }, jsonClone(this.rawClips));
     }
   };
   var gen = new Genealogy();

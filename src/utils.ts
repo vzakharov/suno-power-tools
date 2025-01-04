@@ -1,4 +1,6 @@
-import { SunoManager } from "./manager";
+export function jsonClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+};
 
 export function mutate<T extends {}, U extends {}>(obj: T, partial: U): asserts obj is T & U {
   Object.assign(obj, partial);
@@ -39,4 +41,4 @@ export async function uploadTextFile() {
       reader.readAsText(file);
     };
   });
-}
+};
