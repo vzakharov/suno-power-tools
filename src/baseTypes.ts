@@ -8,14 +8,24 @@ export type RawClip = {
   } & ClipHierarchyMetadata,
 };
 
-export type ClipHierarchyMetadata = (
+export type ClipHierarchyMetadata =
   // An extended/inpainted/etc. clip
   {
     history: [
       {
-        id: string;
-        type: string;
-      }
+        id: string,
+        type: string
+      } & (
+        {
+          infill: true,
+          infill_start_s: number,
+          infill_end_s: number
+        }
+        | {
+          infill: false,
+          continue_at: number
+        }
+      )
     ];
   }
   // Concatenation of said extended/inpainted/etc. clip
@@ -23,26 +33,26 @@ export type ClipHierarchyMetadata = (
     concat_history: [
       // First item is the original clip that is being extended/inpainted/etc.
       {
-        id: string;
-        type: string;
+        id: string,
+        type: string
       },
       // Second item is the clip that is extending/inpainting/etc. the original clip.
       {
-        id: string;
+        id: string
       }
     ];
   }
   // A cover clip
   | {
-    cover_clip_id: string;
+    cover_clip_id: string
   }
   // An upsampled (remastered) clip
   | {
-    upsample_clip_id: string;
+    upsample_clip_id: string
   }
   // Crop of a clip
   | {
-    type: 'edit_crop';
-  })
+    type: 'edit_crop'
+  }
   // Any other clip
   | {};

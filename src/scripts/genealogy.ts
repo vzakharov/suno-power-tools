@@ -7,13 +7,13 @@ export type MissingClip = RawClip & {
   isMissing: true,
 };
 
-export type LinkKind = string; //Branded<'RelationKind', string>;
+export type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
 
-export type Link = {
-  parent: RawClip,
-  child: RawClip,
+export type Link = [
+  parentId: string,
+  childId: string,
   kind: LinkKind,
-};
+];
 
 export type MonoLink = {
   kind: LinkKind,
@@ -131,29 +131,37 @@ export class Genealogy {
     console.log('Building links...');
     // for ( const child of this.rawClips ) {
     for ( let i = 0; i < this.rawClips.length; i++ ) {
-      const child = this.rawClips[i];
+      const clip = this.rawClips[i];
       if ( i % 100 === 0 ) {
         console.log(`Processed ${i} clips out of ${this.rawClips.length}`);
       };
-      const { metadata } = child;
-      const [ parentId, kind ] =
+      const { metadata } = clip;
+      const [ parentId, kind ]: [ id: string, kind: LinkKind ] | [ undefined, undefined ]=
         'history' in metadata 
-          ? [ metadata.history[0].id, metadata.history[0].type ]
+          ? [ 
+            metadata.history[0].id,
+            metadata.history[0].infill
+              ? 'inpaint'
+              : 'extend'
+          ]
         : 'concat_history' in metadata
-          ? [ metadata.concat_history[1].id, 'join' ]
+          ? [ metadata.concat_history[1].id, 'apply' ]
         : 'cover_clip_id' in metadata
           ? [ metadata.cover_clip_id, 'cover' ]
         : 'upsample_clip_id' in metadata
           ? [ metadata.upsample_clip_id, 'remaster' ]
         : 'type' in metadata && metadata.type === 'edit_crop'
-          ? [ await findCropBaseClipId(child, this.rawClips), 'crop' ]
+          // ? [ await findCropBaseClipId(clip, this.rawClips), 'crop' ]
+          ? await findCropBaseClipId(clip, this.rawClips).then(id => 
+            id ? [ id, 'crop' ] : [ undefined, undefined ]
+          )
         : [ undefined, undefined ];
       if (parentId) {
-        this.links.push({
-          parent: await this.rawClipById(parentId),
-          child,
+        this.links.push([
+          (await this.rawClipById(parentId)).id, //! (Because the actual clip ID might be different from the one in the history)
+          clip.id,
           kind,
-        });
+        ]);
       }
     };
     this.allLinksBuilt = true;

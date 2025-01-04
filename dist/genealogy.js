@@ -190,19 +190,25 @@ window.suno = this instanceof Window ? (() => {
     async buildLinks() {
       console.log("Building links...");
       for (let i = 0; i < this.rawClips.length; i++) {
-        const child = this.rawClips[i];
+        const clip = this.rawClips[i];
         if (i % 100 === 0) {
           console.log(`Processed ${i} clips out of ${this.rawClips.length}`);
         }
         ;
-        const { metadata } = child;
-        const [parentId, kind] = "history" in metadata ? [metadata.history[0].id, metadata.history[0].type] : "concat_history" in metadata ? [metadata.concat_history[1].id, "join"] : "cover_clip_id" in metadata ? [metadata.cover_clip_id, "cover"] : "upsample_clip_id" in metadata ? [metadata.upsample_clip_id, "remaster"] : "type" in metadata && metadata.type === "edit_crop" ? [await findCropBaseClipId(child, this.rawClips), "crop"] : [void 0, void 0];
+        const { metadata } = clip;
+        const [parentId, kind] = "history" in metadata ? [
+          metadata.history[0].id,
+          metadata.history[0].infill ? "inpaint" : "extend"
+        ] : "concat_history" in metadata ? [metadata.concat_history[1].id, "apply"] : "cover_clip_id" in metadata ? [metadata.cover_clip_id, "cover"] : "upsample_clip_id" in metadata ? [metadata.upsample_clip_id, "remaster"] : "type" in metadata && metadata.type === "edit_crop" ? await findCropBaseClipId(clip, this.rawClips).then(
+          (id) => id ? [id, "crop"] : [void 0, void 0]
+        ) : [void 0, void 0];
         if (parentId) {
-          this.links.push({
-            parent: await this.rawClipById(parentId),
-            child,
+          this.links.push([
+            (await this.rawClipById(parentId)).id,
+            //! (Because the actual clip ID might be different from the one in the history)
+            clip.id,
             kind
-          });
+          ]);
         }
       }
       ;
