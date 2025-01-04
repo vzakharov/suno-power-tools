@@ -1,6 +1,6 @@
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
-import { find } from "../lodashish";
+import { filter, find } from "../lodashish";
 import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
 
 export type MissingClip = RawClip & {
@@ -171,19 +171,32 @@ export class Genealogy {
     console.log(`Built ${this.links.length} links.`);
   };
 
-  get linkedClips(): LinkedClip[] {
-    return this.links.reduce((linkedClips, [ parentId, childId, kind ]) => {
-      const parent = find(linkedClips, { id: parentId })
-        ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
-      const child = find(linkedClips, { id: childId })
-        ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
-      if ( child.parent ) {
-        throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
-      };
-      child.parent = { kind, clip: parent };
-      ( parent.children ??= [] ).push({ kind, clip: child });
-      return linkedClips;
-    }, jsonClone(this.rawClips) as LinkedClip[]);
+  private _linkedClips: LinkedClip[] | undefined;
+
+  get linkedClips() {
+    return this._linkedClips ??=
+      this.links.reduce(
+        (linkedClips, [ parentId, childId, kind ]) => {
+          const parent = find(linkedClips, { id: parentId })
+            ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+          const child = find(linkedClips, { id: childId })
+            ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+          if ( child.parent ) {
+            throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
+          };
+          child.parent = { kind, clip: parent };
+          ( parent.children ??= [] ).push({ kind, clip: child });
+          return linkedClips;
+        }, 
+        jsonClone(this.rawClips) as LinkedClip[]
+      );
+  };
+
+  private _rootClips: LinkedClip[] | undefined;
+
+  get rootClips() {
+    return this._rootClips ??=
+      filter(this.linkedClips, { parent: undefined });
   };
 
 };

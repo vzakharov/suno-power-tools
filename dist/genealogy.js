@@ -104,8 +104,16 @@ window.suno = this instanceof Window ? (() => {
   }
 
   // src/lodashish.ts
-  function find(arr, filter) {
-    return arr.find((item) => Object.entries(filter).every(([key, value]) => item[key] === value));
+  function find(arr, filter2) {
+    return arr.find(createPredicate(filter2));
+  }
+  function filter(arr, filter2) {
+    return arr.filter(createPredicate(filter2));
+  }
+  function createPredicate(filter2) {
+    return function(item) {
+      return Object.entries(filter2).every(([key, value]) => item[key] === value);
+    };
   }
 
   // src/scripts/genealogy.ts
@@ -228,18 +236,26 @@ window.suno = this instanceof Window ? (() => {
       this.allLinksBuilt = true;
       console.log(`Built ${this.links.length} links.`);
     }
+    _linkedClips;
     get linkedClips() {
-      return this.links.reduce((linkedClips, [parentId, childId, kind]) => {
-        const parent = find(linkedClips, { id: parentId }) ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
-        const child = find(linkedClips, { id: childId }) ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
-        if (child.parent) {
-          throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
-        }
-        ;
-        child.parent = { kind, clip: parent };
-        (parent.children ??= []).push({ kind, clip: child });
-        return linkedClips;
-      }, jsonClone(this.rawClips));
+      return this._linkedClips ??= this.links.reduce(
+        (linkedClips, [parentId, childId, kind]) => {
+          const parent = find(linkedClips, { id: parentId }) ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+          const child = find(linkedClips, { id: childId }) ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+          if (child.parent) {
+            throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
+          }
+          ;
+          child.parent = { kind, clip: parent };
+          (parent.children ??= []).push({ kind, clip: child });
+          return linkedClips;
+        },
+        jsonClone(this.rawClips)
+      );
+    }
+    _rootClips;
+    get rootClips() {
+      return this._rootClips ??= filter(this.linkedClips, { parent: void 0 });
     }
   };
   var gen = new Genealogy();
