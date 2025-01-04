@@ -51,16 +51,21 @@ window.suno = this instanceof Window ? (() => {
   //! This last part is especially tricky because Suno stores the images as URLs, and the URLs are different for the same image. Moreover, even the images themselves are different because they are compressed at different times, and as JPEG is a lossy format, the images are not pixel-perfect.
   //! (Imagine all the pains we have to go through just because someone (Suno team, I'm looking at you) didn't think it was important to keep the data about the original clip when cropping it!)
   async function findCropBaseClipId(croppedClip, clips) {
-    return clips.slice(clips.findIndex((clip) => clip.id === croppedClip.id)).find((clip) => {
-      return clip.metadata.tags === croppedClip.metadata.tags && areImagesEqual(clip.image_url, croppedClip.image_url);
+    return clips.slice(clips.findIndex((clip) => clip.id === croppedClip.id) + 1).find((clip) => {
+      return clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && areImagesEqual(clip.image_url, croppedClip.image_url);
     })?.id;
   }
   async function loadImage(url) {
+    const response = await fetch(url);
+    const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => resolve(img);
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        resolve(img);
+      };
       img.onerror = reject;
-      img.src = url;
+      img.src = URL.createObjectURL(blob);
     });
   }
   async function areImagesEqual(url1, url2) {
@@ -85,7 +90,10 @@ window.suno = this instanceof Window ? (() => {
     }
     ;
     const avgDiff = diff / (len / 4);
-    return avgDiff < 10;
+    console.log({ url1, url2, avgDiff });
+    canvas.remove();
+    return avgDiff < 32;
+    //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
   }
 
   // src/scripts/genealogy.ts
@@ -99,7 +107,7 @@ window.suno = this instanceof Window ? (() => {
       Object.assign(this, new _Genealogy(...config));
       console.log("Genealogy reset. Run build() to start building it again.");
     }
-    async upload() {
+    async loadState() {
       const json = await uploadTextFile();
       if (!json) {
         console.log("No file selected, aborting.");
@@ -109,7 +117,7 @@ window.suno = this instanceof Window ? (() => {
       const [rawClips, lastProcessedPage, allPagesProcessed] = JSON.parse(json);
       this.reset([rawClips, lastProcessedPage, allPagesProcessed]);
     }
-    download() {
+    saveState() {
       const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -178,6 +186,6 @@ window.suno = this instanceof Window ? (() => {
       console.log(`Built ${this.links.length} links.`);
     }
   };
-  var genealogy = new Genealogy();
-  mutate(window, { genealogy });
+  var gen = new Genealogy();
+  mutate(window, { spt: { gen } });
 })();

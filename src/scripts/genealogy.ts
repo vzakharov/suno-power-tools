@@ -44,7 +44,7 @@ export class Genealogy {
     console.log('Genealogy reset. Run build() to start building it again.');
   };
 
-  async upload() {
+  async loadState() {
     const json = await uploadTextFile();
     if ( !json ) {
       console.log('No file selected, aborting.');
@@ -54,7 +54,7 @@ export class Genealogy {
     this.reset([ rawClips, lastProcessedPage, allPagesProcessed ]);
   }
 
-  download() {
+  saveState() {
     const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -141,6 +141,6 @@ export class Genealogy {
 
 };
 
-const genealogy = new Genealogy();
+const gen = new Genealogy();
 
-mutate(window, { genealogy });
+mutate(window, { spt: { gen }});
