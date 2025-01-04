@@ -161,15 +161,18 @@ window.suno = this instanceof Window ? (() => {
     async loadClip(id) {
       await atLeast(1e3);
       //! (to avoid rate limiting)
-      const clip = await window.suno.root.clips.loadClipById(id);
+      const clip = await window.suno.root.clips.loadClipById(id).catch(() => missingClip(id));
       this.rawClips.push(clip);
       return clip;
     }
     async rawClipById(id) {
+      //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
       if (id.startsWith("m_"))
         id = id.slice(2);
-      //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
-      return this.rawClipsById[id] ??= this.rawClips.find((clip) => clip.id === id) ?? await this.loadClip(id);
+      //! For older (v2) generations, the referenced IDs are actually names of audio_url files, and they end with _\d+. So if the ID ends with _\d+, we need to find a clip with an audio_url including the ID.
+      return this.rawClipsById[id] ??= this.rawClips.find(
+        (clip) => isV2AudioFilename(id) ? clip.audio_url.includes(id) : clip.id === id
+      ) ?? await this.loadClip(id);
     }
     links = [];
     async buildLinks() {
@@ -190,5 +193,19 @@ window.suno = this instanceof Window ? (() => {
     }
   };
   var gen = new Genealogy();
+  function isV2AudioFilename(id) {
+    return id.match(/_\d+$/);
+  }
+  function missingClip(id) {
+    return {
+      is_missing: true,
+      id,
+      title: "*Clip not found*",
+      audio_url: isV2AudioFilename(id) ? `https://cdn1.suno.ai/${id}.mp3` : "",
+      //! (This is not guaranteed to work, but who can blame us for trying?)
+      image_url: "",
+      metadata: { tags: "" }
+    };
+  }
   mutate(window, { spt: { gen } });
 })();

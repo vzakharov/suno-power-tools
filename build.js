@@ -8,9 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const scriptsPath = path.join(__dirname, 'src', 'scripts');
-const outputPath = path.join(__dirname, 'dist', 'scripts');
+const outputPath = path.join(__dirname, 'dist');
 
-fs.rmdirSync(outputPath, { recursive: true });
+fs.rmSync(outputPath, { recursive: true, force: true });
 fs.mkdirSync(outputPath);
 
 fs.readdir(scriptsPath, (err, files) => {

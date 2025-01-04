@@ -1,4 +1,4 @@
-import { RawClip } from "../baseTypes";
+import { MissingClip, RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { Branded } from "../types";
 import { atLeast, mutate, uploadTextFile } from "../utils";
@@ -15,11 +15,6 @@ export type MonoLink = {
   kind: LinkKind,
   clip: RawClip,
 };
-
-// export type LinkedClip = Clip & {
-//   parent?: MonoLink,
-//   children?: MonoLink[],
-// };
 
 export type RootClip = RawClip & {
   children?: Link[],
@@ -101,15 +96,22 @@ export class Genealogy {
 
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
-    const clip = await window.suno.root.clips.loadClipById(id);
+    const clip = await window.suno.root.clips.loadClipById(id).catch(() => missingClip(id));
     this.rawClips.push(clip);
     return clip;
   };
 
   private async rawClipById(id: string) {
+    //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
     if ( id.startsWith('m_') )
-      id = id.slice(2); //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
-    return this.rawClipsById[id] ??= this.rawClips.find(clip => clip.id === id) ?? await this.loadClip(id);
+      id = id.slice(2);
+    //! For older (v2) generations, the referenced IDs are actually names of audio_url files, and they end with _\d+. So if the ID ends with _\d+, we need to find a clip with an audio_url including the ID.
+    return this.rawClipsById[id] ??= 
+      this.rawClips.find((clip) =>
+        isV2AudioFilename(id)
+          ? clip.audio_url.includes(id)
+          : clip.id === id
+      ) ?? await this.loadClip(id);
   };
 
   private links: Link[] = [];
@@ -144,5 +146,20 @@ export class Genealogy {
 };
 
 const gen = new Genealogy();
+
+function isV2AudioFilename(id: string) {
+  return id.match(/_\d+$/);
+}
+
+export function missingClip(id: string): MissingClip {
+  return {
+    is_missing: true,
+    id,
+    title: '*Clip not found*',
+    audio_url: isV2AudioFilename(id) ? `https://cdn1.suno.ai/${id}.mp3` : '', //! (This is not guaranteed to work, but who can blame us for trying?)
+    image_url: '',
+    metadata: { tags: '' },
+  };
+}
 
 mutate(window, { spt: { gen }});
