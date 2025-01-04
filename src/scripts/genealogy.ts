@@ -107,6 +107,8 @@ export class Genealogy {
   };
 
   private async rawClipById(id: string) {
+    if ( id.startsWith('m_') )
+      id = id.slice(2); //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
     return this.rawClipsById[id] ??= this.rawClips.find(clip => clip.id === id) ?? await this.loadClip(id);
   };
 
