@@ -202,8 +202,10 @@ export class Genealogy {
   private _html: string | undefined;
 
   get html() {
-    return this._html ??=
+    return this._html ??= (
+      `<style>${css}</style>` +
       this.rootClips.map(renderRootClip).join('')
+    )
   };
 
   openHtml() {
@@ -218,32 +220,101 @@ export class Genealogy {
 };
 
 function renderRootClip(clip: LinkedClip) {
-  return `<h2>${clipSpan(clip)}</h2>${renderChildren(clip)}`;
+  return `<h2>${clipDiv(clip)}</h2>${renderChildren(clip, false)}`;
 };
 
-function renderChildren(clip: LinkedClip) {
-  return clip.children ? `<ul>${
-    clip.children.map(renderChild).join('')
+function renderChildren(clip: LinkedClip, odd: boolean) {
+  return clip.children ? `<ul${
+    odd ? ' class="odd"' : ''
+  }>${
+    clip.children.map(child => renderChild(child, odd)).join('')
   }</ul>` : '';
 };
 
-function renderChild({ clip, kind }: MonoLink) {
-  return `<li> ${kind} -> ${clipSpan(clip)}${renderChildren(clip)}</li>`;
+function renderChild({ clip, kind }: MonoLink, oddParent: boolean) {
+  return `<li${
+    oddParent ? ' class="odd-parent"' : ''
+  }> ${kind} -> ${clipDiv(clip)}${renderChildren(clip, !oddParent)}</li>`;
 };
 
-function clipSpan(clip: LinkedClip) {
-  return `<span><a href="https://suno.com/song/${
-    clip.id
-  }" target="_blank">${
-    clip.title
-  }</a><audio controls src="${
-    clip.audio_url
-  }"></audio><img src="${
-    clip.image_url
-  }" alt="${
-    clip.title
-  }" style="max-width: 64px; max-height: 64px;"></span>`;
+function clipDiv(clip: LinkedClip) {
+  return (
+`<div class="clip">
+  <a href="https://suno.com/song/${clip.id}" target="_blank">${clip.title}</a>
+  <div class="metadata">
+    <span>${clip.metadata.tags}</span>
+    <span>${clip.metadata.duration}</span>
+    <span>${clip.created_at}</span>
+  </div>
+  <div class="media">
+    <img src="${clip.image_url}"></img>
+    <audio controls src="${clip.audio_url}"></audio>
+  </div>
+</div>`);
 };
+
+const css = `
+/* Small, unobtrusive body font */
+body {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+/* Slightly larger, more prominent header font */
+h2 {
+  font-size: 18px;
+}
+
+/* Clip container: prominent first line, gray metadata, media preview, rounded corners */
+.clip {
+  display: flex;
+  flex-direction: column;
+  margin: 8px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+  
+.metadata {
+  display: flex;
+  justify-content: space-between;
+  color: #888;
+  font-size: 12px;
+}
+
+.media {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.media img {
+  max-width: 64px;
+  max-height: 64px;
+}
+
+/* Lists: alternating between white and light/gray background and row/column flex layout */
+ul {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+ul.odd {
+  background-color: #f8f8f8;
+  flex-direction: row;
+}
+
+li {
+  padding: 8px;
+  background-color: #f8f8f8;
+}
+
+li.odd-parent {
+  background-color: #fff;
+}
+`;
 
 const gen = new Genealogy();
 

@@ -259,7 +259,7 @@ window.suno = this instanceof Window ? (() => {
     }
     _html;
     get html() {
-      return this._html ??= this.rootClips.map(renderRootClip).join("");
+      return this._html ??= `<style>${css}</style>` + this.rootClips.map(renderRootClip).join("");
     }
     openHtml() {
       const win = window.open();
@@ -272,17 +272,90 @@ window.suno = this instanceof Window ? (() => {
     }
   };
   function renderRootClip(clip) {
-    return `<h2>${clipSpan(clip)}</h2>${renderChildren(clip)}`;
+    return `<h2>${clipDiv(clip)}</h2>${renderChildren(clip, false)}`;
   }
-  function renderChildren(clip) {
-    return clip.children ? `<ul>${clip.children.map(renderChild).join("")}</ul>` : "";
+  function renderChildren(clip, odd) {
+    return clip.children ? `<ul${odd ? ' class="odd"' : ""}>${clip.children.map((child) => renderChild(child, odd)).join("")}</ul>` : "";
   }
-  function renderChild({ clip, kind }) {
-    return `<li> ${kind} -> ${clipSpan(clip)}${renderChildren(clip)}</li>`;
+  function renderChild({ clip, kind }, oddParent) {
+    return `<li${oddParent ? ' class="odd-parent"' : ""}> ${kind} -> ${clipDiv(clip)}${renderChildren(clip, !oddParent)}</li>`;
   }
-  function clipSpan(clip) {
-    return `<span><a href="https://suno.com/song/${clip.id}" target="_blank">${clip.title}</a><audio controls src="${clip.audio_url}"></audio><img src="${clip.image_url}" alt="${clip.title}" style="max-width: 64px; max-height: 64px;"></span>`;
+  function clipDiv(clip) {
+    return `<div class="clip">
+  <a href="https://suno.com/song/${clip.id}" target="_blank">${clip.title}</a>
+  <div class="metadata">
+    <span>${clip.metadata.tags}</span>
+    <span>${clip.metadata.duration}</span>
+    <span>${clip.created_at}</span>
+  </div>
+  <div class="media">
+    <img src="${clip.image_url}"></img>
+    <audio controls src="${clip.audio_url}"></audio>
+  </div>
+</div>`;
   }
+  var css = `
+/* Small, unobtrusive body font */
+body {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+/* Slightly larger, more prominent header font */
+h2 {
+  font-size: 18px;
+}
+
+/* Clip container: prominent first line, gray metadata, media preview, rounded corners */
+.clip {
+  display: flex;
+  flex-direction: column;
+  margin: 8px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+  
+.metadata {
+  display: flex;
+  justify-content: space-between;
+  color: #888;
+  font-size: 12px;
+}
+
+.media {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.media img {
+  max-width: 64px;
+  max-height: 64px;
+}
+
+/* Lists: alternating between white and light/gray background and row/column flex layout */
+ul {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+ul.odd {
+  background-color: #f8f8f8;
+  flex-direction: row;
+}
+
+li {
+  padding: 8px;
+  background-color: #f8f8f8;
+}
+
+li.odd-parent {
+  background-color: #fff;
+}
+`;
   var gen = new Genealogy();
   function isV2AudioFilename(id) {
     return id.match(/_\d+$/);
