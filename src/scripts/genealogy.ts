@@ -40,6 +40,10 @@ export class Genealogy {
     private allLinksBuilt = false,
   ) {}
 
+  get config(): GenealogyConfig {
+    return [ this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt ];
+  };
+
   reset(config: GenealogyConfig = []) {
     Object.assign(this, new Genealogy(...config));
     console.log('Genealogy reset. Run build() to start building it again.');
@@ -56,7 +60,7 @@ export class Genealogy {
   }
 
   saveState() {
-    const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);
+    const json = JSON.stringify(this.config);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

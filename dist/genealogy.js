@@ -109,6 +109,9 @@ window.suno = this instanceof Window ? (() => {
       this.links = links;
       this.allLinksBuilt = allLinksBuilt;
     }
+    get config() {
+      return [this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt];
+    }
     reset(config = []) {
       Object.assign(this, new _Genealogy(...config));
       console.log("Genealogy reset. Run build() to start building it again.");
@@ -124,7 +127,7 @@ window.suno = this instanceof Window ? (() => {
       this.reset([rawClips, lastProcessedPage, allPagesProcessed]);
     }
     saveState() {
-      const json = JSON.stringify([this.rawClips, this.lastProcessedPage, this.allPagesProcessed]);
+      const json = JSON.stringify(this.config);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
