@@ -1,5 +1,4 @@
 export type RawClip = {
-  is_missing?: boolean,
   id: string,
   title: string,
   audio_url: string,
@@ -7,10 +6,6 @@ export type RawClip = {
   metadata: {
     tags: string,
   } & ClipHierarchyMetadata,
-};
-
-export type MissingClip = RawClip & {
-  is_missing: true,
 };
 
 export type ClipHierarchyMetadata = (

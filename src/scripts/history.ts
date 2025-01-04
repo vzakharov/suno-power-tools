@@ -1,4 +1,4 @@
-import { mutate } from "../utils";
+import { $throw, mutate } from "../utils";
 
 export type HistoryItem = {
   id: string,
@@ -10,7 +10,7 @@ export type HistoryItem = {
 export async function getHistory(id: string) {
   const result: HistoryItem[] = [];
   while ( true ) {
-    const { metadata } = await window.suno.root.clips.loadClipById(id);
+    const { metadata } = await window.suno.root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
     if (!( 'concat_history' in metadata )) {
       return result;
     };

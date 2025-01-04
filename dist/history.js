@@ -8,12 +8,15 @@ window.suno = this instanceof Window ? (() => {
   function mutate(obj, partial) {
     Object.assign(obj, partial);
   }
+  function $throw(message) {
+    throw new Error(message);
+  }
 
   // src/scripts/history.ts
   async function getHistory(id) {
     const result = [];
     while (true) {
-      const { metadata } = await window.suno.root.clips.loadClipById(id);
+      const { metadata } = await window.suno.root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
       if (!("concat_history" in metadata)) {
         return result;
       }

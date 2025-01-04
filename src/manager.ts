@@ -3,7 +3,7 @@ import { RawClip } from "./baseTypes";
 export type SunoManager = {
   root: {
     clips: {
-      loadClipById(id: string): Promise<RawClip>,
+      loadClipById(id: string): Promise<RawClip | undefined>,
     },
     apiClient: {
       GET(

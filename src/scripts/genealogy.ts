@@ -1,7 +1,11 @@
-import { MissingClip, RawClip } from "../baseTypes";
+import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { Branded } from "../types";
 import { atLeast, mutate, uploadTextFile } from "../utils";
+
+export type MissingClip = RawClip & {
+  isMissing: true,
+};
 
 export type LinkKind = string; //Branded<'RelationKind', string>;
 
@@ -32,6 +36,8 @@ export class Genealogy {
     private rawClips: RawClip[] = [],
     private lastProcessedPage = -1,
     private allPagesProcessed = false,
+    private links: Link[] = [],
+    private allLinksBuilt = false,
   ) {}
 
   reset(config: GenealogyConfig = []) {
@@ -66,7 +72,9 @@ export class Genealogy {
       await this.fetchClips();
     };
 
-    await this.buildLinks();
+    if ( !this.allLinksBuilt ) {
+      await this.buildLinks();
+    };
 
   }
 
@@ -96,7 +104,8 @@ export class Genealogy {
 
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
-    const clip = await window.suno.root.clips.loadClipById(id).catch(() => missingClip(id));
+    console.log(`Clip ${id} not found in cache, loading...`);
+    const clip = await window.suno.root.clips.loadClipById(id) ?? missingClip(id);
     this.rawClips.push(clip);
     return clip;
   };
@@ -114,11 +123,14 @@ export class Genealogy {
       ) ?? await this.loadClip(id);
   };
 
-  private links: Link[] = [];
-
   private async buildLinks() {
     console.log('Building links...');
-    for (const child of this.rawClips) {
+    // for ( const child of this.rawClips ) {
+    for ( let i = 0; i < this.rawClips.length; i++ ) {
+      const child = this.rawClips[i];
+      if ( i % 100 === 0 ) {
+        console.log(`Processed ${i} clips out of ${this.rawClips.length}`);
+      };
       const { metadata } = child;
       const [ parentId, kind ] =
         'history' in metadata 
@@ -140,6 +152,7 @@ export class Genealogy {
         });
       }
     };
+    this.allLinksBuilt = true;
     console.log(`Built ${this.links.length} links.`);
   };
 
@@ -152,11 +165,12 @@ function isV2AudioFilename(id: string) {
 }
 
 export function missingClip(id: string): MissingClip {
+  console.warn(`Clip ${id} not found, creating a missing clip.`);
   return {
-    is_missing: true,
+    isMissing: true,
     id,
     title: '*Clip not found*',
-    audio_url: isV2AudioFilename(id) ? `https://cdn1.suno.ai/${id}.mp3` : '', //! (This is not guaranteed to work, but who can blame us for trying?)
+    audio_url: `https://cdn1.suno.ai/${id}.mp3`, //! (This is not guaranteed to work, but who can blame us for trying?)
     image_url: '',
     metadata: { tags: '' },
   };

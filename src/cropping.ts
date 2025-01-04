@@ -8,10 +8,17 @@ import { $throw } from "./utils";
 //! - Has the same image as the cropped clip
 //! This last part is especially tricky because Suno stores the images as URLs, and the URLs are different for the same image. Moreover, even the images themselves are different because they are compressed at different times, and as JPEG is a lossy format, the images are not pixel-perfect.
 //! (Imagine all the pains we have to go through just because someone (Suno team, I'm looking at you) didn't think it was important to keep the data about the original clip when cropping it!)
-export async function findCropBaseClipId(croppedClip: RawClip, clips: RawClip[]): Promise<string | undefined> {
-  return clips.slice(clips.findIndex(clip => clip.id === croppedClip.id) + 1).find(clip => {
-    return clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && areImagesEqual(clip.image_url, croppedClip.image_url);
-  })?.id;
+export async function findCropBaseClipId(croppedClip: RawClip, clips: RawClip[]) {
+  // return clips.slice(clips.findIndex(clip => clip.id === croppedClip.id) + 1).find(clip => {
+  //   return clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && areImagesEqual(clip.image_url, croppedClip.image_url);
+  // })?.id;
+  for ( let clip of clips.slice(clips.findIndex(clip => clip.id === croppedClip.id) + 1) ) {
+    if ( clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && await areImagesEqual(clip.image_url, croppedClip.image_url) ) {
+      console.warn(`Found potential base clip for cropped clip ${croppedClip.id}: ${clip.id} (this is not guaranteed to be correct)`);
+      return clip.id;
+    };
+  }
+  console.warn(`Could not find a base clip for cropped clip ${croppedClip.id}, the clip will be mistakenly marked as a root clip.`);
 };
 
 export async function loadImage(url: string) {
@@ -50,7 +57,6 @@ export async function areImagesEqual(url1: string, url2: string): Promise<boolea
     }
   };
   const avgDiff = diff / (len / 4);
-  console.log({ url1, url2, avgDiff });
   canvas.remove();
   return avgDiff < 32;
   //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)

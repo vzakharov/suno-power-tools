@@ -51,9 +51,14 @@ window.suno = this instanceof Window ? (() => {
   //! This last part is especially tricky because Suno stores the images as URLs, and the URLs are different for the same image. Moreover, even the images themselves are different because they are compressed at different times, and as JPEG is a lossy format, the images are not pixel-perfect.
   //! (Imagine all the pains we have to go through just because someone (Suno team, I'm looking at you) didn't think it was important to keep the data about the original clip when cropping it!)
   async function findCropBaseClipId(croppedClip, clips) {
-    return clips.slice(clips.findIndex((clip) => clip.id === croppedClip.id) + 1).find((clip) => {
-      return clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && areImagesEqual(clip.image_url, croppedClip.image_url);
-    })?.id;
+    for (let clip of clips.slice(clips.findIndex((clip2) => clip2.id === croppedClip.id) + 1)) {
+      if (clip !== croppedClip && clip.metadata.tags === croppedClip.metadata.tags && await areImagesEqual(clip.image_url, croppedClip.image_url)) {
+        console.warn(`Found potential base clip for cropped clip ${croppedClip.id}: ${clip.id} (this is not guaranteed to be correct)`);
+        return clip.id;
+      }
+      ;
+    }
+    console.warn(`Could not find a base clip for cropped clip ${croppedClip.id}, the clip will be mistakenly marked as a root clip.`);
   }
   async function loadImage(url) {
     const response = await fetch(url);
@@ -90,7 +95,6 @@ window.suno = this instanceof Window ? (() => {
     }
     ;
     const avgDiff = diff / (len / 4);
-    console.log({ url1, url2, avgDiff });
     canvas.remove();
     return avgDiff < 32;
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
@@ -98,10 +102,12 @@ window.suno = this instanceof Window ? (() => {
 
   // src/scripts/genealogy.ts
   var Genealogy = class _Genealogy {
-    constructor(rawClips = [], lastProcessedPage = -1, allPagesProcessed = false) {
+    constructor(rawClips = [], lastProcessedPage = -1, allPagesProcessed = false, links = [], allLinksBuilt = false) {
       this.rawClips = rawClips;
       this.lastProcessedPage = lastProcessedPage;
       this.allPagesProcessed = allPagesProcessed;
+      this.links = links;
+      this.allLinksBuilt = allLinksBuilt;
     }
     reset(config = []) {
       Object.assign(this, new _Genealogy(...config));
@@ -132,7 +138,10 @@ window.suno = this instanceof Window ? (() => {
         await this.fetchClips();
       }
       ;
-      await this.buildLinks();
+      if (!this.allLinksBuilt) {
+        await this.buildLinks();
+      }
+      ;
     }
     async fetchClips() {
       console.log("Fetching liked clips...");
@@ -161,7 +170,8 @@ window.suno = this instanceof Window ? (() => {
     async loadClip(id) {
       await atLeast(1e3);
       //! (to avoid rate limiting)
-      const clip = await window.suno.root.clips.loadClipById(id).catch(() => missingClip(id));
+      console.log(`Clip ${id} not found in cache, loading...`);
+      const clip = await window.suno.root.clips.loadClipById(id) ?? missingClip(id);
       this.rawClips.push(clip);
       return clip;
     }
@@ -174,10 +184,14 @@ window.suno = this instanceof Window ? (() => {
         (clip) => isV2AudioFilename(id) ? clip.audio_url.includes(id) : clip.id === id
       ) ?? await this.loadClip(id);
     }
-    links = [];
     async buildLinks() {
       console.log("Building links...");
-      for (const child of this.rawClips) {
+      for (let i = 0; i < this.rawClips.length; i++) {
+        const child = this.rawClips[i];
+        if (i % 100 === 0) {
+          console.log(`Processed ${i} clips out of ${this.rawClips.length}`);
+        }
+        ;
         const { metadata } = child;
         const [parentId, kind] = "history" in metadata ? [metadata.history[0].id, metadata.history[0].type] : "concat_history" in metadata ? [metadata.concat_history[1].id, "join"] : "cover_clip_id" in metadata ? [metadata.cover_clip_id, "cover"] : "upsample_clip_id" in metadata ? [metadata.upsample_clip_id, "remaster"] : "type" in metadata && metadata.type === "edit_crop" ? [await findCropBaseClipId(child, this.rawClips), "crop"] : [void 0, void 0];
         if (parentId) {
@@ -189,6 +203,7 @@ window.suno = this instanceof Window ? (() => {
         }
       }
       ;
+      this.allLinksBuilt = true;
       console.log(`Built ${this.links.length} links.`);
     }
   };
@@ -197,11 +212,12 @@ window.suno = this instanceof Window ? (() => {
     return id.match(/_\d+$/);
   }
   function missingClip(id) {
+    console.warn(`Clip ${id} not found, creating a missing clip.`);
     return {
-      is_missing: true,
+      isMissing: true,
       id,
       title: "*Clip not found*",
-      audio_url: isV2AudioFilename(id) ? `https://cdn1.suno.ai/${id}.mp3` : "",
+      audio_url: `https://cdn1.suno.ai/${id}.mp3`,
       //! (This is not guaranteed to work, but who can blame us for trying?)
       image_url: "",
       metadata: { tags: "" }

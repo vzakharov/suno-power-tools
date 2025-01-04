@@ -55,7 +55,6 @@ window.suno = this instanceof Window ? (() => {
     }
     ;
     const avgDiff = diff / (len / 4);
-    console.log({ url1, url2, avgDiff });
     canvas.remove();
     return avgDiff < 32;
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
