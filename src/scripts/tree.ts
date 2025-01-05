@@ -2,8 +2,9 @@ import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { suno } from "../manager";
-import { Template } from "../templating";
-import { $throw, atLeast, isoStringToTimestamp, jsonClone, mutate, uploadTextFile } from "../utils";
+import { renderTemplate, Template } from "../templating";
+import { $throw, atLeast, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
+import { type GraphData }  from 'force-graph';
 
 declare global {
   interface Window {
@@ -205,8 +206,36 @@ class Tree {
   private _rootClips: LinkedClip[] | undefined;
 
   get rootClips() {
-    return this._rootClips ??=
-      filter(this.linkedClips, { parent: undefined });
+    return this._rootClips ??= this.getRootClips();
+  };
+
+  private getRootClips() {
+    const rootClips = this.linkedClips.filter(({ parent }) => !parent);
+    return sortByDate(rootClips);
+  };
+
+  get sortedClips() {
+    /*!
+    - Start with the oldest root clip.
+    - If the current clip has children, recurse for each child.
+    */
+    const orderedClips: LinkedClip[] = [];
+    const { rootClips } = this;
+    for ( const rootClip of rootClips ) {
+      processClip(rootClip);
+    };
+    return orderedClips;
+
+    function processClip(clip: LinkedClip) {
+      orderedClips.push(clip);
+      const { children } = clip;
+      if ( children ) {
+        for ( const { clip } of sortByDate(children, ({ clip }) => clip.created_at) ) {
+          processClip(clip);
+        };
+      };
+    };
+
   };
 
   private _rootLinks: SerializedLink<'next'>[] | undefined;
@@ -226,13 +255,27 @@ class Tree {
     return rootLinks;
   };
 
+  private _graphData: GraphData | undefined;
+
+  get graphData() {
+    return this._graphData ??= this.getGraphData();
+  };
+
+  private getGraphData() {
+    const result: GraphData = {
+      nodes: this.sortedClips.map(({ id, title: name }) => ({ id, name })),
+      links: [
+        // ...this.rootLinks,
+        ...this.links,
+      ].map(([ source, target, kind ]) => ({ source, target, kind })),
+    };
+    return result;
+  };
+
   private _html: string | undefined;
 
   get html() {
-    return this._html ??= (
-      `<style>${css}</style>` +
-      this.rootClips.map(renderRootClip).join('')
-    )
+    return this._html ??= renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
   };
 
   openHtml() {
@@ -245,103 +288,6 @@ class Tree {
   };
 
 };
-
-function renderRootClip(clip: LinkedClip) {
-  return `<h2>${clipDiv(clip)}</h2>${renderChildren(clip, false)}`;
-};
-
-function renderChildren(clip: LinkedClip, odd: boolean) {
-  return clip.children ? `<ul${
-    odd ? ' class="odd"' : ''
-  }>${
-    clip.children.map(child => renderChild(child, odd)).join('')
-  }</ul>` : '';
-};
-
-function renderChild({ clip, kind }: MonoLink, oddParent: boolean) {
-  return `<li${
-    oddParent ? ' class="odd-parent"' : ''
-  }> ${kind} -> ${clipDiv(clip)}${renderChildren(clip, !oddParent)}</li>`;
-};
-
-function clipDiv(clip: LinkedClip) {
-  return (
-`<div class="clip">
-  <a href="https://suno.com/song/${clip.id}" target="_blank">${clip.title}</a>
-  <div class="metadata">
-    <span>${clip.metadata.tags}</span>
-    <span>${clip.metadata.duration}</span>
-    <span>${clip.created_at}</span>
-  </div>
-  <div class="media">
-    <img src="${clip.image_url}"></img>
-    <audio controls src="${clip.audio_url}"></audio>
-  </div>
-</div>`);
-};
-
-const css = `
-/* Small, unobtrusive body font */
-body {
-  font-family: sans-serif;
-  font-size: 14px;
-}
-
-/* Slightly larger, more prominent header font */
-h2 {
-  font-size: 18px;
-}
-
-/* Clip container: prominent first line, gray metadata, media preview, rounded corners */
-.clip {
-  display: flex;
-  flex-direction: column;
-  margin: 8px;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-}
-  
-.metadata {
-  display: flex;
-  justify-content: space-between;
-  color: #888;
-  font-size: 12px;
-}
-
-.media {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.media img {
-  max-width: 64px;
-  max-height: 64px;
-}
-
-/* Lists: alternating between white and light/gray background and row/column flex layout */
-ul {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  list-style: none;
-}
-
-ul.odd {
-  background-color: #f8f8f8;
-  flex-direction: row;
-}
-
-li {
-  padding: 8px;
-  background-color: #f8f8f8;
-}
-
-li.odd-parent {
-  background-color: #fff;
-}
-`;
 
 const tree = new Tree();
 

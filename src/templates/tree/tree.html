@@ -2,16 +2,22 @@
   <style>
     body { margin: 0; }
   </style>
-  <script src="//unpkg.com/force-graph"></script>
+  <script src="//unpkg.com/3d-force-graph"></script>
 </head>
 
 <body>
   <div id="graph"></div>
+  <div id="data" style="display: none;">
+    __data__
+  </div>
   <script>
-    const data = JSON.parse("%%data%%");
+    const data = JSON.parse(document.getElementById('data').innerText);
 
-    const graph = new ForceGraph()
+    const graph = new ForceGraph3D()
       (document.getElementById('graph'))
+      .linkAutoColorBy('kind')
+      .linkLabel('kind')
+      // .linkVisibility(({ kind }) => kind !== 'next')
       .graphData(data);
   </script>
 </body>

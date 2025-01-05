@@ -1,4 +1,4 @@
-window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <script>\n    const data = JSON.parse(\"%%data%%\");\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .graphData(data);\n  </script>\n</body>"};
+window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/3d-force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph3D()\n      (document.getElementById('graph'))\n      .linkAutoColorBy('kind')\n      .linkLabel('kind')\n      // .linkVisibility(({ kind }) => kind !== 'next')\n      .graphData(data);\n  </script>\n</body>"};
 
 // src/utils.ts
 function jsonClone(obj) {
@@ -42,6 +42,9 @@ async function uploadTextFile() {
 }
 function isoStringToTimestamp(isoString) {
   return isoString ? new Date(isoString).getTime() : 0;
+}
+function sortByDate(items, dateAccessor = (item) => item.created_at) {
+  return items.sort((a, b) => isoStringToTimestamp(dateAccessor(a)) - isoStringToTimestamp(dateAccessor(b)));
 }
 
 // src/cropping.ts
@@ -106,9 +109,6 @@ async function areImagesEqual(url1, url2) {
 function find(arr, filter2) {
   return arr.find(createPredicate(filter2));
 }
-function filter(arr, filter2) {
-  return arr.filter(createPredicate(filter2));
-}
 function createPredicate(filter2) {
   return function(item) {
     return Object.entries(filter2).every(([key, value]) => item[key] === value);
@@ -118,6 +118,13 @@ function createPredicate(filter2) {
 // src/manager.ts
 function suno() {
   return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
+}
+
+// src/templating.ts
+function renderTemplate(template, values) {
+  return Object.keys(values).reduce((acc, key) => {
+    return acc.replace(`__${key}__`, values[key]);
+  }, template);
 }
 
 // src/scripts/tree.ts
@@ -259,7 +266,36 @@ var Tree = class _Tree {
   }
   _rootClips;
   get rootClips() {
-    return this._rootClips ??= filter(this.linkedClips, { parent: void 0 });
+    return this._rootClips ??= this.getRootClips();
+  }
+  getRootClips() {
+    const rootClips = this.linkedClips.filter(({ parent }) => !parent);
+    return sortByDate(rootClips);
+  }
+  get sortedClips() {
+    /*!
+    - Start with the oldest root clip.
+    - If the current clip has children, recurse for each child.
+    */
+    const orderedClips = [];
+    const { rootClips } = this;
+    for (const rootClip of rootClips) {
+      processClip(rootClip);
+    }
+    ;
+    return orderedClips;
+    function processClip(clip) {
+      orderedClips.push(clip);
+      const { children } = clip;
+      if (children) {
+        for (const { clip: clip2 } of sortByDate(children, ({ clip: clip3 }) => clip3.created_at)) {
+          processClip(clip2);
+        }
+        ;
+      }
+      ;
+    }
+    ;
   }
   _rootLinks;
   get rootLinks() {
@@ -275,9 +311,23 @@ var Tree = class _Tree {
     }
     return rootLinks;
   }
+  _graphData;
+  get graphData() {
+    return this._graphData ??= this.getGraphData();
+  }
+  getGraphData() {
+    const result = {
+      nodes: this.sortedClips.map(({ id, title: name }) => ({ id, name })),
+      links: [
+        // ...this.rootLinks,
+        ...this.links
+      ].map(([source, target, kind]) => ({ source, target, kind }))
+    };
+    return result;
+  }
   _html;
   get html() {
-    return this._html ??= `<style>${css}</style>` + this.rootClips.map(renderRootClip).join("");
+    return this._html ??= renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
   }
   openHtml() {
     const win = window.open();
@@ -289,91 +339,6 @@ var Tree = class _Tree {
     win.document.write(this.html);
   }
 };
-function renderRootClip(clip) {
-  return `<h2>${clipDiv(clip)}</h2>${renderChildren(clip, false)}`;
-}
-function renderChildren(clip, odd) {
-  return clip.children ? `<ul${odd ? ' class="odd"' : ""}>${clip.children.map((child) => renderChild(child, odd)).join("")}</ul>` : "";
-}
-function renderChild({ clip, kind }, oddParent) {
-  return `<li${oddParent ? ' class="odd-parent"' : ""}> ${kind} -> ${clipDiv(clip)}${renderChildren(clip, !oddParent)}</li>`;
-}
-function clipDiv(clip) {
-  return `<div class="clip">
-  <a href="https://suno.com/song/${clip.id}" target="_blank">${clip.title}</a>
-  <div class="metadata">
-    <span>${clip.metadata.tags}</span>
-    <span>${clip.metadata.duration}</span>
-    <span>${clip.created_at}</span>
-  </div>
-  <div class="media">
-    <img src="${clip.image_url}"></img>
-    <audio controls src="${clip.audio_url}"></audio>
-  </div>
-</div>`;
-}
-var css = `
-/* Small, unobtrusive body font */
-body {
-  font-family: sans-serif;
-  font-size: 14px;
-}
-
-/* Slightly larger, more prominent header font */
-h2 {
-  font-size: 18px;
-}
-
-/* Clip container: prominent first line, gray metadata, media preview, rounded corners */
-.clip {
-  display: flex;
-  flex-direction: column;
-  margin: 8px;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-}
-  
-.metadata {
-  display: flex;
-  justify-content: space-between;
-  color: #888;
-  font-size: 12px;
-}
-
-.media {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.media img {
-  max-width: 64px;
-  max-height: 64px;
-}
-
-/* Lists: alternating between white and light/gray background and row/column flex layout */
-ul {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  list-style: none;
-}
-
-ul.odd {
-  background-color: #f8f8f8;
-  flex-direction: row;
-}
-
-li {
-  padding: 8px;
-  background-color: #f8f8f8;
-}
-
-li.odd-parent {
-  background-color: #fff;
-}
-`;
 var tree = new Tree();
 function isV2AudioFilename(id) {
   return id.match(/_\d+$/);

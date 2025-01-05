@@ -45,4 +45,12 @@ export async function uploadTextFile() {
 
 export function isoStringToTimestamp(isoString: string | null): number {
   return isoString ? new Date(isoString).getTime() : 0;
-}
+};
+
+export function sortByDate<T extends { created_at: string | null }>(items: T[]): T[];
+
+export function sortByDate<T, TDateAccessor extends (item: T) => string | null>(items: T[], dateAccessor: TDateAccessor): T[];
+
+export function sortByDate(items: any[], dateAccessor = (item: any) => item.created_at) {
+  return items.sort((a, b) => isoStringToTimestamp(dateAccessor(a)) - isoStringToTimestamp(dateAccessor(b)));
+};

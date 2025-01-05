@@ -12,6 +12,7 @@
   "devDependencies": {
     "@types/node": "^22.10.3",
     "esbuild": "^0.24.2",
+    "force-graph": "^1.47.2",
     "typescript": "^5.7.2"
   }
 }
