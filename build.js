@@ -28,7 +28,7 @@ fs.readdir(scriptsPath, (err, files) => {
           outfile,
           bundle: true,
           platform: 'browser',
-          format: 'iife',
+          format: 'esm',
           legalComments: 'inline',
         });
         fs.chmodSync(outfile, '444');

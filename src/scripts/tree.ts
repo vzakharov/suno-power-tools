@@ -4,31 +4,31 @@ import { filter, find } from "../lodashish";
 import { suno } from "../manager";
 import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
 
-export type MissingClip = RawClip & {
+type MissingClip = RawClip & {
   isMissing: true,
 };
 
-export type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
+type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
 
-export type SerializedLink = [
+type SerializedLink = [
   parentId: string,
   childId: string,
   kind: LinkKind,
 ];
 
-export type MonoLink = {
+type MonoLink = {
   kind: LinkKind,
   clip: LinkedClip,
 };
 
-export type LinkedClip = RawClip & {
+type LinkedClip = RawClip & {
   children?: MonoLink[],
   parent?: MonoLink,
 };
 
-export type TreeConfig = ConstructorParameters<typeof Tree>;
+type TreeConfig = ConstructorParameters<typeof Tree>;
 
-export class Tree {
+class Tree {
 
   constructor(
     private rawClips: RawClip[] = [],
@@ -323,7 +323,7 @@ function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);
 }
 
-export function missingClip(id: string): MissingClip {
+function missingClip(id: string): MissingClip {
   console.warn(`Clip ${id} not found, creating a missing clip.`);
   return {
     isMissing: true,

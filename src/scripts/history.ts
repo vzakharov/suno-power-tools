@@ -1,14 +1,14 @@
 import { suno } from "../manager";
 import { $throw, mutate } from "../utils";
 
-export type HistoryItem = {
+type HistoryItem = {
   id: string,
   baseId: string,
   modifierId: string,
   type: string,
 };
 
-export async function getHistory(id: string) {
+async function getHistory(id: string) {
   const result: HistoryItem[] = [];
   while ( true ) {
     const { metadata } = await suno().root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
