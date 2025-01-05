@@ -34,6 +34,7 @@ type MonoLink = {
 type LinkedClip = RawClip & {
   children?: MonoLink[],
   parent?: MonoLink,
+  root?: LinkedClip,
 };
 
 type TreeConfig = ConstructorParameters<typeof Tree>;
@@ -185,22 +186,36 @@ class Tree {
   private _linkedClips: LinkedClip[] | undefined;
 
   get linkedClips() {
-    return this._linkedClips ??=
-      this.links.reduce(
-        (linkedClips, [ parentId, childId, kind ]) => {
-          const parent = find(linkedClips, { id: parentId })
-            ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
-          const child = find(linkedClips, { id: childId })
-            ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
-          if ( child.parent ) {
-            throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
-          };
-          child.parent = { kind, clip: parent };
-          ( parent.children ??= [] ).push({ kind, clip: child });
-          return linkedClips;
-        }, 
-        jsonClone(this.rawClips) as LinkedClip[]
-      );
+    return this._linkedClips ??= this.getLinkedClips();
+  };
+
+  private getLinkedClips() {
+    const linkedClips = this.links.reduce(
+      (linkedClips, [ parentId, childId, kind ]) => {
+        const parent = find(linkedClips, { id: parentId })
+          ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+        const child = find(linkedClips, { id: childId })
+          ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+        if ( child.parent ) {
+          throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
+        };
+        child.parent = { kind, clip: parent };
+        ( parent.children ??= [] ).push({ kind, clip: child });
+        return linkedClips;
+      }, 
+      jsonClone(this.rawClips) as LinkedClip[],
+    );
+    for ( let rootClip of linkedClips.filter(({ parent }) => !parent) ) {
+      setRoot(rootClip, rootClip);
+    };
+    return linkedClips;
+
+    function setRoot(clip: LinkedClip, root: LinkedClip) {
+      Object.assign(clip, { root });
+      for ( const { clip: child } of clip.children ?? [] ) {
+        setRoot(child, root);
+      };
+    };
   };
 
   private _rootClips: LinkedClip[] | undefined;
@@ -218,13 +233,14 @@ class Tree {
     /*!
     - Start with the oldest root clip.
     - If the current clip has children, recurse for each child.
+    - In the end, reverse everything.
     */
     const orderedClips: LinkedClip[] = [];
     const { rootClips } = this;
     for ( const rootClip of rootClips ) {
       processClip(rootClip);
     };
-    return orderedClips;
+    return orderedClips.reverse();
 
     function processClip(clip: LinkedClip) {
       orderedClips.push(clip);
@@ -263,19 +279,21 @@ class Tree {
 
   private getGraphData() {
     const result: GraphData = {
-      nodes: this.sortedClips.map(({ id, title: name }) => ({ id, name })),
+      nodes: this.sortedClips.map(({ id, title: name, root }) => ({ 
+        id,
+        name,
+        rootId: root?.id,
+      })),
       links: [
-        // ...this.rootLinks,
+        ...this.rootLinks,
         ...this.links,
       ].map(([ source, target, kind ]) => ({ source, target, kind })),
     };
     return result;
   };
 
-  private _html: string | undefined;
-
   get html() {
-    return this._html ??= renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
+    return renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
   };
 
   openHtml() {

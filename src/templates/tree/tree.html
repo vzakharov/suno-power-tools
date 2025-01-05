@@ -2,7 +2,7 @@
   <style>
     body { margin: 0; }
   </style>
-  <script src="//unpkg.com/3d-force-graph"></script>
+  <script src="//unpkg.com/force-graph"></script>
 </head>
 
 <body>
@@ -13,11 +13,41 @@
   <script>
     const data = JSON.parse(document.getElementById('data').innerText);
 
-    const graph = new ForceGraph3D()
+    const graph = new ForceGraph()
       (document.getElementById('graph'))
       .linkAutoColorBy('kind')
+      .nodeAutoColorBy('rootId')
       .linkLabel('kind')
-      // .linkVisibility(({ kind }) => kind !== 'next')
-      .graphData(data);
+      .linkDirectionalParticles(1)
+      .graphData({
+        nodes: [],
+        links: []
+      });
+
+    function setTimer() {
+      graph.graphData(getMoreData());
+      setTimeout(setTimer, 10);
+    }
+
+    setTimer();
+
+    function getMoreData(index) {
+      const { nodes, links } = graph.graphData(); // existing nodes and links
+      const newNodes = data.nodes.slice(nodes.length, nodes.length + 1);
+      if ( newNodes.length === 0 ) {
+        throw new Error('No more data');
+        // TODO: handle this better than throwing an error
+      };
+      const allNodes = [...nodes, ...newNodes];
+      const newLinks = data.links.filter(({ source, target }) => {
+        return allNodes.find(({ id }) => id === source) && allNodes.find(({ id }) => id === target);
+      });
+
+      return {
+        nodes: allNodes,
+        links: [...links, ...newLinks]
+      };
+
+    };
   </script>
 </body>

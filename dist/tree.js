@@ -1,4 +1,4 @@
-window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/3d-force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph3D()\n      (document.getElementById('graph'))\n      .linkAutoColorBy('kind')\n      .linkLabel('kind')\n      // .linkVisibility(({ kind }) => kind !== 'next')\n      .graphData(data);\n  </script>\n</body>"};
+window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .linkAutoColorBy('kind')\n      .nodeAutoColorBy('rootId')\n      .linkLabel('kind')\n      .linkDirectionalParticles(1)\n      .graphData({\n        nodes: [],\n        links: []\n      });\n\n    function setTimer() {\n      graph.graphData(getMoreData());\n      setTimeout(setTimer, 10);\n    }\n\n    setTimer();\n\n    function getMoreData(index) {\n      const { nodes, links } = graph.graphData(); // existing nodes and links\n      const newNodes = data.nodes.slice(nodes.length, nodes.length + 1);\n      if ( newNodes.length === 0 ) {\n        throw new Error('No more data');\n        // TODO: handle this better than throwing an error\n      };\n      const allNodes = [...nodes, ...newNodes];\n      const newLinks = data.links.filter(({ source, target }) => {\n        return allNodes.find(({ id }) => id === source) && allNodes.find(({ id }) => id === target);\n      });\n\n      return {\n        nodes: allNodes,\n        links: [...links, ...newLinks]\n      };\n\n    };\n  </script>\n</body>"};
 
 // src/utils.ts
 function jsonClone(obj) {
@@ -249,20 +249,36 @@ var Tree = class _Tree {
   }
   _linkedClips;
   get linkedClips() {
-    return this._linkedClips ??= this.links.reduce(
-      (linkedClips, [parentId, childId, kind]) => {
-        const parent = find(linkedClips, { id: parentId }) ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
-        const child = find(linkedClips, { id: childId }) ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
+    return this._linkedClips ??= this.getLinkedClips();
+  }
+  getLinkedClips() {
+    const linkedClips = this.links.reduce(
+      (linkedClips2, [parentId, childId, kind]) => {
+        const parent = find(linkedClips2, { id: parentId }) ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
+        const child = find(linkedClips2, { id: childId }) ?? $throw(`Could not find child for link ${parentId} -> ${childId}.`);
         if (child.parent) {
           throw new Error(`Child ${childId} already has a parent: ${child.parent.clip.id}`);
         }
         ;
         child.parent = { kind, clip: parent };
         (parent.children ??= []).push({ kind, clip: child });
-        return linkedClips;
+        return linkedClips2;
       },
       jsonClone(this.rawClips)
     );
+    for (let rootClip of linkedClips.filter(({ parent }) => !parent)) {
+      setRoot(rootClip, rootClip);
+    }
+    ;
+    return linkedClips;
+    function setRoot(clip, root) {
+      Object.assign(clip, { root });
+      for (const { clip: child } of clip.children ?? []) {
+        setRoot(child, root);
+      }
+      ;
+    }
+    ;
   }
   _rootClips;
   get rootClips() {
@@ -276,6 +292,7 @@ var Tree = class _Tree {
     /*!
     - Start with the oldest root clip.
     - If the current clip has children, recurse for each child.
+    - In the end, reverse everything.
     */
     const orderedClips = [];
     const { rootClips } = this;
@@ -283,7 +300,7 @@ var Tree = class _Tree {
       processClip(rootClip);
     }
     ;
-    return orderedClips;
+    return orderedClips.reverse();
     function processClip(clip) {
       orderedClips.push(clip);
       const { children } = clip;
@@ -317,17 +334,20 @@ var Tree = class _Tree {
   }
   getGraphData() {
     const result = {
-      nodes: this.sortedClips.map(({ id, title: name }) => ({ id, name })),
+      nodes: this.sortedClips.map(({ id, title: name, root }) => ({
+        id,
+        name,
+        rootId: root?.id
+      })),
       links: [
-        // ...this.rootLinks,
+        ...this.rootLinks,
         ...this.links
       ].map(([source, target, kind]) => ({ source, target, kind }))
     };
     return result;
   }
-  _html;
   get html() {
-    return this._html ??= renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
+    return renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
   }
   openHtml() {
     const win = window.open();
