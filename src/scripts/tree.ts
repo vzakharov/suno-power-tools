@@ -2,7 +2,16 @@ import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { suno } from "../manager";
+import { Template } from "../templating";
 import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
+
+declare global {
+  interface Window {
+    templates: {
+      tree: Template<'data'>,
+    },
+  }
+}
 
 type MissingClip = RawClip & {
   isMissing: true,

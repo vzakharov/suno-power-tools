@@ -1,3 +1,5 @@
+window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <script>\n    const data = JSON.parse(\"%%data%%\");\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .graphData(data);\n  </script>\n</body>"};
+
 // src/utils.ts
 function jsonClone(obj) {
   return JSON.parse(JSON.stringify(obj));

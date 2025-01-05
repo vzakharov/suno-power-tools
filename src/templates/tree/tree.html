@@ -1,0 +1,17 @@
+<head>
+  <style>
+    body { margin: 0; }
+  </style>
+  <script src="//unpkg.com/force-graph"></script>
+</head>
+
+<body>
+  <div id="graph"></div>
+  <script>
+    const data = JSON.parse("%%data%%");
+
+    const graph = new ForceGraph()
+      (document.getElementById('graph'))
+      .graphData(data);
+  </script>
+</body>

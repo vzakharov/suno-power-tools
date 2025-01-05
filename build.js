@@ -22,6 +22,19 @@ fs.readdir(scriptsPath, (err, files) => {
   files.filter(file => file.endsWith('.ts')).forEach(
     async file => {
       try {
+
+        const scriptName = file.replace('.ts', '');
+        const templatesPath = path.join(__dirname, 'src', 'templates', scriptName);
+        const templates = {};
+        if (fs.existsSync(templatesPath)) {
+          for (const file of fs.readdirSync(templatesPath)) {
+            if (file.endsWith('.html')) {
+              const template = fs.readFileSync(path.join(templatesPath, file), 'utf8');
+              templates[file.replace('.html', '')] = template;
+            }
+          }
+        };
+
         const outfile = path.join(outputPath, file.replace('.ts', '.js'));
         await esbuild.build({
           entryPoints: [path.join(scriptsPath, file)],
@@ -30,6 +43,9 @@ fs.readdir(scriptsPath, (err, files) => {
           platform: 'browser',
           format: 'esm',
           legalComments: 'inline',
+          banner: Object.keys(templates).length === 0 ? undefined : {
+            js: `window.templates = ${JSON.stringify(templates)};`
+          }
         });
         fs.chmodSync(outfile, '444');
       } catch (err) {
