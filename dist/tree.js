@@ -116,8 +116,8 @@ window.suno = this instanceof Window ? (() => {
     };
   }
 
-  // src/scripts/genealogy.ts
-  var Genealogy = class _Genealogy {
+  // src/scripts/tree.ts
+  var Tree = class _Tree {
     constructor(rawClips = [], lastProcessedPage = -1, allPagesProcessed = false, links = [], allLinksBuilt = false) {
       this.rawClips = rawClips;
       this.lastProcessedPage = lastProcessedPage;
@@ -129,11 +129,11 @@ window.suno = this instanceof Window ? (() => {
       return [this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt];
     }
     set config(config) {
-      Object.assign(this, new _Genealogy(...config));
+      Object.assign(this, new _Tree(...config));
     }
     reset() {
       this.config = [];
-      console.log("Genealogy reset. Run build() to start building it again.");
+      console.log("Tree reset. Run build() to start building it again.");
     }
     async loadState() {
       const json = await uploadTextFile();
@@ -150,7 +150,7 @@ window.suno = this instanceof Window ? (() => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "suno_genealogy.json";
+      a.download = "suno_tree.json";
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -356,7 +356,7 @@ li.odd-parent {
   background-color: #fff;
 }
 `;
-  var gen = new Genealogy();
+  var tree = new Tree();
   function isV2AudioFilename(id) {
     return id.match(/_\d+$/);
   }
@@ -373,5 +373,5 @@ li.odd-parent {
       metadata: { duration: 0, tags: "" }
     };
   }
-  mutate(window, { spt: { gen } });
+  mutate(window, { vovas: { tree } });
 })();

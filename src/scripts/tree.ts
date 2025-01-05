@@ -25,9 +25,9 @@ export type LinkedClip = RawClip & {
   parent?: MonoLink,
 };
 
-export type GenealogyConfig = ConstructorParameters<typeof Genealogy>;
+export type TreeConfig = ConstructorParameters<typeof Tree>;
 
-export class Genealogy {
+export class Tree {
 
   constructor(
     private rawClips: RawClip[] = [],
@@ -37,16 +37,16 @@ export class Genealogy {
     private allLinksBuilt = false,
   ) {}
 
-  get config(): GenealogyConfig {
+  get config(): TreeConfig {
     return [ this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt ];
   };
-  set config(config: GenealogyConfig) {
-    Object.assign(this, new Genealogy(...config));
+  set config(config: TreeConfig) {
+    Object.assign(this, new Tree(...config));
   };
 
   reset() {
     this.config = [];
-    console.log('Genealogy reset. Run build() to start building it again.');
+    console.log('Tree reset. Run build() to start building it again.');
   };
 
   async loadState() {
@@ -64,7 +64,7 @@ export class Genealogy {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'suno_genealogy.json';
+    a.download = 'suno_tree.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -316,7 +316,7 @@ li.odd-parent {
 }
 `;
 
-const gen = new Genealogy();
+const tree = new Tree();
 
 function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);
@@ -335,4 +335,4 @@ export function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window, { spt: { gen }});
+mutate(window, { vovas: { tree }});
