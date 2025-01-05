@@ -40,6 +40,9 @@ async function uploadTextFile() {
     };
   });
 }
+function isoStringToTimestamp(isoString) {
+  return isoString ? new Date(isoString).getTime() : 0;
+}
 
 // src/cropping.ts
 //! Background info: For some unknown reason, Suno doesn't keep the data bout the original clip when you crop it.
@@ -257,6 +260,20 @@ var Tree = class _Tree {
   _rootClips;
   get rootClips() {
     return this._rootClips ??= filter(this.linkedClips, { parent: void 0 });
+  }
+  _rootLinks;
+  get rootLinks() {
+    return this._rootLinks ??= this.getRootLinks();
+  }
+  getRootLinks() {
+    //! (Links between root clips going from the earliest to the latest. These are not actually related to the hierarchy/genealogy of the clips, but provide a useful additional view of the clips, especially when we present them as a graph.)
+    const rootLinks = [];
+    const { rootClips } = this;
+    rootClips.sort((a, b) => isoStringToTimestamp(a.created_at) - isoStringToTimestamp(b.created_at));
+    for (let i = 0; i <= rootClips.length - 2; i++) {
+      rootLinks.push([rootClips[i].id, rootClips[i + 1].id, "next"]);
+    }
+    return rootLinks;
   }
   _html;
   get html() {

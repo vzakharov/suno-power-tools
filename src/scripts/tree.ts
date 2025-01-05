@@ -3,7 +3,7 @@ import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { suno } from "../manager";
 import { Template } from "../templating";
-import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
+import { $throw, atLeast, isoStringToTimestamp, jsonClone, mutate, uploadTextFile } from "../utils";
 
 declare global {
   interface Window {
@@ -17,12 +17,12 @@ type MissingClip = RawClip & {
   isMissing: true,
 };
 
-type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
+type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop' | 'next';
 
-type SerializedLink = [
+type SerializedLink<Kind extends LinkKind = LinkKind> = [
   parentId: string,
   childId: string,
-  kind: LinkKind,
+  kind: Kind,
 ];
 
 type MonoLink = {
@@ -207,6 +207,23 @@ class Tree {
   get rootClips() {
     return this._rootClips ??=
       filter(this.linkedClips, { parent: undefined });
+  };
+
+  private _rootLinks: SerializedLink<'next'>[] | undefined;
+
+  get rootLinks() {
+    return this._rootLinks ??= this.getRootLinks();
+  };
+
+  private getRootLinks() {
+    //! (Links between root clips going from the earliest to the latest. These are not actually related to the hierarchy/genealogy of the clips, but provide a useful additional view of the clips, especially when we present them as a graph.)
+    const rootLinks: SerializedLink<'next'>[] = [];
+    const { rootClips } = this;
+    rootClips.sort((a, b) => isoStringToTimestamp(a.created_at) - isoStringToTimestamp(b.created_at));
+    for ( let i = 0; i <= rootClips.length - 2; i++ ) {
+      rootLinks.push([ rootClips[i].id, rootClips[i + 1].id, 'next' ]);
+    }
+    return rootLinks;
   };
 
   private _html: string | undefined;

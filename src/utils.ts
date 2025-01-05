@@ -42,3 +42,7 @@ export async function uploadTextFile() {
     };
   });
 };
+
+export function isoStringToTimestamp(isoString: string | null): number {
+  return isoString ? new Date(isoString).getTime() : 0;
+}
