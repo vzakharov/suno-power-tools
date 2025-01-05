@@ -30,13 +30,6 @@ fs.readdir(scriptsPath, (err, files) => {
           platform: 'browser',
           format: 'iife',
           legalComments: 'inline',
-          banner: {
-            js: `
-window.suno = this instanceof Window ? (() => {
-  throw new Error("This function should be called at a specific breakpoint in the code. Please refer to the repository\u2019s README for more information.");
-})() : this;
-            `,
-          },
         });
         fs.chmodSync(outfile, '444');
       } catch (err) {

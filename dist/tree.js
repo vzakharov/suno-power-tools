@@ -1,8 +1,3 @@
-
-window.suno = this instanceof Window ? (() => {
-  throw new Error("This function should be called at a specific breakpoint in the code. Please refer to the repository’s README for more information.");
-})() : this;
-            
 (() => {
   // src/utils.ts
   function jsonClone(obj) {
@@ -116,6 +111,11 @@ window.suno = this instanceof Window ? (() => {
     };
   }
 
+  // src/manager.ts
+  function suno() {
+    return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
+  }
+
   // src/scripts/tree.ts
   var Tree = class _Tree {
     constructor(rawClips = [], lastProcessedPage = -1, allPagesProcessed = false, links = [], allLinksBuilt = false) {
@@ -169,7 +169,7 @@ window.suno = this instanceof Window ? (() => {
       while (true) {
         await atLeast(1e3);
         //! (to avoid rate limiting)
-        const { data: { clips } } = await window.suno.root.apiClient.GET("/api/feed/v2", {
+        const { data: { clips } } = await suno().root.apiClient.GET("/api/feed/v2", {
           params: {
             query: {
               is_liked: true,
@@ -192,7 +192,7 @@ window.suno = this instanceof Window ? (() => {
       await atLeast(1e3);
       //! (to avoid rate limiting)
       console.log(`Clip ${id} not found in cache, loading...`);
-      const clip = await window.suno.root.clips.loadClipById(id) ?? missingClip(id);
+      const clip = await suno().root.clips.loadClipById(id) ?? missingClip(id);
       this.rawClips.push(clip);
       return clip;
     }

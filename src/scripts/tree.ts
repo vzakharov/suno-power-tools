@@ -1,6 +1,7 @@
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
+import { suno } from "../manager";
 import { $throw, atLeast, jsonClone, mutate, uploadTextFile } from "../utils";
 
 export type MissingClip = RawClip & {
@@ -85,7 +86,7 @@ export class Tree {
     console.log('Fetching liked clips...');
     while (true) {
       await atLeast(1000); //! (to avoid rate limiting)
-      const { data: { clips } } = await window.suno.root.apiClient.GET('/api/feed/v2', {
+      const { data: { clips } } = await suno().root.apiClient.GET('/api/feed/v2', {
         params: {
           query: {
             is_liked: true,
@@ -108,7 +109,7 @@ export class Tree {
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
     console.log(`Clip ${id} not found in cache, loading...`);
-    const clip = await window.suno.root.clips.loadClipById(id) ?? missingClip(id);
+    const clip = await suno().root.clips.loadClipById(id) ?? missingClip(id);
     this.rawClips.push(clip);
     return clip;
   };

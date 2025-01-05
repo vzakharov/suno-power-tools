@@ -1,4 +1,5 @@
 import { RawClip } from "./baseTypes";
+import { $throw } from "./utils";
 
 export type SunoManager = {
   root: {
@@ -23,3 +24,7 @@ export type SunoManager = {
     }
   }
 };
+
+export function suno() {
+  return window.suno ?? $throw('`suno` object not found in `window`. Have you followed the setup instructions?');
+}

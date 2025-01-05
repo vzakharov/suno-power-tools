@@ -1,8 +1,3 @@
-
-window.suno = this instanceof Window ? (() => {
-  throw new Error("This function should be called at a specific breakpoint in the code. Please refer to the repository’s README for more information.");
-})() : this;
-            
 (() => {
   // src/utils.ts
   function mutate(obj, partial) {
@@ -12,11 +7,16 @@ window.suno = this instanceof Window ? (() => {
     throw new Error(message);
   }
 
+  // src/manager.ts
+  function suno() {
+    return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
+  }
+
   // src/scripts/history.ts
   async function getHistory(id) {
     const result = [];
     while (true) {
-      const { metadata } = await window.suno.root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
+      const { metadata } = await suno().root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
       if (!("concat_history" in metadata)) {
         return result;
       }
