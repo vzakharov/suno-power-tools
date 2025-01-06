@@ -329,8 +329,8 @@ window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </styl
         ;
       }
       ;
-      //! Link every clip wthout children to its root, for better visualization.
-      for (const clip of this.linkedClips.filter(({ children }) => !children)) {
+      //! Link every clip with children to its root, for better visualization.
+      for (const clip of this.linkedClips.filter(({ children }) => children?.length)) {
         rootLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
       }
       ;
