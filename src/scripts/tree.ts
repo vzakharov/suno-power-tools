@@ -254,20 +254,16 @@ class Tree {
 
   };
 
-  private _rootLinks: SerializedLink<'next'>[] | undefined;
-
   get rootLinks() {
-    return this._rootLinks ??= this.getRootLinks();
-  };
-
-  private getRootLinks() {
-    //! (Links between root clips going from the earliest to the latest. These are not actually related to the hierarchy/genealogy of the clips, but provide a useful additional view of the clips, especially when we present them as a graph.)
     const rootLinks: SerializedLink<'next'>[] = [];
     const { rootClips } = this;
-    rootClips.sort((a, b) => isoStringToTimestamp(a.created_at) - isoStringToTimestamp(b.created_at));
-    for ( let i = 0; i <= rootClips.length - 2; i++ ) {
-      rootLinks.push([ rootClips[i].id, rootClips[i + 1].id, 'next' ]);
-    }
+    let currentParent = rootClips[0];
+    for ( const rootClip of rootClips.slice(1) ) {
+      rootLinks.push([ currentParent.id, rootClip.id, 'next' ]);
+      if ( rootClip?.children?.length ) {
+        currentParent = rootClip;
+      };
+    };
     return rootLinks;
   };
 
