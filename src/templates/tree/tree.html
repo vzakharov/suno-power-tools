@@ -14,10 +14,13 @@
       width: 200px;
       background-color: #333;
       color: #eee;
+      display: flex;
+      flex-direction: column;
     }
 
   </style>
   <script src="//unpkg.com/force-graph"></script>
+  <script src="//unpkg.com/3d-force-graph"></script>
 </head>
 
 <body>
@@ -25,10 +28,18 @@
   </div>
   <div id="sidebar">
     <h3>Settings</h3>
-    <input type="checkbox" id="useNextLinks" checked>
-    <label for="useNextLinks">Put clips created at a similar time next to each other</label>
-    <input type="checkbox" id="useDescendantLinks" checked>
-    <label for="useDescendantLinks">Put descendants closer to their root clip</label>
+    <div>
+      <input type="checkbox" id="use3DGraph">
+      <label for="use3DGraph">3D graph</label>
+    </div>
+    <div>
+      <input type="checkbox" id="useNextLinks" checked>
+      <label for="useNextLinks">Put clips created at a similar time next to each other</label>
+    </div>
+    <div>
+      <input type="checkbox" id="useDescendantLinks" checked>
+      <label for="useDescendantLinks">Put descendants closer to their root clip</label>
+    </div>
   </div>    
   <div id="data" style="display: none;">
     __data__
@@ -38,16 +49,31 @@
 
     const data = JSON.parse(document.getElementById('data').innerText);
 
-    const graph = new ForceGraph()
-      (document.getElementById('graph'))
-      .backgroundColor('#111')
-      .linkAutoColorBy('kind')
-      .nodeAutoColorBy('rootId')
-      .linkLabel('kind')
-      .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
-      .linkLineDash(l => l.isMain ? undefined : [1, 2])
-      .linkDirectionalParticles(1)
-      .graphData(data);
+    let graph = renderGraph(data, false);
+
+    function renderGraph(data, use3DGraph) {
+      const Renderer = use3DGraph ? ForceGraph3D : ForceGraph;
+      const graph = new Renderer()
+        (document.getElementById('graph'))
+        .backgroundColor('#111')
+        .linkAutoColorBy('kind')
+        .nodeAutoColorBy('rootId')
+        .linkLabel('kind')
+        .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
+        .linkDirectionalParticles(1)
+        .graphData(data);
+      if ( use3DGraph ) {
+        graph.linkOpacity(l => l.isMain ? 1 : 0.2)
+      } else {
+        graph.linkLineDash(l => l.isMain ? undefined : [1, 2])
+      }
+      return graph;
+    };
+
+    const use3DGraphCheckbox = document.getElementById('use3DGraph');
+    use3DGraphCheckbox.addEventListener('change', () => {
+      graph = renderGraph(graph.graphData(), use3DGraphCheckbox.checked);
+    });
 
     const useNextLinksCheckbox = document.getElementById('useNextLinks');
     useNextLinksCheckbox.addEventListener('change', () => {

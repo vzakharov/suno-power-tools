@@ -308,8 +308,8 @@ class Tree {
       links: [
         ...this.rootLinks.map(formatLink),
         ...links,
-        ...filter(links, { isMain: true as const })
-        //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
+        // ...filter(links, { isMain: true as const })
+        // //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
       ]
     };
     return result;
