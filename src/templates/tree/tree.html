@@ -27,6 +27,8 @@
     <h3>Settings</h3>
     <input type="checkbox" id="useNextLinks" checked>
     <label for="useNextLinks">Put clips created at a similar time next to each other</label>
+    <input type="checkbox" id="useDescendantLinks" checked>
+    <label for="useDescendantLinks">Put descendants closer to their root clip</label>
   </div>    
   <div id="data" style="display: none;">
     __data__
@@ -53,7 +55,21 @@
       let { nodes, links } = graph.graphData();
       if ( !useNextLinks ) {
         links = links.filter(l => l.kind !== 'next');
-      };
+      } else {
+        links.push(...data.links.filter(l => l.kind === 'next'));
+      }
+      graph.graphData({ nodes, links });
+    });
+
+    const useDescendantLinksCheckbox = document.getElementById('useDescendantLinks');
+    useDescendantLinksCheckbox.addEventListener('change', () => {
+      const useDescendantLinks = useDescendantLinksCheckbox.checked;
+      let { nodes, links } = graph.graphData();
+      if ( !useDescendantLinks ) {
+        links = links.filter(l => l.kind !== 'descendant');
+      } else {
+        links.push(...data.links.filter(l => l.kind === 'descendant'));
+      }
       graph.graphData({ nodes, links });
     });
 
