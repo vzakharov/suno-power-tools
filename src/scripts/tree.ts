@@ -3,7 +3,7 @@ import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { suno } from "../manager";
 import { renderTemplate, Template } from "../templating";
-import { $throw, atLeast, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
+import { $throw, $with, atLeast, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 import { type GraphData }  from 'force-graph';
 
 declare global {
@@ -153,12 +153,13 @@ class Tree {
       const { metadata } = clip;
       const [ parentId, kind ]: [ id: string, kind: LinkKind ] | [ undefined, undefined ]=
         'history' in metadata 
-          ? [ 
-            metadata.history[0].id,
-            metadata.history[0].infill
-              ? 'inpaint'
-              : 'extend'
-          ]
+          ? $with(metadata.history[0], parent =>
+              typeof parent === 'string'
+                ? [ parent, 'extend' ]
+                : parent.infill
+                  ? [ parent.id, 'inpaint' ]
+                  : [ parent.id, 'extend' ]
+            )
         : 'concat_history' in metadata
           ? [ metadata.concat_history[1].id, 'apply' ]
         : 'cover_clip_id' in metadata

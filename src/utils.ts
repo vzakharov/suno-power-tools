@@ -1,3 +1,7 @@
+export function $with<T, U>(obj: T, fn: (obj: T) => U): U {
+  return fn(obj);
+};
+
 export function jsonClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 };

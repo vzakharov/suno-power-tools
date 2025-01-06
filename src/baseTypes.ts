@@ -16,7 +16,7 @@ export type ClipHierarchyMetadata =
   // An extended/inpainted/etc. clip
   {
     history: [
-      {
+      string | {
         id: string,
         type: string
       } & (
