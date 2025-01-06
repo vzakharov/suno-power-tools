@@ -1,4 +1,4 @@
-window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n    }\n\n    #sidebar {\n      position: fixed;\n      padding: 10px;\n      top: 0;\n      left: 0;\n      bottom: 0;\n      width: 200px;\n      background-color: #333;\n      color: #eee;\n    }\n\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\">\n  </div>\n  <div id=\"sidebar\">\n    <h3>Settings</h3>\n  </div>    \n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .backgroundColor('#111')\n      .linkAutoColorBy('kind')\n      .nodeAutoColorBy('rootId')\n      .linkLabel('kind')\n      .linkVisibility(l => !['descendant', 'next'].includes(l.kind))\n      .linkDirectionalParticles(1)\n      .graphData(data);\n\n  </script>\n</body>"};
+window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n    }\n\n    #sidebar {\n      position: fixed;\n      padding: 10px;\n      top: 0;\n      left: 0;\n      bottom: 0;\n      width: 200px;\n      background-color: #333;\n      color: #eee;\n    }\n\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\">\n  </div>\n  <div id=\"sidebar\">\n    <h3>Settings</h3>\n  </div>    \n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .backgroundColor('#111')\n      .linkAutoColorBy('kind')\n      .nodeAutoColorBy('rootId')\n      .linkLabel('kind')\n      .linkVisibility(l => !['descendant', 'next'].includes(l.kind))\n      .linkLineDash(l => l.isMain ? undefined : [1, 2])\n      .linkDirectionalParticles(1)\n      .graphData(data);\n\n  </script>\n</body>"};
 (() => {
   // src/utils.ts
   function $with(obj, fn) {
@@ -111,6 +111,9 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
   // src/lodashish.ts
   function find(arr, filter2) {
     return arr.find(createPredicate(filter2));
+  }
+  function filter(arr, filter2) {
+    return arr.filter(createPredicate(filter2));
   }
   function createPredicate(filter2) {
     return function(item) {
@@ -341,18 +344,29 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
       return clip.totalDescendants ??= 1 + (clip.children?.reduce((sum, { clip: { id: childId } }) => sum + this.getTotalDescendants(childId), 0) ?? 0);
     }
     get graphData() {
+      const formatLink = ([source, target, kind]) => ({
+        source,
+        target,
+        kind
+      });
+      const links = this.links.map(formatLink).map((link) => ({
+        ...link,
+        isMain: this.getTotalDescendants(link.target) > 1
+      }));
       const result = {
-        nodes: this.sortedClips.map(({ id, title: name, children, root }) => ({
+        nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, parent, root }) => ({
           id,
-          name,
+          name: name || tags || created_at || id,
           rootId: root?.id,
           // val: Math.log10(this.getTotalDescendants(id) + 1),
-          val: id === root?.id && children?.length ? 2 : 1
+          val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
         })),
         links: [
-          ...this.rootLinks,
-          ...this.links
-        ].map(([source, target, kind]) => ({ source, target, kind }))
+          ...this.rootLinks.map(formatLink),
+          ...links,
+          ...filter(links, { isMain: true })
+          //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
+        ]
       };
       return result;
     }

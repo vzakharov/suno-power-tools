@@ -39,6 +39,7 @@
       .nodeAutoColorBy('rootId')
       .linkLabel('kind')
       .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
+      .linkLineDash(l => l.isMain ? undefined : [1, 2])
       .linkDirectionalParticles(1)
       .graphData(data);
 

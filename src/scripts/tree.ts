@@ -282,18 +282,35 @@ class Tree {
 
 
   get graphData() {
+
+    const formatLink = ([ source, target, kind ]: SerializedLink) => ({
+      source, target, kind,
+    });
+
+    const links = this.links.map(formatLink).map(link => ({
+      ...link,
+      isMain: this.getTotalDescendants(link.target) > 1,
+    }));
+
     const result: GraphData = {
-      nodes: this.sortedClips.map(({ id, title: name, children, root }) => ({ 
+      nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, parent, root }) => ({ 
         id,
-        name,
+        name: name || tags || created_at || id,
         rootId: root?.id,
         // val: Math.log10(this.getTotalDescendants(id) + 1),
-        val: id === root?.id && children?.length ? 2 : 1,
+        val: 
+          id === root?.id && children?.length 
+            ? 2 
+          : children?.length
+            ? 1
+          : 0.5,
       })),
       links: [
-        ...this.rootLinks,
-        ...this.links,
-      ].map(([ source, target, kind ]) => ({ source, target, kind })),
+        ...this.rootLinks.map(formatLink),
+        ...links,
+        ...filter(links, { isMain: true as const })
+        //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
+      ]
     };
     return result;
   };
