@@ -35,6 +35,7 @@ type LinkedClip = RawClip & {
   children?: MonoLink[],
   parent?: MonoLink,
   root?: LinkedClip,
+  totalDescendants?: number,
 };
 
 type TreeConfig = ConstructorParameters<typeof Tree>;
@@ -272,13 +273,22 @@ class Tree {
     return rootLinks;
   };
 
+  getTotalDescendants(clipId: string) {
+    const clip = find(this.linkedClips, { id: clipId }) ?? $throw(`Clip ${clipId} not found.`);
+    return clip.totalDescendants ??= (
+      1 + ( clip.children?.reduce((sum, { clip: { id: childId } }) => sum + this.getTotalDescendants(childId), 0) ?? 0 )
+    );
+  };
+
 
   get graphData() {
     const result: GraphData = {
-      nodes: this.sortedClips.map(({ id, title: name, root }) => ({ 
+      nodes: this.sortedClips.map(({ id, title: name, children, root }) => ({ 
         id,
         name,
         rootId: root?.id,
+        // val: Math.log10(this.getTotalDescendants(id) + 1),
+        val: id === root?.id && children?.length ? 2 : 1,
       })),
       links: [
         ...this.rootLinks,
