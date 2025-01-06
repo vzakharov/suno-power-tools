@@ -1,4 +1,4 @@
-window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .linkAutoColorBy('kind')\n      .nodeAutoColorBy('rootId')\n      .dagMode('radialout')\n      .linkLabel('kind')\n      .linkVisibility(l => l.kind !== 'descendant')\n      .linkDirectionalParticles(1)\n      .graphData(data);\n\n    // function setTimer() {\n    //   graph.graphData(getMoreData());\n    //   setTimeout(setTimer, 10);\n    // }\n\n    // setTimer();\n\n    // function getMoreData(index) {\n    //   const { nodes, links } = graph.graphData(); // existing nodes and links\n    //   const newNodes = data.nodes.slice(nodes.length, nodes.length + 1);\n    //   if ( newNodes.length === 0 ) {\n    //     throw new Error('No more data');\n    //     // TODO: handle this better than throwing an error\n    //   };\n    //   const allNodes = [...nodes, ...newNodes];\n    //   const newLinks = data.links.filter(({ source, target }) => {\n    //     return allNodes.find(({ id }) => id === source) && allNodes.find(({ id }) => id === target);\n    //   });\n\n    //   return {\n    //     nodes: allNodes,\n    //     links: [...links, ...newLinks]\n    //   };\n\n    // };\n  </script>\n</body>"};
+window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </style>\n  <script src=\"//unpkg.com/force-graph\"></script>\n</head>\n\n<body>\n  <div id=\"graph\"></div>\n  <div id=\"data\" style=\"display: none;\">\n    __data__\n  </div>\n  <script>\n    const data = JSON.parse(document.getElementById('data').innerText);\n\n    const graph = new ForceGraph()\n      (document.getElementById('graph'))\n      .linkAutoColorBy('kind')\n      .nodeAutoColorBy('rootId')\n      .linkLabel('kind')\n      .linkVisibility(l => !['descendant', 'next'].includes(l.kind))\n      .linkDirectionalParticles(1)\n      .graphData(data);\n\n  </script>\n</body>"};
 (() => {
   // src/utils.ts
   function $with(obj, fn) {
@@ -329,7 +329,7 @@ window.templates = {"tree":"<head>\n  <style>\n    body { margin: 0; }\n  </styl
         ;
       }
       ;
-      //! Link every clip wthout cihldren to its root
+      //! Link every clip wthout children to its root, for better visualization.
       for (const clip of this.linkedClips.filter(({ children }) => !children)) {
         rootLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
       }

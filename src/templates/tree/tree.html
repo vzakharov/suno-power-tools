@@ -17,36 +17,10 @@
       (document.getElementById('graph'))
       .linkAutoColorBy('kind')
       .nodeAutoColorBy('rootId')
-      .dagMode('radialout')
       .linkLabel('kind')
-      .linkVisibility(l => l.kind !== 'descendant')
+      .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
       .linkDirectionalParticles(1)
       .graphData(data);
 
-    // function setTimer() {
-    //   graph.graphData(getMoreData());
-    //   setTimeout(setTimer, 10);
-    // }
-
-    // setTimer();
-
-    // function getMoreData(index) {
-    //   const { nodes, links } = graph.graphData(); // existing nodes and links
-    //   const newNodes = data.nodes.slice(nodes.length, nodes.length + 1);
-    //   if ( newNodes.length === 0 ) {
-    //     throw new Error('No more data');
-    //     // TODO: handle this better than throwing an error
-    //   };
-    //   const allNodes = [...nodes, ...newNodes];
-    //   const newLinks = data.links.filter(({ source, target }) => {
-    //     return allNodes.find(({ id }) => id === source) && allNodes.find(({ id }) => id === target);
-    //   });
-
-    //   return {
-    //     nodes: allNodes,
-    //     links: [...links, ...newLinks]
-    //   };
-
-    // };
   </script>
 </body>
