@@ -293,9 +293,12 @@ class Tree {
     }));
 
     const result: GraphData = {
-      nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, parent, root }) => ({ 
+      nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({ 
         id,
         name: name || tags || created_at || id,
+        audio_url,
+        image_url,
+        tags,
         rootId: root?.id,
         // val: Math.log10(this.getTotalDescendants(id) + 1),
         val: 

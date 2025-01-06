@@ -16,6 +16,55 @@
       color: #eee;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .f-row {
+      display: flex;
+      flex-direction: row;
+    }
+
+    .f-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .smol {
+      font-size: 0.8em;
+      color: #aaa;
+    }
+
+    .relative {
+      position: relative;
+    }
+
+    .absolute {
+      position: absolute;
+    }
+
+    .topleft {
+      top: 0;
+      left: 0;
+    }
+
+    .p-1 {
+      padding: 1rem;
+    };
+
+    .p-2 {
+      padding: 2rem;
+    }
+
+    .w-100 {
+      width: 100%;
+    }
+    
+    .h-100 {
+      height: 100%;
+    }
+
+    .j-between {
+      justify-content: space-between;
     }
 
   </style>
@@ -27,18 +76,32 @@
   <div id="graph">
   </div>
   <div id="sidebar">
-    <h3>Settings</h3>
     <div>
-      <input type="checkbox" id="use3DGraph">
-      <label for="use3DGraph">3D graph</label>
+      <h3>Settings</h3>
+      <div>
+        <input type="checkbox" id="use3DGraph">
+        <label for="use3DGraph">3D graph</label>
+      </div>
+      <div>
+        <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
+        <label for="useNextLinks">Put clips created at a similar time next to each other</label>
+      </div>
+      <div>
+        <input type="checkbox" id="useDescendantLinks" data-type="linkToggle" data-kind="descendant" checked>
+        <label for="useDescendantLinks">Put descendants closer to their root clip</label>
+      </div>
     </div>
-    <div>
-      <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
-      <label for="useNextLinks">Put clips created at a similar time next to each other</label>
-    </div>
-    <div>
-      <input type="checkbox" id="useDescendantLinks" data-type="linkToggle" data-kind="descendant" checked>
-      <label for="useDescendantLinks">Put descendants closer to their root clip</label>
+    <div id="audioContainer" class="w-100" style="display: none;">
+      <div class="relative">
+        <a id="audioLink" target="_blank">
+          <img id="audioImage" style="opacity: 0.5" class="w-100">
+        </a>
+        <div class="absolute topleft" style="width: 190px; padding: 5px;">
+          <div id="audioName"></div>
+          <div class="smol" id="audioTags"></div>
+        </div>
+      </div>
+      <audio controls id="audio" class="w-100"></audio>
     </div>
   </div>    
   <div id="data" style="display: none;">
@@ -48,20 +111,44 @@
 
 
     const data = JSON.parse(document.getElementById('data').innerText);
-
     let graph = renderGraph(data, false);
 
     function renderGraph(data, use3DGraph) {
       const Renderer = use3DGraph ? ForceGraph3D : ForceGraph;
       const graph = new Renderer()
         (document.getElementById('graph'))
+        .graphData(data)
         .backgroundColor('#111')
         .linkAutoColorBy('kind')
         .nodeAutoColorBy('rootId')
         .linkLabel('kind')
         .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
         .linkDirectionalParticles(1)
-        .graphData(data);
+        .nodeLabel(({ id, name, tags, image_url }) => `
+          <div class="relative" style="width: 200px;">
+            <img src="${image_url}" style="opacity: 0.5; width: 200px">
+            <div class="absolute topleft p-1 w-100">
+              <div>${name || '[Untitled]'}</div>
+              <div class="smol">${tags || '(no style)'}</div>
+            </div>
+          </div>
+          <div class="smol">
+            Click to play, right-click to open in new tab
+          </div>
+        `)
+        .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
+          document.getElementById('audioContainer').style.display = 'block';
+          document.getElementById('audioLink').href = `https://suno.com/song/${id}`;
+          document.getElementById('audioImage').src = image_url;
+          document.getElementById('audioName').innerText = name || '[Untitled]';
+          document.getElementById('audioTags').innerText = tags || '(no style)';
+          const audio = document.getElementById('audio');
+          audio.src = audio_url;
+          audio.play();
+        })
+        .onNodeRightClick(({ id }) => {
+          window.open(`https://suno.com/song/${id}`);
+        });
       if ( use3DGraph ) {
         graph.linkOpacity(l => l.isMain ? 1 : 0.2)
       } else {
