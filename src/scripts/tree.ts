@@ -18,7 +18,7 @@ type MissingClip = RawClip & {
   isMissing: true,
 };
 
-type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop' | 'next';
+type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop' | 'next' | 'descendant';
 
 type SerializedLink<Kind extends LinkKind = LinkKind> = [
   parentId: string,
@@ -256,7 +256,7 @@ class Tree {
   };
 
   get rootLinks() {
-    const rootLinks: SerializedLink<'next'>[] = [];
+    const rootLinks: SerializedLink<'next' | 'descendant'>[] = [];
     const { rootClips } = this;
     let currentParent = rootClips[0];
     for ( const rootClip of rootClips.slice(1) ) {
@@ -265,16 +265,15 @@ class Tree {
         currentParent = rootClip;
       };
     };
+    //! Link every clip wthout children to its root, for better visualization.
+    for ( const clip of this.linkedClips.filter(({ children }) => !children) ) {
+      rootLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
+    };
     return rootLinks;
   };
 
-  private _graphData: GraphData | undefined;
 
   get graphData() {
-    return this._graphData ??= this.getGraphData();
-  };
-
-  private getGraphData() {
     const result: GraphData = {
       nodes: this.sortedClips.map(({ id, title: name, root }) => ({ 
         id,

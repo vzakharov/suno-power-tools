@@ -19,6 +19,7 @@
       .nodeAutoColorBy('rootId')
       .dagMode('radialout')
       .linkLabel('kind')
+      .linkVisibility(l => l.kind !== 'descendant')
       .linkDirectionalParticles(1)
       .graphData(data);
 
