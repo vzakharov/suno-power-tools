@@ -33,11 +33,11 @@
       <label for="use3DGraph">3D graph</label>
     </div>
     <div>
-      <input type="checkbox" id="useNextLinks" checked>
+      <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
       <label for="useNextLinks">Put clips created at a similar time next to each other</label>
     </div>
     <div>
-      <input type="checkbox" id="useDescendantLinks" checked>
+      <input type="checkbox" id="useDescendantLinks" data-type="linkToggle" data-kind="descendant" checked>
       <label for="useDescendantLinks">Put descendants closer to their root clip</label>
     </div>
   </div>    
@@ -75,28 +75,18 @@
       graph = renderGraph(graph.graphData(), use3DGraphCheckbox.checked);
     });
 
-    const useNextLinksCheckbox = document.getElementById('useNextLinks');
-    useNextLinksCheckbox.addEventListener('change', () => {
-      const useNextLinks = useNextLinksCheckbox.checked;
-      let { nodes, links } = graph.graphData();
-      if ( !useNextLinks ) {
-        links = links.filter(l => l.kind !== 'next');
-      } else {
-        links.push(...data.links.filter(l => l.kind === 'next'));
-      }
-      graph.graphData({ nodes, links });
-    });
-
-    const useDescendantLinksCheckbox = document.getElementById('useDescendantLinks');
-    useDescendantLinksCheckbox.addEventListener('change', () => {
-      const useDescendantLinks = useDescendantLinksCheckbox.checked;
-      let { nodes, links } = graph.graphData();
-      if ( !useDescendantLinks ) {
-        links = links.filter(l => l.kind !== 'descendant');
-      } else {
-        links.push(...data.links.filter(l => l.kind === 'descendant'));
-      }
-      graph.graphData({ nodes, links });
+    document.querySelectorAll('[data-type="linkToggle"]').forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        const kind = checkbox.getAttribute('data-kind');
+        const useLinks = checkbox.checked;
+        let { nodes, links } = graph.graphData();
+        if ( !useLinks ) {
+          links = links.filter(l => l.kind !== kind);
+        } else {
+          links.push(...data.links.filter(l => l.kind === kind));
+        }
+        graph.graphData({ nodes, links });
+      });
     });
 
 
