@@ -25,11 +25,15 @@
   </div>
   <div id="sidebar">
     <h3>Settings</h3>
+    <input type="checkbox" id="useNextLinks" checked>
+    <label for="useNextLinks">Put clips created at a similar time next to each other</label>
   </div>    
   <div id="data" style="display: none;">
     __data__
   </div>
   <script>
+
+
     const data = JSON.parse(document.getElementById('data').innerText);
 
     const graph = new ForceGraph()
@@ -42,6 +46,17 @@
       .linkLineDash(l => l.isMain ? undefined : [1, 2])
       .linkDirectionalParticles(1)
       .graphData(data);
+
+    const useNextLinksCheckbox = document.getElementById('useNextLinks');
+    useNextLinksCheckbox.addEventListener('change', () => {
+      const useNextLinks = useNextLinksCheckbox.checked;
+      let { nodes, links } = graph.graphData();
+      if ( !useNextLinks ) {
+        links = links.filter(l => l.kind !== 'next');
+      };
+      graph.graphData({ nodes, links });
+    });
+
 
   </script>
 </body>
