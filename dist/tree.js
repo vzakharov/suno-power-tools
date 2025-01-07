@@ -446,7 +446,7 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
     if (!allPagesProcessed || !allLinksBuilt) {
       console.log("Tree state is incomplete. Run `await vovas.tree.build()` to complete it.");
     } else {
-      console.log("Tree state is complete, you can now run `vovas.tree.openHtml()` to view the tree.");
+      console.log("Tree state is complete, you can now run `await vovas.tree.openHtml()` to view the tree.");
     }
   });
   function isV2AudioFilename(id) {

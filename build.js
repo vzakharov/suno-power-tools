@@ -9,6 +9,7 @@ const __dirname = dirname(__filename);
 
 const scriptsPath = path.join(__dirname, 'src', 'scripts');
 const outputPath = path.join(__dirname, 'dist');
+const minifiedPath = path.join(outputPath, 'minified');
 
 fs.rmSync(outputPath, { recursive: true, force: true });
 fs.mkdirSync(outputPath);
@@ -35,19 +36,30 @@ fs.readdir(scriptsPath, (err, files) => {
           }
         };
 
-        const outfile = path.join(outputPath, file.replace('.ts', '.js'));
-        await esbuild.build({
-          entryPoints: [path.join(scriptsPath, file)],
-          outfile,
-          bundle: true,
-          platform: 'browser',
-          format: 'iife',
-          legalComments: 'inline',
-          banner: Object.keys(templates).length === 0 ? undefined : {
-            js: `window.templates = ${JSON.stringify(templates)};`
-          }
-        });
-        fs.chmodSync(outfile, '444');
+
+        for (const minify of [false, true]) {
+
+          const outfile = path.join(
+            minify ? minifiedPath : outputPath,
+            file.replace('.ts', '.js')
+          );
+
+          await esbuild.build({
+            entryPoints: [path.join(scriptsPath, file)],
+            outfile,
+            bundle: true,
+            platform: 'browser',
+            format: 'iife',
+            legalComments: minify ? 'none' : 'inline',
+            minify,
+            banner: Object.keys(templates).length === 0 ? undefined : {
+              js: `window.templates = ${JSON.stringify(templates)};`
+            }
+          })
+
+          fs.chmodSync(outfile, '444');
+        };
+
       } catch (err) {
         console.error('Build failed:', err);
         process.exit(1);
