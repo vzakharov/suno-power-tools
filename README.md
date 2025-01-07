@@ -128,6 +128,7 @@ Just some tips:
 * Use the filter to filter your songs by name, style, date (in the YYYY-MM-DD format), or even its ID. The filter will also fetch any “related” clips — i.e. clips ultimately stemming from the same root clip as the one(s) you’re filtering by.
 * Save your page (`Cmd + S` or `Ctrl + S`) to save your graph. You can then open it later without using the script at all.
 * You can also open your graph again by going to the console, copying and pasting the script, and running `await vovas.colony.render()` — no breakpoint shenanigans needed this time.
+* If you run `await vovas.colony.render('3d')` (note the `'3d'` argument), you’ll get a 3D view of your graph. Tbf I find it a bit hard to navigate, but it’s fun to look at.
 
 Enjoy — and let me know what you think, or ask any questions, on the [Discussions board](https://github.com/vzakharov/suno-power-tools/discussions)!
 
