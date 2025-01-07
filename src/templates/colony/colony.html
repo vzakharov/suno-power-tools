@@ -208,7 +208,7 @@
       if (e.keyCode === 13) {
         const filter = e.target.value.toLowerCase();
         const matchingNodes = filter 
-          ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags}`.toLowerCase().includes(filter))
+          ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
           : data.nodes;
         // const sameRootNodes = data.nodes.filter(node => matchingNodes.some(n => n.id !== node.id && n.rootId === node.rootId));
         // const relevantNodes = [...matchingNodes, ...sameRootNodes];
@@ -216,7 +216,7 @@
         const nodes = [
           ...matchingNodes.map(node => existing.nodes.find(n => n.id === node.id) ?? node),
           ...filter 
-            ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId)) 
+            ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))
             : []
         ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);
         const links = data.links
