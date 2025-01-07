@@ -365,12 +365,12 @@ class Colony {
 const colony = new Colony();
 
 colony.stateLoaded.promise.then(() => {
-  console.log('Colony state loaded');
+  console.log('Welcome to Vova’s Suno Colony! This is a nifty tool to visualize your liked clips and the relationships between them, such as extensions, inpaints, covers, etc., in a graph format. It takes a bit of time and hacks to build, but hopefully it’ll be worth it!');
   const { state: { allPagesProcessed, allLinksBuilt } } = colony;
   if ( !allPagesProcessed || !allLinksBuilt ) {
-    console.log('Colony state is incomplete. Run `await vovas.colony.build()` to complete it.');
+    console.log('Run `await vovas.colony.build()` to start or continue building your colony!');
   } else {
-    console.log('Colony state is complete, you can now run `await vovas.colony.render()` to view the colony.');
+    console.log('Your colony is built, run `await vovas.colony.render()` to view it!');
   }
 });
 
