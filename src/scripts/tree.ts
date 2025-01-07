@@ -306,6 +306,7 @@ class Tree {
 
     const formatLink = ([ source, target, kind ]: SerializedLink) => ({
       source, target, kind,
+      color: kind === 'next' ? '#006' : undefined //! (To make time-based links less prominent on a dark background)
     });
 
     const links = this.state.links.map(formatLink).map(link => ({

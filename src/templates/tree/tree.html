@@ -84,11 +84,15 @@
       </div>
       <div>
         <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
-        <label for="useNextLinks">Put clips created at a similar time next to each other</label>
+        <label for="useNextLinks">Attract based on time</label>
+      </div>
+      <div id="showNextLinksContainer">
+        <input type="checkbox" id="showNextLinks" data-type="linkToggle" data-kind="descendant">
+        <label for="showNextLinks">Show time-based links</label>
       </div>
       <div>
         <input type="checkbox" id="useDescendantLinks" data-type="linkToggle" data-kind="descendant" checked>
-        <label for="useDescendantLinks">Put descendants closer to their root clip</label>
+        <label for="useDescendantLinks">Attract to root clip</label>
       </div>
     </div>
     <div id="audioContainer" class="w-100" style="display: none;">
@@ -113,16 +117,23 @@
     const data = JSON.parse(document.getElementById('data').innerText);
     let graph = renderGraph(data, false);
 
+    function visibilityChecker(link) {
+      return !{
+        descendant: true,
+        next: !document.getElementById('showNextLinks').checked
+      }[link.kind];
+    };
+
     function renderGraph(data, use3DGraph) {
       const Renderer = use3DGraph ? ForceGraph3D : ForceGraph;
       const graph = new Renderer()
         (document.getElementById('graph'))
         .graphData(data)
-        .backgroundColor('#111')
+        .backgroundColor('#001')
         .linkAutoColorBy('kind')
         .nodeAutoColorBy('rootId')
         .linkLabel('kind')
-        .linkVisibility(l => !['descendant', 'next'].includes(l.kind))
+        .linkVisibility(visibilityChecker)
         .linkDirectionalParticles(1)
         .nodeLabel(({ id, name, tags, image_url }) => `
           <div class="relative" style="width: 200px;">
@@ -173,9 +184,15 @@
           links.push(...data.links.filter(l => l.kind === kind));
         }
         graph.graphData({ nodes, links });
+        if ( kind === 'next' ) {
+          document.getElementById('showNextLinksContainer').style.display = useLinks ? 'block' : 'none';
+        };
       });
     });
 
+    document.getElementById('showNextLinks').addEventListener('change', () => {
+      graph.linkVisibility(visibilityChecker);
+    });
 
   </script>
 </body>
