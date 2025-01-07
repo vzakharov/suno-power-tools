@@ -287,15 +287,15 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return clip;
     }
     getClipByIdSync(id) {
-      //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
-      if (id.startsWith("m_"))
-        id = id.slice(2);
       //! For older (v2) generations, the referenced IDs are actually names of audio_url files, and they end with _\d+. So if the ID ends with _\d+, we need to find a clip with an audio_url including the ID.
       return this.rawClipsById[id] ??= this.state.rawClips.find(
         (clip) => isV2AudioFilename(id) ? clip.audio_url.includes(id) : clip.id === id
       );
     }
     async getClipById(id) {
+      //! (For some reason, Suno sometimes prefixes the clip IDs in history arrays with 'm_', while the actual clip IDs don't have that prefix)
+      if (id.startsWith("m_"))
+        id = id.slice(2);
       return this.getClipByIdSync(id) ?? await this.loadClip(id);
     }
     async buildLinks() {
