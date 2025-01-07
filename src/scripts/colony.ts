@@ -346,22 +346,42 @@ class Colony {
     return result;
   };
 
-  render(mode?: '3d' | '3D') {
+  getHtml(mode?: '3d' | '3D') {
+    const in3D = mode?.toLowerCase() === '3d';
+    console.log("Rendering your colony, give it a few seconds...");
+
+    return renderTemplate(window.templates.colony, {
+      data: JSON.stringify(this.graphData),
+      use3DGraph: String(in3D),
+      GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
+      graph_url_slug: in3D ? '3d-force-graph' : 'force-graph',
+    });
+  };
+
+  render(...params: Parameters<typeof this.getHtml>) {
+    const html = this.getHtml(...params);
+
     const win = window.open();
     if ( !win ) {
       console.error('Failed to open new window.');
       return;
     };
-    const in3D = mode?.toLowerCase() === '3d';
-    win.document.write(renderTemplate(window.templates.colony, {
-      data: JSON.stringify(this.graphData),
-      use3DGraph: String(in3D),
-      GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
-      graph_url_slug: in3D ? '3d-force-graph' : 'force-graph',
-    }));
+    win.document.write(html);
+  };
+
+  renderToFile(...params: Parameters<typeof this.getHtml>) {
+    const html = this.getHtml(...params);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'suno_colony.html';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
 };
+
 
 const colony = new Colony();
 
