@@ -2,6 +2,7 @@ import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { getSuno } from "../manager";
+import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { renderTemplate, Template } from "../templating";
 import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
@@ -71,7 +72,7 @@ class Tree {
   };
 
   storage = new Storage<TreeState>('tree', DEFAULT_STATE);
-  stateLoaded = false;
+  stateLoaded = new Resolvable();
 
   async loadState(fromFile = false) {
     if ( fromFile ) {
@@ -84,7 +85,7 @@ class Tree {
     } else {
       this.state = await this.storage.load();
     };
-    this.stateLoaded = true;
+    this.stateLoaded.resolve();
   }
 
   async saveState(toFile = false) {
@@ -354,7 +355,16 @@ class Tree {
 };
 
 const tree = new Tree();
-await tree.stateLoaded;
+
+tree.stateLoaded.promise.then(() => {
+  console.log('Tree state loaded');
+  const { state: { allPagesProcessed, allLinksBuilt } } = tree;
+  if ( !allPagesProcessed || !allLinksBuilt ) {
+    console.log('Tree state is incomplete. Run `await vovas.tree.build()` to complete it.');
+  } else {
+    console.log('Tree state is complete, you can now run `await vovas.tree.openHtml()` to view the tree.');
+  }
+});
 
 function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);
