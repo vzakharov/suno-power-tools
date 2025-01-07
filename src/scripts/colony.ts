@@ -104,13 +104,19 @@ class Colony {
 
   async build() {
     
-    if ( !this.state.allPagesProcessed ) {
-      await this.fetchClips();
-    };
+    try {
 
-    if ( !this.state.allLinksBuilt ) {
-      await this.buildLinks();
-    };
+      if ( !this.state.allPagesProcessed ) {
+        await this.fetchClips();
+      };
+
+      if ( !this.state.allLinksBuilt ) {
+        await this.buildLinks();
+      };
+
+    } finally {
+      await this.saveState();
+    }
 
   }
 

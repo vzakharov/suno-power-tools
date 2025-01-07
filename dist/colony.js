@@ -241,14 +241,18 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       }
     }
     async build() {
-      if (!this.state.allPagesProcessed) {
-        await this.fetchClips();
+      try {
+        if (!this.state.allPagesProcessed) {
+          await this.fetchClips();
+        }
+        ;
+        if (!this.state.allLinksBuilt) {
+          await this.buildLinks();
+        }
+        ;
+      } finally {
+        await this.saveState();
       }
-      ;
-      if (!this.state.allLinksBuilt) {
-        await this.buildLinks();
-      }
-      ;
     }
     async fetchClips() {
       console.log("Fetching liked clips...");
