@@ -2,6 +2,7 @@ import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
 import { suno } from "../manager";
+import { Storage } from "../storage";
 import { renderTemplate, Template } from "../templating";
 import { $throw, $with, atLeast, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 import { type GraphData }  from 'force-graph';
@@ -62,24 +63,34 @@ class Tree {
     console.log('Tree reset. Run build() to start building it again.');
   };
 
-  async loadState() {
-    const json = await uploadTextFile();
-    if ( !json ) {
-      console.log('No file selected, aborting.');
-      return;
-    };
-    this.config = JSON.parse(json);
+  storage = new Storage<TreeConfig>('tree', []);
+
+  async loadState(fromFile = false) {
+    if ( fromFile ) {
+      const json = await uploadTextFile();
+      if ( !json ) {
+        console.log('No file selected, aborting.');
+        return;
+      };
+      this.config = JSON.parse(json);
+    } else {
+      this.config = await this.storage.load();
+    }
   }
 
-  saveState() {
-    const json = JSON.stringify(this.config);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'suno_tree.json';
-    a.click();
-    URL.revokeObjectURL(url);
+  async saveState(toFile = false) {
+    if ( toFile ) {
+      const json = JSON.stringify(this.config);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'suno_tree.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      await this.storage.save(this.config);
+    }
   };
 
   async build() {

@@ -123,6 +123,37 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
     return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
   }
 
+  // src/storage.ts
+  var dbName = "vovas";
+  var storeName = "sunoTools";
+  var dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(storeName);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  var storePromise = dbPromise.then(
+    (db) => db.transaction(storeName, "readwrite").objectStore(storeName)
+  );
+  var Storage = class {
+    constructor(key, init) {
+      this.key = key;
+      this.init = init;
+    }
+    async load() {
+      const request = (await storePromise).get(this.key);
+      return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(
+          request.result ?? this.init
+        );
+        request.onerror = () => reject(request.error);
+      });
+    }
+    async save(data) {
+      (await storePromise).put(data, this.key);
+    }
+  };
+
   // src/templating.ts
   function renderTemplate(template, values) {
     return Object.keys(values).reduce((acc, key) => {
@@ -149,24 +180,33 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
       this.config = [];
       console.log("Tree reset. Run build() to start building it again.");
     }
-    async loadState() {
-      const json = await uploadTextFile();
-      if (!json) {
-        console.log("No file selected, aborting.");
-        return;
+    storage = new Storage("tree", []);
+    async loadState(fromFile = false) {
+      if (fromFile) {
+        const json = await uploadTextFile();
+        if (!json) {
+          console.log("No file selected, aborting.");
+          return;
+        }
+        ;
+        this.config = JSON.parse(json);
+      } else {
+        this.config = await this.storage.load();
       }
-      ;
-      this.config = JSON.parse(json);
     }
-    saveState() {
-      const json = JSON.stringify(this.config);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "suno_tree.json";
-      a.click();
-      URL.revokeObjectURL(url);
+    async saveState(toFile = false) {
+      if (toFile) {
+        const json = JSON.stringify(this.config);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "suno_tree.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await this.storage.save(this.config);
+      }
     }
     async build() {
       if (!this.allPagesProcessed) {
