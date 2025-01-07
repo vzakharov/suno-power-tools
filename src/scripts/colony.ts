@@ -11,7 +11,7 @@ import { type GraphData }  from 'force-graph';
 declare global {
   interface Window {
     templates: {
-      tree: Template<'data' | 'use3DGraph' | 'GraphRenderer' | 'graph_url_slug'>,
+      colony: Template<'data' | 'use3DGraph' | 'GraphRenderer' | 'graph_url_slug'>,
     },
   }
 }
@@ -55,22 +55,22 @@ const DEFAULT_STATE = {
   allLinksBuilt: false,
 };
 
-type TreeState = typeof DEFAULT_STATE;
+type ColonyState = typeof DEFAULT_STATE;
 
-class Tree {
+class Colony {
 
   constructor(
-    public state: TreeState = DEFAULT_STATE,
+    public state: ColonyState = DEFAULT_STATE,
   ) {
     this.loadState();
   }
 
   reset() {
     this.state = DEFAULT_STATE;
-    console.log('Tree reset. Run build() to start building it again.');
+    console.log('Colony reset. Run build() to start building it again.');
   };
 
-  storage = new Storage<TreeState>('tree', DEFAULT_STATE);
+  storage = new Storage<ColonyState>('colony', DEFAULT_STATE);
   stateLoaded = new Resolvable();
 
   async loadState(fromFile = false) {
@@ -94,7 +94,7 @@ class Tree {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'suno_tree.json';
+      a.download = 'suno_colony.json';
       a.click();
       URL.revokeObjectURL(url);
     } else {
@@ -346,7 +346,7 @@ class Tree {
       return;
     };
     const in3D = mode?.toLowerCase() === '3d';
-    win.document.write(renderTemplate(window.templates.tree, {
+    win.document.write(renderTemplate(window.templates.colony, {
       data: JSON.stringify(this.graphData),
       use3DGraph: String(in3D),
       GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
@@ -356,15 +356,15 @@ class Tree {
 
 };
 
-const tree = new Tree();
+const colony = new Colony();
 
-tree.stateLoaded.promise.then(() => {
-  console.log('Tree state loaded');
-  const { state: { allPagesProcessed, allLinksBuilt } } = tree;
+colony.stateLoaded.promise.then(() => {
+  console.log('Colony state loaded');
+  const { state: { allPagesProcessed, allLinksBuilt } } = colony;
   if ( !allPagesProcessed || !allLinksBuilt ) {
-    console.log('Tree state is incomplete. Run `await vovas.tree.build()` to complete it.');
+    console.log('Colony state is incomplete. Run `await vovas.colony.build()` to complete it.');
   } else {
-    console.log('Tree state is complete, you can now run `await vovas.tree.openHtml()` to view the tree.');
+    console.log('Colony state is complete, you can now run `await vovas.colony.openHtml()` to view the colony.');
   }
 });
 
@@ -385,4 +385,4 @@ function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window, { vovas: { tree }});
+mutate(window, { vovas: { colony }});
