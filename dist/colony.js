@@ -325,6 +325,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       ;
       this.state.allLinksBuilt = true;
       console.log(`Built ${this.state.links.length} links.`);
+      console.log("Colony built. Run `await vovas.colony.render()` to view it!");
     }
     _linkedClips;
     get linkedClips() {

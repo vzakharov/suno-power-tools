@@ -209,6 +209,7 @@ class Colony {
     };
     this.state.allLinksBuilt = true;
     console.log(`Built ${this.state.links.length} links.`);
+    console.log('Colony built. Run `await vovas.colony.render()` to view it!');
   };
 
   private _linkedClips: LinkedClip[] | undefined;
