@@ -364,7 +364,7 @@ colony.stateLoaded.promise.then(() => {
   if ( !allPagesProcessed || !allLinksBuilt ) {
     console.log('Colony state is incomplete. Run `await vovas.colony.build()` to complete it.');
   } else {
-    console.log('Colony state is complete, you can now run `await vovas.colony.openHtml()` to view the colony.');
+    console.log('Colony state is complete, you can now run `await vovas.colony.render()` to view the colony.');
   }
 });
 
