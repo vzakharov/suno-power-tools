@@ -147,8 +147,11 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+  async function dbTransaction(mode) {
+    return (await dbPromise).transaction(storeName, mode);
+  }
   async function storePromise(mode) {
-    return (await dbPromise).transaction(storeName, mode).objectStore(storeName);
+    return (await dbTransaction(mode)).objectStore(storeName);
   }
   var Storage = class {
     constructor(key, init) {
@@ -165,7 +168,12 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
       });
     }
     async save(data) {
-      (await storePromise("readwrite")).put(data, this.key);
+      const transaction = await dbTransaction("readwrite");
+      transaction.objectStore(storeName).put(data, this.key);
+      return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      });
     }
   };
 
