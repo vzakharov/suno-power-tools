@@ -339,14 +339,13 @@ class Tree {
     return result;
   };
 
-  render( {
-    in3D = false
-  } = {} ) {
+  render(mode?: '3d' | '3D') {
     const win = window.open();
     if ( !win ) {
       console.error('Failed to open new window.');
       return;
     };
+    const in3D = mode?.toLowerCase() === '3d';
     win.document.write(renderTemplate(window.templates.tree, {
       data: JSON.stringify(this.graphData),
       use3DGraph: String(in3D),
