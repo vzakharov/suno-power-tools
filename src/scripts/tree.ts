@@ -20,22 +20,29 @@ type MissingClip = RawClip & {
   isMissing: true,
 };
 
-type LinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop' | 'next' | 'descendant';
 
-type SerializedLink<Kind extends LinkKind = LinkKind> = [
+type BaseLink<Kind extends string> = [
   parentId: string,
   childId: string,
   kind: Kind,
 ];
 
-type MonoLink = {
-  kind: LinkKind,
+type BaseLinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
+
+type Link = BaseLink<BaseLinkKind>
+
+type SyntheticLinkKind = 'next' | 'descendant';
+
+type SyntheticLink = BaseLink<SyntheticLinkKind>;
+
+type Relation = {
+  kind: BaseLinkKind,
   clip: LinkedClip,
 };
 
 type LinkedClip = RawClip & {
-  children?: MonoLink[],
-  parent?: MonoLink,
+  children?: Relation[],
+  parent?: Relation,
   root?: LinkedClip,
   totalDescendants?: number,
 };
@@ -52,7 +59,7 @@ const DEFAULT_STATE = {
   rawClips: EmptyArray<RawClip>(),
   lastProcessedPage: -1,
   allPagesProcessed: false,
-  links: EmptyArray<SerializedLink>(),
+  links: EmptyArray<Link>(),
   allLinksBuilt: false,
 };
 
@@ -173,7 +180,7 @@ class Tree {
         console.log(`Processed ${i} clips out of ${this.state.rawClips.length}`);
       };
       const { metadata } = clip;
-      const [ parentId, kind ]: [ id: string, kind: LinkKind ] | [ undefined, undefined ]=
+      const [ parentId, kind ]: [ id: string, kind: BaseLinkKind ] | [ undefined, undefined ]=
         'history' in metadata 
           ? $with(metadata.history[0], parent =>
               typeof parent === 'string'
@@ -277,21 +284,21 @@ class Tree {
 
   };
 
-  get rootLinks() {
-    const rootLinks: SerializedLink<'next' | 'descendant'>[] = [];
+  get syntheticLinks() {
+    const syntheticLinks: SyntheticLink[] = [];
     const { rootClips } = this;
     let currentParent = rootClips[0];
     for ( const rootClip of rootClips.slice(1) ) {
-      rootLinks.push([ currentParent.id, rootClip.id, 'next' ]);
+      syntheticLinks.push([ currentParent.id, rootClip.id, 'next' ]);
       if ( rootClip?.children?.length ) {
         currentParent = rootClip;
       };
     };
     //! Link every clip with children to its root, for better visualization.
     for ( const clip of this.linkedClips.filter(({ children }) => children?.length) ) {
-      rootLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
+      syntheticLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
     };
-    return rootLinks;
+    return syntheticLinks;
   };
 
   getTotalDescendants(clipId: string) {
@@ -304,7 +311,7 @@ class Tree {
 
   get graphData() {
 
-    const formatLink = ([ source, target, kind ]: SerializedLink) => ({
+    const formatLink = ([ source, target, kind ]: Link | SyntheticLink) => ({
       source, target, kind,
       color: kind === 'next' ? '#006' : undefined //! (To make time-based links less prominent on a dark background)
     });
@@ -331,7 +338,7 @@ class Tree {
           : 0.5,
       })),
       links: [
-        ...this.rootLinks.map(formatLink),
+        ...this.syntheticLinks.map(formatLink),
         ...links,
         // ...filter(links, { isMain: true as const })
         // //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)

@@ -381,12 +381,12 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
       }
       ;
     }
-    get rootLinks() {
-      const rootLinks = [];
+    get syntheticLinks() {
+      const syntheticLinks = [];
       const { rootClips } = this;
       let currentParent = rootClips[0];
       for (const rootClip of rootClips.slice(1)) {
-        rootLinks.push([currentParent.id, rootClip.id, "next"]);
+        syntheticLinks.push([currentParent.id, rootClip.id, "next"]);
         if (rootClip?.children?.length) {
           currentParent = rootClip;
         }
@@ -395,10 +395,10 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
       ;
       //! Link every clip with children to its root, for better visualization.
       for (const clip of this.linkedClips.filter(({ children }) => children?.length)) {
-        rootLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
+        syntheticLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
       }
       ;
-      return rootLinks;
+      return syntheticLinks;
     }
     getTotalDescendants(clipId) {
       const clip = find(this.linkedClips, { id: clipId }) ?? $throw(`Clip ${clipId} not found.`);
@@ -428,7 +428,7 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
           val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
         })),
         links: [
-          ...this.rootLinks.map(formatLink),
+          ...this.syntheticLinks.map(formatLink),
           ...links
           // ...filter(links, { isMain: true as const })
           // //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
