@@ -11,7 +11,7 @@ import { type GraphData }  from 'force-graph';
 declare global {
   interface Window {
     templates: {
-      tree: Template<'data'>,
+      tree: Template<'data' | 'use3DGraph' | 'GraphRenderer' | 'graph_url_slug'>,
     },
   }
 }
@@ -47,14 +47,6 @@ type LinkedClip = RawClip & {
   totalDescendants?: number,
 };
 
-// // type TreeConfig = ConstructorParameters<typeof Tree>;
-// type TreeState = {
-//   rawClips?: RawClip[],
-//   lastProcessedPage?: number,
-//   allPagesProcessed?: boolean,
-//   links?: SerializedLink[],
-//   allLinksBuilt?: boolean,
-// };
 const DEFAULT_STATE = {
   rawClips: EmptyArray<RawClip>(),
   lastProcessedPage: -1,
@@ -347,17 +339,20 @@ class Tree {
     return result;
   };
 
-  get html() {
-    return renderTemplate(window.templates.tree, { data: JSON.stringify(this.graphData) });
-  };
-
-  openHtml() {
+  render( {
+    in3D = false
+  } = {} ) {
     const win = window.open();
     if ( !win ) {
       console.error('Failed to open new window.');
       return;
     };
-    win.document.write(this.html);
+    win.document.write(renderTemplate(window.templates.tree, {
+      data: JSON.stringify(this.graphData),
+      use3DGraph: String(in3D),
+      GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
+      graph_url_slug: in3D ? '3d-force-graph' : 'force-graph',
+    }));
   };
 
 };

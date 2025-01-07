@@ -68,8 +68,7 @@
     }
 
   </style>
-  <script src="//unpkg.com/force-graph"></script>
-  <script src="//unpkg.com/3d-force-graph"></script>
+  <script src="//unpkg.com/__graph_url_slug__"></script>
 </head>
 
 <body>
@@ -78,10 +77,6 @@
   <div id="sidebar">
     <div>
       <h3>Settings</h3>
-      <div>
-        <input type="checkbox" id="use3DGraph">
-        <label for="use3DGraph">3D graph</label>
-      </div>
       <div>
         <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
         <label for="useNextLinks">Attract based on time</label>
@@ -113,9 +108,9 @@
   </div>
   <script>
 
-
+    const use3DGraph = __use3DGraph__;
     const data = JSON.parse(document.getElementById('data').innerText);
-    let graph = renderGraph(data, false);
+    let graph = renderGraph(data);
 
     function visibilityChecker(link) {
       return !{
@@ -124,9 +119,8 @@
       }[link.kind];
     };
 
-    function renderGraph(data, use3DGraph) {
-      const Renderer = use3DGraph ? ForceGraph3D : ForceGraph;
-      const graph = new Renderer()
+    function renderGraph(data) {
+      const graph = new __GraphRenderer__()
         (document.getElementById('graph'))
         .graphData(data)
         .backgroundColor('#001')
@@ -167,11 +161,6 @@
       }
       return graph;
     };
-
-    const use3DGraphCheckbox = document.getElementById('use3DGraph');
-    use3DGraphCheckbox.addEventListener('change', () => {
-      graph = renderGraph(graph.graphData(), use3DGraphCheckbox.checked);
-    });
 
     document.querySelectorAll('[data-type="linkToggle"]').forEach(checkbox => {
       checkbox.addEventListener('change', () => {
