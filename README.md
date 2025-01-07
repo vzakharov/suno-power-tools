@@ -1,6 +1,6 @@
 ## Setup
 
-<img width="636" alt="Screenshot 2025-01-07 at 19 16 56" src="https://github.com/user-attachments/assets/be7108dc-511d-4cd3-a026-5e8cb2edd62f" />
+<img width="623" alt="Screenshot 2025-01-07 at 19 31 09" src="https://github.com/user-attachments/assets/31b68a89-8290-4b1a-8fe3-b08223b2a1b4" />
 
 <img width="621" alt="Screenshot 2025-01-07 at 19 21 58" src="https://github.com/user-attachments/assets/2dabf15f-0ee4-4765-b3dc-5d0f0b7089ff" />
 
