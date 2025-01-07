@@ -9,11 +9,13 @@ const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
   request.onerror = () => reject(request.error);
 });
 
+async function dbTransaction(mode: IDBTransactionMode) {
+  return ( await dbPromise ).transaction(storeName, mode);
+};
+
 async function storePromise(mode: IDBTransactionMode) {
-  return (
-    await dbPromise
-  ).transaction(storeName, mode).objectStore(storeName);
-}
+  return ( await dbTransaction(mode) ).objectStore(storeName);
+};
 
 export class Storage<T extends {}> {
 
@@ -34,7 +36,12 @@ export class Storage<T extends {}> {
   };
 
   async save(data: T) {
-    ( await storePromise('readwrite') ).put(data, this.key);
+    const transaction = await dbTransaction('readwrite');
+    transaction.objectStore(storeName).put(data, this.key);
+    return new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
   };
 
 };

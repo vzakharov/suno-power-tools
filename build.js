@@ -36,7 +36,6 @@ fs.readdir(scriptsPath, (err, files) => {
           }
         };
 
-
         for (const minify of [false, true]) {
 
           const outfile = path.join(
