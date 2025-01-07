@@ -13,6 +13,13 @@ async function dbTransaction(mode: IDBTransactionMode) {
   return ( await dbPromise ).transaction(storeName, mode);
 };
 
+function transactionCompletionPromise(transaction: IDBTransaction) {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
 async function storePromise(mode: IDBTransactionMode) {
   return ( await dbTransaction(mode) ).objectStore(storeName);
 };
@@ -38,10 +45,13 @@ export class Storage<T extends {}> {
   async save(data: T) {
     const transaction = await dbTransaction('readwrite');
     transaction.objectStore(storeName).put(data, this.key);
-    return new Promise<void>((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
+    return transactionCompletionPromise(transaction);
   };
+
+  async clear() {
+    const transaction = await dbTransaction('readwrite');
+    transaction.objectStore(storeName).delete(this.key);
+    return transactionCompletionPromise(transaction);
+  }
 
 };

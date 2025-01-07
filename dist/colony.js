@@ -150,6 +150,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   async function dbTransaction(mode) {
     return (await dbPromise).transaction(storeName, mode);
   }
+  function transactionCompletionPromise(transaction) {
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
   async function storePromise(mode) {
     return (await dbTransaction(mode)).objectStore(storeName);
   }
@@ -170,10 +176,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     async save(data) {
       const transaction = await dbTransaction("readwrite");
       transaction.objectStore(storeName).put(data, this.key);
-      return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      });
+      return transactionCompletionPromise(transaction);
+    }
+    async clear() {
+      const transaction = await dbTransaction("readwrite");
+      transaction.objectStore(storeName).delete(this.key);
+      return transactionCompletionPromise(transaction);
     }
   };
 
