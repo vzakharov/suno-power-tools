@@ -41,7 +41,7 @@ fs.readdir(scriptsPath, (err, files) => {
           outfile,
           bundle: true,
           platform: 'browser',
-          format: 'iife',
+          format: 'esm',
           legalComments: 'inline',
           banner: Object.keys(templates).length === 0 ? undefined : {
             js: `window.templates = ${JSON.stringify(templates)};`

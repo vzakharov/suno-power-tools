@@ -25,6 +25,6 @@ export type SunoManager = {
   }
 };
 
-export function suno() {
+export function getSuno() {
   return window.suno ?? $throw('`suno` object not found in `window`. Have you followed the setup instructions?');
 }

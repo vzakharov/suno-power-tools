@@ -1,10 +1,10 @@
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { filter, find } from "../lodashish";
-import { suno } from "../manager";
+import { getSuno } from "../manager";
 import { Storage } from "../storage";
 import { renderTemplate, Template } from "../templating";
-import { $throw, $with, atLeast, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
+import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 import { type GraphData }  from 'force-graph';
 
 declare global {
@@ -39,31 +39,39 @@ type LinkedClip = RawClip & {
   totalDescendants?: number,
 };
 
-type TreeConfig = ConstructorParameters<typeof Tree>;
+// // type TreeConfig = ConstructorParameters<typeof Tree>;
+// type TreeState = {
+//   rawClips?: RawClip[],
+//   lastProcessedPage?: number,
+//   allPagesProcessed?: boolean,
+//   links?: SerializedLink[],
+//   allLinksBuilt?: boolean,
+// };
+const DEFAULT_STATE = {
+  rawClips: EmptyArray<RawClip>(),
+  lastProcessedPage: -1,
+  allPagesProcessed: false,
+  links: EmptyArray<SerializedLink>(),
+  allLinksBuilt: false,
+};
+
+type TreeState = typeof DEFAULT_STATE;
 
 class Tree {
 
   constructor(
-    private rawClips: RawClip[] = [],
-    private lastProcessedPage = -1,
-    private allPagesProcessed = false,
-    private links: SerializedLink[] = [],
-    private allLinksBuilt = false,
-  ) {}
-
-  get config(): TreeConfig {
-    return [ this.rawClips, this.lastProcessedPage, this.allPagesProcessed, this.links, this.allLinksBuilt ];
-  };
-  set config(config: TreeConfig) {
-    Object.assign(this, new Tree(...config));
-  };
+    public state: TreeState = DEFAULT_STATE,
+  ) {
+    this.loadState();
+  }
 
   reset() {
-    this.config = [];
+    this.state = DEFAULT_STATE;
     console.log('Tree reset. Run build() to start building it again.');
   };
 
-  storage = new Storage<TreeConfig>('tree', []);
+  storage = new Storage<TreeState>('tree', DEFAULT_STATE);
+  stateLoaded = false;
 
   async loadState(fromFile = false) {
     if ( fromFile ) {
@@ -72,15 +80,16 @@ class Tree {
         console.log('No file selected, aborting.');
         return;
       };
-      this.config = JSON.parse(json);
+      this.state = JSON.parse(json);
     } else {
-      this.config = await this.storage.load();
-    }
+      this.state = await this.storage.load();
+    };
+    this.stateLoaded = true;
   }
 
   async saveState(toFile = false) {
     if ( toFile ) {
-      const json = JSON.stringify(this.config);
+      const json = JSON.stringify(this.state);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -89,17 +98,17 @@ class Tree {
       a.click();
       URL.revokeObjectURL(url);
     } else {
-      await this.storage.save(this.config);
+      await this.storage.save(this.state);
     }
   };
 
   async build() {
     
-    if ( !this.allPagesProcessed ) {
+    if ( !this.state.allPagesProcessed ) {
       await this.fetchClips();
     };
 
-    if ( !this.allLinksBuilt ) {
+    if ( !this.state.allLinksBuilt ) {
       await this.buildLinks();
     };
 
@@ -109,21 +118,21 @@ class Tree {
     console.log('Fetching liked clips...');
     while (true) {
       await atLeast(1000); //! (to avoid rate limiting)
-      const { data: { clips } } = await suno().root.apiClient.GET('/api/feed/v2', {
+      const { data: { clips } } = await getSuno().root.apiClient.GET('/api/feed/v2', {
         params: {
           query: {
             is_liked: true,
-            page: this.lastProcessedPage + 1,
+            page: this.state.lastProcessedPage + 1,
           }
         }
       });
       if (!clips.length) {
-        this.allPagesProcessed = true;
+        this.state.allPagesProcessed = true;
         break;
       };
-      this.rawClips.push(...clips);
-      this.lastProcessedPage++;
-      console.log(`Processed page ${this.lastProcessedPage}; total clips: ${this.rawClips.length}`);
+      this.state.rawClips.push(...clips);
+      this.state.lastProcessedPage++;
+      console.log(`Processed page ${this.state.lastProcessedPage}; total clips: ${this.state.rawClips.length}`);
     }
   };
 
@@ -132,8 +141,8 @@ class Tree {
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
     console.log(`Clip ${id} not found in cache, loading...`);
-    const clip = await suno().root.clips.loadClipById(id) ?? missingClip(id);
-    this.rawClips.push(clip);
+    const clip = await getSuno().root.clips.loadClipById(id) ?? missingClip(id);
+    this.state.rawClips.push(clip);
     return clip;
   };
 
@@ -143,7 +152,7 @@ class Tree {
       id = id.slice(2);
     //! For older (v2) generations, the referenced IDs are actually names of audio_url files, and they end with _\d+. So if the ID ends with _\d+, we need to find a clip with an audio_url including the ID.
     return this.rawClipsById[id] ??= 
-      this.rawClips.find((clip) =>
+      this.state.rawClips.find((clip) =>
         isV2AudioFilename(id)
           ? clip.audio_url.includes(id)
           : clip.id === id
@@ -156,11 +165,11 @@ class Tree {
 
   private async buildLinks() {
     console.log('Building links...');
-    // for ( const child of this.rawClips ) {
-    for ( let i = 0; i < this.rawClips.length; i++ ) {
-      const clip = this.rawClips[i];
+    // for ( const child of this.state.rawClips ) {
+    for ( let i = 0; i < this.state.rawClips.length; i++ ) {
+      const clip = this.state.rawClips[i];
       if ( i % 100 === 0 ) {
-        console.log(`Processed ${i} clips out of ${this.rawClips.length}`);
+        console.log(`Processed ${i} clips out of ${this.state.rawClips.length}`);
       };
       const { metadata } = clip;
       const [ parentId, kind ]: [ id: string, kind: LinkKind ] | [ undefined, undefined ]=
@@ -179,21 +188,21 @@ class Tree {
         : 'upsample_clip_id' in metadata
           ? [ metadata.upsample_clip_id, 'remaster' ]
         : 'type' in metadata && metadata.type === 'edit_crop'
-          // ? [ await findCropBaseClipId(clip, this.rawClips), 'crop' ]
-          ? await findCropBaseClipId(clip, this.rawClips).then(id => 
+          // ? [ await findCropBaseClipId(clip, this.state.rawClips), 'crop' ]
+          ? await findCropBaseClipId(clip, this.state.rawClips).then(id => 
             id ? [ id, 'crop' ] : [ undefined, undefined ]
           )
         : [ undefined, undefined ];
       if (parentId) {
-        this.links.push([
+        this.state.links.push([
           (await this.getClipById(parentId)).id, //! (Because the actual clip ID might be different from the one in the history)
           clip.id,
           kind,
         ]);
       }
     };
-    this.allLinksBuilt = true;
-    console.log(`Built ${this.links.length} links.`);
+    this.state.allLinksBuilt = true;
+    console.log(`Built ${this.state.links.length} links.`);
   };
 
   private _linkedClips: LinkedClip[] | undefined;
@@ -203,7 +212,7 @@ class Tree {
   };
 
   private getLinkedClips() {
-    const linkedClips = this.links.reduce(
+    const linkedClips = this.state.links.reduce(
       (linkedClips, [ parentId, childId, kind ]) => {
         const parent = find(linkedClips, { id: parentId })
           ?? $throw(`Could not find parent for link ${parentId} -> ${childId}.`);
@@ -216,7 +225,7 @@ class Tree {
         ( parent.children ??= [] ).push({ kind, clip: child });
         return linkedClips;
       }, 
-      jsonClone(this.rawClips) as LinkedClip[],
+      jsonClone(this.state.rawClips) as LinkedClip[],
     );
     for ( let rootClip of linkedClips.filter(({ parent }) => !parent) ) {
       setRoot(rootClip, rootClip);
@@ -298,7 +307,7 @@ class Tree {
       source, target, kind,
     });
 
-    const links = this.links.map(formatLink).map(link => ({
+    const links = this.state.links.map(formatLink).map(link => ({
       ...link,
       isMain: this.getTotalDescendants(link.target) > 1,
     }));
@@ -345,6 +354,7 @@ class Tree {
 };
 
 const tree = new Tree();
+await tree.stateLoaded;
 
 function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);

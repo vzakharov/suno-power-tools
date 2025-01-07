@@ -9,9 +9,11 @@ const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
   request.onerror = () => reject(request.error);
 });
 
-const storePromise = dbPromise.then(db =>
-  db.transaction(storeName, 'readwrite').objectStore(storeName)
-);
+async function storePromise(mode: IDBTransactionMode) {
+  return (
+    await dbPromise
+  ).transaction(storeName, mode).objectStore(storeName);
+}
 
 export class Storage<T extends {}> {
 
@@ -21,7 +23,7 @@ export class Storage<T extends {}> {
   ) { };
 
   async load() {
-    const request = ( await storePromise ).get(this.key);
+    const request = ( await storePromise('readonly') ).get(this.key);
 
     return new Promise<T>((resolve, reject) => {
       request.onsuccess = () => resolve(
@@ -32,7 +34,7 @@ export class Storage<T extends {}> {
   };
 
   async save(data: T) {
-    ( await storePromise ).put(data, this.key);
+    ( await storePromise('readwrite') ).put(data, this.key);
   };
 
 };

@@ -1,3 +1,11 @@
+export function Null<T>() {
+  return null as T | null;
+};
+
+export function EmptyArray<T>() {
+  return [] as T[];
+};
+
 export function $with<T, U>(obj: T, fn: (obj: T) => U): U {
   return fn(obj);
 };
