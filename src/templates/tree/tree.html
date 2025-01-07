@@ -68,7 +68,7 @@
     }
 
   </style>
-  <script src="//unpkg.com/__graph_url_slug__"></script>
+  <script src="//unpkg.com/___graph_url_slug___"></script>
 </head>
 
 <body>
@@ -104,11 +104,11 @@
     </div>
   </div>    
   <div id="data" style="display: none;">
-    __data__
+    ___data___
   </div>
   <script>
 
-    const use3DGraph = __use3DGraph__;
+    const use3DGraph = ___use3DGraph___;
     const data = JSON.parse(document.getElementById('data').innerText);
     let graph = renderGraph(data);
 
@@ -120,7 +120,7 @@
     };
 
     function renderGraph(data) {
-      const graph = new __GraphRenderer__()
+      const graph = new ___GraphRenderer___()
         (document.getElementById('graph'))
         .graphData(data)
         .backgroundColor('#001')
