@@ -486,5 +486,5 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       metadata: { duration: 0, tags: "" }
     };
   }
-  mutate(window, { vovas: { colony } });
+  mutate(window, { vovas: { Colony, colony } });
 })();

@@ -385,4 +385,4 @@ function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window, { vovas: { colony }});
+mutate(window, { vovas: { Colony, colony }});
