@@ -138,13 +138,13 @@
         .nodeLabel(({ id, name, tags, image_url }) => `
           <div class="relative" style="width: 200px;">
             <img src="${image_url}" style="opacity: 0.5; width: 200px">
-            <div class="absolute topleft p-1 w-100">
+            <div class="absolute topleft" style="width: 190px; padding: 5px;">
               <div>${name || '[Untitled]'}</div>
               <div class="smol">${tags || '(no style)'}</div>
             </div>
           </div>
           <div class="smol">
-            Click to play, right-click to open in new tab
+            Click to play, right-click to open in Suno
           </div>
         `)
         .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
