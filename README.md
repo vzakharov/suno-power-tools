@@ -124,6 +124,7 @@ Okay, I’m a bit tired of writing this README, so I’m hoping the UI will be i
 Just some tips:
 
 * Once your graph is stable after a few seconds of loading, uncheck the `Attract based on time` and `Attract to root clip` checkboxes — this will give your individual song “specimens” more space to breathe and a funner look.
+* Clicking on a song-node starts playing it and opens its controls on the bottom left. You can click on the image there to open the song in Suno — or you can right-click the node right away to the same effect.
 * Use the filter to filter your songs by name, style, date (in the YYYY-MM-DD format), or even its ID. The filter will also fetch any “related” clips — i.e. clips ultimately stemming from the same root clip as the one(s) you’re filtering by.
 * Save your page (`Cmd + S` or `Ctrl + S`) to save your graph. You can then open it later without using the script at all.
 * You can also open your graph again by going to the console, copying and pasting the script, and running `await vovas.colony.render()` — no breakpoint shenanigans needed this time.
