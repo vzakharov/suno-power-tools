@@ -67,6 +67,10 @@
       justify-content: space-between;
     }
 
+    .settings > div {
+      margin-top: 5px;
+    }
+
   </style>
   <script src="//unpkg.com/___graph_url_slug___"></script>
 </head>
@@ -75,7 +79,7 @@
   <div id="graph">
   </div>
   <div id="sidebar">
-    <div>
+    <div class="settings f-col">
       <h3>Settings</h3>
       <!-- Use next links -->
       <div>
@@ -94,10 +98,9 @@
       </div>
       <!-- Filter -->
       <div>
-        <label for="filter">Filter by name, id, style</label>
-        <input type="text" id="filter" placeholder="Filter">
+        <input type="text" id="filter" placeholder="Filter by name, style or ID">
         <p class="smol">
-          Filter will include both matching nodes and any nodes belonging to the same root clip
+          Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)
         </p>
       </div>
     </div>
@@ -177,19 +180,24 @@
     document.querySelectorAll('[data-type="linkToggle"]').forEach(checkbox => {
       checkbox.addEventListener('change', () => {
         const kind = checkbox.getAttribute('data-kind');
-        const useLinks = checkbox.checked;
-        let { nodes, links } = graph.graphData();
-        if ( !useLinks ) {
-          links = links.filter(l => l.kind !== kind);
-        } else {
-          links.push(...data.links.filter(l => l.kind === kind));
-        }
-        graph.graphData({ nodes, links });
+        applyLinkFilter(checkbox);
         if ( kind === 'next' ) {
           document.getElementById('showNextLinksContainer').style.display = useLinks ? 'block' : 'none';
         };
       });
     });
+
+    function applyLinkFilter(checkbox) {
+      const kind = checkbox.getAttribute('data-kind');
+      const useLinks = checkbox.checked;
+      let { nodes, links } = graph.graphData();
+      if ( !useLinks ) {
+        links = links.filter(l => l.kind !== kind);
+      } else {
+        links.push(...data.links.filter(l => l.kind === kind));
+      }
+      graph.graphData({ nodes, links });
+    };
 
     document.getElementById('showNextLinks').addEventListener('change', () => {
       graph.linkVisibility(visibilityChecker);
@@ -204,22 +212,23 @@
           : data.nodes;
         // const sameRootNodes = data.nodes.filter(node => matchingNodes.some(n => n.id !== node.id && n.rootId === node.rootId));
         // const relevantNodes = [...matchingNodes, ...sameRootNodes];
-        const existingNodes = graph.graphData().nodes;
+        const existing = graph.graphData();
         const nodes = [
-          ...matchingNodes,
+          ...matchingNodes.map(node => existing.nodes.find(n => n.id === node.id) ?? node),
           ...filter 
             ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId)) 
             : []
-        ].map(node => existingNodes.find(n => n.id === node.id) ?? node);
+        ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);
         const links = data.links
           .filter(link => nodes.some(n => n.id === link.source.id) && nodes.some(n => n.id === link.target.id))
-          .map(({ source: { id: source }, target: { id: target }, ...rest }) => ({ source, target, ...rest }));
-        console.log({ nodes, links });
+          .map(({ source: { id: source }, target: { id: target }, ...rest }) => ({ source, target, ...rest }))
+          .map(link => existing.links.find(l => l.source.id === link.source.id && l.target.id === link.target.id) ?? link);
         graph.graphData({ nodes, links });
         if ( filter )
-          graph.nodeColor(node => matchingNodes.some(n => n.id === node.id) ? '#f77' : '#777');
+          graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);
         else
-          graph.nodeAutoColorBy('rootId');
+          graph.nodeVal('val');
+        document.querySelectorAll('[data-type="linkToggle"]').forEach(applyLinkFilter);
       };
     });
 
