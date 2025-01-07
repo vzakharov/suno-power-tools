@@ -77,17 +77,28 @@
   <div id="sidebar">
     <div>
       <h3>Settings</h3>
+      <!-- Use next links -->
       <div>
         <input type="checkbox" id="useNextLinks" data-type="linkToggle" data-kind="next" checked>
         <label for="useNextLinks">Attract based on time</label>
       </div>
+      <!-- Show next links -->
       <div id="showNextLinksContainer">
         <input type="checkbox" id="showNextLinks" data-type="linkToggle" data-kind="descendant">
         <label for="showNextLinks">Show time-based links</label>
       </div>
+      <!-- Use descendant links -->
       <div>
         <input type="checkbox" id="useDescendantLinks" data-type="linkToggle" data-kind="descendant" checked>
         <label for="useDescendantLinks">Attract to root clip</label>
+      </div>
+      <!-- Filter -->
+      <div>
+        <label for="filter">Filter by name, id, style</label>
+        <input type="text" id="filter" placeholder="Filter">
+        <p class="smol">
+          Filter will include both matching nodes and any nodes belonging to the same root clip
+        </p>
       </div>
     </div>
     <div id="audioContainer" class="w-100" style="display: none;">
@@ -111,6 +122,7 @@
     const use3DGraph = ___use3DGraph___;
     const data = JSON.parse(document.getElementById('data').innerText);
     let graph = renderGraph(data);
+    Object.assign(window, { data, graph });
 
     function visibilityChecker(link) {
       return !{
@@ -181,6 +193,34 @@
 
     document.getElementById('showNextLinks').addEventListener('change', () => {
       graph.linkVisibility(visibilityChecker);
+    });
+    
+    // Filter (on Enter key)
+    document.getElementById('filter').addEventListener('keyup', e => {
+      if (e.keyCode === 13) {
+        const filter = e.target.value.toLowerCase();
+        const matchingNodes = filter 
+          ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags}`.toLowerCase().includes(filter))
+          : data.nodes;
+        // const sameRootNodes = data.nodes.filter(node => matchingNodes.some(n => n.id !== node.id && n.rootId === node.rootId));
+        // const relevantNodes = [...matchingNodes, ...sameRootNodes];
+        const existingNodes = graph.graphData().nodes;
+        const nodes = [
+          ...matchingNodes,
+          ...filter 
+            ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId)) 
+            : []
+        ].map(node => existingNodes.find(n => n.id === node.id) ?? node);
+        const links = data.links
+          .filter(link => nodes.some(n => n.id === link.source.id) && nodes.some(n => n.id === link.target.id))
+          .map(({ source: { id: source }, target: { id: target }, ...rest }) => ({ source, target, ...rest }));
+        console.log({ nodes, links });
+        graph.graphData({ nodes, links });
+        if ( filter )
+          graph.nodeColor(node => matchingNodes.some(n => n.id === node.id) ? '#f77' : '#777');
+        else
+          graph.nodeAutoColorBy('rootId');
+      };
     });
 
   </script>
