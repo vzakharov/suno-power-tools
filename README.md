@@ -10,7 +10,7 @@ Ever since I got deep into Suno, I found one overwhelming problem: I could not k
 
 Colony is a tool that helps you do just that. Once everything’s set up and built, you’ll have an interface that looks and feels like this:
 
-[GIF to be added]
+![ezgif-4-e235957564](https://github.com/user-attachments/assets/d51017cb-7d07-4dbd-8437-78c0c86e89fa)
 
 Unfortunately, the barrier to entry is a bit high right now. Suno doesn’t provide a web API to access your data, so you’ll have to do some manual work not unlike hotwiring a car. But if you’re up for it, here’s how you can get started:
 
@@ -78,36 +78,44 @@ Now, let’s outline the steps to fetch your data:
 
 1. Go to the script’s [compiled source code](https://github.com/vzakharov/suno-power-tools/blob/main/dist/colony.js) and copy it:
 
-[Image to be added]
+<img width="896" alt="Screenshot 2025-01-07 at 20 13 49" src="https://github.com/user-attachments/assets/090099f5-3f1c-4f64-9396-5e82d339d4e6" />
 
 2. Go to your browser console, paste the copied code, and hit Enter.
 3. Type `await vovas.colony.build()` and hit Enter.
 
 The fetching script will start. Here’s how your console might look like after a short while:
 
-[Image to be added]
+<img width="756" alt="Screenshot 2025-01-07 at 20 09 18" src="https://github.com/user-attachments/assets/bbd532a6-c4b3-43a2-a7ee-8a6195f9b6df" />
 
 If you’re into the techy part, you can go to the `Network` tab and see the calls being made to Suno’s Web API:
 
-[Image to be added]
+<img width="779" alt="Screenshot 2025-01-07 at 20 09 58" src="https://github.com/user-attachments/assets/09ec8ba1-4473-4827-b518-82f3199cc4bc" />
 
 Now, if you have as many clips as I did (or more), you might want to go grab a coffee or something. The script will keep running until it’s done fetching all your songs. Just make sure you don’t close the tab or have your computer go to sleep.
 
 If you run into an error, you might see something like this:
 
-[Image to be added]
+<img width="584" alt="Screenshot 2025-01-07 at 20 15 06" src="https://github.com/user-attachments/assets/baf6e0d5-fec6-4b57-94b0-13c40444823d" />
 
 (You can also see in the image — not that you need this but — that you can type `vovas.colony.state` to make sure your data hasn’t been lost.)
 
 5. In case of an error, run `await vovas.colony.build()` again, and the script will hopefully pick up where it left off:
 
-[Image to be added]
+<img width="571" alt="Screenshot 2025-01-07 at 20 16 42" src="https://github.com/user-attachments/assets/de05f0f2-80c9-44f4-9047-79c7d93af53b" />
+
+Once the data is fetched, the script will need some more time (maybe a couple minutes) to build the links between your nodes. This is also not a trivial process, as Suno has all kinds of weird approaches to storing its data (for example, it doesn’t store the origin of a cropped clip, making us come up with all kinds of hacky ways to figure it out).
+
+The process will look like this, probably with quite a few warnings (shown in yellow). These shouldn’t discourage you, but you might want to read into them to figure out what kind of stuff the script runs into:
+
+<img width="585" alt="Screenshot 2025-01-07 at 20 21 34" src="https://github.com/user-attachments/assets/cad891a8-40e7-492e-a124-261fb81eb342" />
 
 In the end, you will see a log like this:
 
-[Image to be added]
+<img width="437" alt="Screenshot 2025-01-07 at 20 34 33" src="https://github.com/user-attachments/assets/f329933d-7421-4c7e-acd2-a7f464da6ce6" />
 
 This means you can type in `await vovas.colony.render()` and have your Colony graph loaded in a new tab!
+
+🎉
 
 ### Using Colony
 
@@ -123,4 +131,5 @@ Just some tips:
 Enjoy — and let me know what you think, or ask any questions, on the [Discussions board](https://github.com/vzakharov/suno-power-tools/discussions)!
 
 Yours,
+
 Vova
