@@ -31,7 +31,7 @@ type BaseLinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'cro
 
 type Link = BaseLink<BaseLinkKind>
 
-type SyntheticLinkKind = 'next' | 'descendant';
+type SyntheticLinkKind = 'next' | 'descendant' | 'applyBase';
 
 type SyntheticLink = BaseLink<SyntheticLinkKind>;
 
@@ -277,8 +277,10 @@ class Tree {
   };
 
   get syntheticLinks() {
+
     const syntheticLinks: SyntheticLink[] = [];
     const { rootClips } = this;
+
     let currentParent = rootClips[0];
     for ( const rootClip of rootClips.slice(1) ) {
       syntheticLinks.push([ currentParent.id, rootClip.id, 'next' ]);
@@ -286,10 +288,20 @@ class Tree {
         currentParent = rootClip;
       };
     };
-    //! Link every clip with children to its root, for better visualization.
+
     for ( const clip of this.linkedClips.filter(({ children }) => children?.length) ) {
       syntheticLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
     };
+
+    for ( const appliedClip of this.linkedClips.filter(({ parent }) => parent?.kind === 'apply') ) {
+      const applyBase = appliedClip.parent?.clip.parent?.clip;
+      if ( !applyBase ) {
+        console.warn(`Apply link ${appliedClip.id} has no parent or grandparent, skipping (this should not normally happen).`);
+        continue;
+      };
+      syntheticLinks.push([ applyBase.id, appliedClip.id, 'applyBase' ]);
+    };
+
     return syntheticLinks;
   };
 

@@ -393,9 +393,18 @@ window.templates = {"tree":"<head>\n  <style>\n    body { \n      margin: 0;\n  
         ;
       }
       ;
-      //! Link every clip with children to its root, for better visualization.
       for (const clip of this.linkedClips.filter(({ children }) => children?.length)) {
         syntheticLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
+      }
+      ;
+      for (const appliedClip of this.linkedClips.filter(({ parent }) => parent?.kind === "apply")) {
+        const applyBase = appliedClip.parent?.clip.parent?.clip;
+        if (!applyBase) {
+          console.warn(`Apply link ${appliedClip.id} has no parent or grandparent, skipping (this should not normally happen).`);
+          continue;
+        }
+        ;
+        syntheticLinks.push([applyBase.id, appliedClip.id, "applyBase"]);
       }
       ;
       return syntheticLinks;
