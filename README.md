@@ -12,6 +12,8 @@ Colony is a tool that helps you do just that. Once everything’s set up and bui
 
 ![ezgif-4-e235957564](https://github.com/user-attachments/assets/d51017cb-7d07-4dbd-8437-78c0c86e89fa)
 
+(You can [download my example HTML](https://github.com/vzakharov/suno-power-tools/blob/main/suno_colony_example.html) to see how it looks and works.)
+
 Unfortunately, the barrier to entry is a bit high right now. Suno doesn’t provide a web API to access your data, so you’ll have to do some manual work not unlike hotwiring a car. But if you’re up for it, here’s how you can get started:
 
 ### Setup
