@@ -197,22 +197,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   // src/pork.ts
   //! Pork, the PORtable framewORK
   var refBrand = Symbol("ref");
-  function ref() {
-    return {
-      [refBrand]: true,
-      value: void 0
-    };
-  }
-  function assert(ref2) {
-    if (ref2.value === void 0) {
-      throw new Error("Ref value is undefined");
-    }
-    ;
-  }
-  function ensure(ref2) {
-    assert(ref2);
-    return ref2.value;
-  }
   function isRef(candidate) {
     return candidate?.[refBrand];
   }
@@ -411,21 +395,19 @@ body {
     in3D = false,
     win = window
   }) {
-    const graphContainer = ref();
-    const closeButton = ref();
-    const useNextLinksCheckbox = ref();
-    const showNextLinksContainer = ref();
-    const showNextLinksCheckbox = ref();
-    const useDescendantLinksCheckbox = ref();
-    const filterInput = ref();
-    const audioRefs = {
-      container: ref(),
-      link: ref(),
-      image: ref(),
-      name: ref(),
-      tags: ref(),
-      audio: ref()
-    };
+    let graphContainer;
+    let closeButton;
+    let useNextLinksCheckbox;
+    let showNextLinksContainer;
+    let showNextLinksCheckbox;
+    let useDescendantLinksCheckbox;
+    let filterInput;
+    let audioContainer;
+    let audioLink;
+    let audioImage;
+    let audioName;
+    let audioTags;
+    let audioElement;
     const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     win.document.head.appendChild(style([colonyCss]));
     const container = div(
@@ -441,52 +423,51 @@ body {
         }
       },
       [
-        div(graphContainer),
+        graphContainer = div(),
         div({ id: "sidebar" }, [
           div({
             class: "settings f-col"
           }, [
-            button(closeButton, { style: { backgroundColor: "#444", color: "#eee", marginBottom: "5px" } }, [
+            closeButton = button({ style: { backgroundColor: "#444", color: "#eee", marginBottom: "5px" } }, [
               "Close Colony"
             ]),
             h3(["Settings"]),
             div(
               labeled(
                 "Attract based on time",
-                checkbox(useNextLinksCheckbox, { checked: true })
+                useNextLinksCheckbox = checkbox({ checked: true })
               )
             ),
-            div(
-              showNextLinksContainer,
+            showNextLinksContainer = div(
               labeled(
                 "Show time-based links",
-                checkbox(showNextLinksCheckbox)
+                showNextLinksCheckbox = checkbox()
               )
             ),
             div(
               labeled(
                 "Attract to root clip",
-                checkbox(useDescendantLinksCheckbox, { checked: true })
+                useDescendantLinksCheckbox = checkbox({ checked: true })
               )
             ),
             div([
-              textInput(filterInput, { placeholder: "Filter by name, style or ID" }),
+              filterInput = textInput({ placeholder: "Filter by name, style or ID" }),
               p({ class: "smol" }, [
                 "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
               ])
             ])
           ]),
-          div(audioRefs.container, { class: "w-100", style: { display: "none" } }, [
+          audioContainer = div({ class: "w-100", style: { display: "none" } }, [
             div({ class: "relative" }, [
-              a(audioRefs.link, { target: "_blank" }, [
-                img(audioRefs.image, { style: "opacity: 0.5", class: "w-100" })
+              audioLink = a({ target: "_blank" }, [
+                audioImage = img({ style: "opacity: 0.5", class: "w-100" })
               ]),
               div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
-                div(audioRefs.name),
-                div(audioRefs.tags, { class: "smol" })
+                audioName = div(),
+                audioTags = div({ class: "smol" })
               ])
             ]),
-            audio(audioRefs.audio, { controls: true, class: "w-100" })
+            audioElement = audio({ controls: true, class: "w-100" })
           ])
         ])
       ]
@@ -508,7 +489,7 @@ body {
     }
     ;
     showContainer();
-    ensure(closeButton).addEventListener("click", () => {
+    closeButton.addEventListener("click", () => {
       win.document.body.removeChild(container);
       win.document.body.appendChild(reopenButton);
     });
@@ -517,7 +498,7 @@ body {
     });
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
     const graph = new GraphRenderer(
-      ensure(graphContainer)
+      graphContainer
     ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
       <div class="relative" style="width: 200px;">
         <img src="${image_url}" style="opacity: 0.5; width: 200px">
@@ -530,14 +511,13 @@ body {
         Click to play, right-click to open in Suno
       </div>
     `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
-      ensure(audioRefs.container).style.display = "block";
-      ensure(audioRefs.link).href = `https://suno.com/song/${id2}`;
-      ensure(audioRefs.image).src = image_url;
-      ensure(audioRefs.name).innerText = name || "[Untitled]";
-      ensure(audioRefs.tags).innerText = tags || "(no style)";
-      const audio2 = ensure(audioRefs.audio);
-      audio2.src = audio_url;
-      audio2.play();
+      audioContainer.style.display = "block";
+      audioLink.href = `https://suno.com/song/${id2}`;
+      audioImage.src = image_url;
+      audioName.innerText = name || "[Untitled]";
+      audioTags.innerText = tags || "(no style)";
+      audioElement.src = audio_url;
+      audioElement.play();
     }).onNodeRightClick(({ id: id2 }) => {
       window.open(`https://suno.com/song/${id2}`);
     });
@@ -551,7 +531,7 @@ body {
     function visibilityChecker(link) {
       return !{
         descendant: true,
-        next: !ensure(showNextLinksCheckbox).checked
+        next: !showNextLinksCheckbox.checked
       }[link.kind];
     }
     ;
@@ -564,7 +544,7 @@ body {
         links.push(...data.links.filter((l) => l.kind === kind));
       }
       if (kind === "next") {
-        ensure(showNextLinksContainer).style.display = checkbox2.checked ? "block" : "none";
+        showNextLinksContainer.style.display = checkbox2.checked ? "block" : "none";
         links = links.filter((l) => l.kind !== "next");
         if (checkbox2.checked) {
           sortByDate(nodes);
@@ -590,19 +570,19 @@ body {
       mapValues({
         next: useNextLinksCheckbox,
         descendant: useDescendantLinksCheckbox
-      }, (checkbox2, kind) => $with(ensure(checkbox2), (checkbox3) => {
-        applyLinkFilter(kind, checkbox3);
+      }, (checkbox2, kind) => {
+        applyLinkFilter(kind, checkbox2);
         if (firstTime) {
-          checkbox3.addEventListener("change", () => {
-            applyLinkFilter(kind, checkbox3);
+          checkbox2.addEventListener("change", () => {
+            applyLinkFilter(kind, checkbox2);
           });
         }
         ;
-      }));
+      });
     }
     ;
     applyCheckboxFilters(true);
-    ensure(showNextLinksCheckbox).addEventListener("change", () => {
+    showNextLinksCheckbox.addEventListener("change", () => {
       graph.linkVisibility(visibilityChecker);
     });
     function id(node) {
@@ -617,9 +597,9 @@ body {
       return (candidate) => sameId(original, candidate);
     }
     ;
-    ensure(filterInput).addEventListener("keyup", (e) => {
+    filterInput.addEventListener("keyup", (e) => {
       if (e.key === "Enter") {
-        const filter2 = ensure(filterInput).value.toLowerCase();
+        const filter2 = filterInput.value.toLowerCase();
         const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
         const existing = graph.graphData();
         const nodes = [
@@ -636,8 +616,8 @@ body {
       }
     });
     setTimeout(() => {
-      ensure(useNextLinksCheckbox).click();
-      ensure(useDescendantLinksCheckbox).click();
+      useNextLinksCheckbox.click();
+      useDescendantLinksCheckbox.click();
     }, 2e3);
     //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
     return [container, reopenButton];

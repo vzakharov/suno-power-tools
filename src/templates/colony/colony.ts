@@ -10,23 +10,20 @@ export async function render(rawData: ColonyGraphData, {
   win = window
 }) {
 
-  const graphContainer = ref<HTMLDivElement>();
+  let graphContainer: HTMLDivElement;
+  let closeButton: HTMLButtonElement;
 
-  const closeButton = ref<HTMLButtonElement>();
-
-  const useNextLinksCheckbox = ref<HTMLInputElement>();
-  const showNextLinksContainer = ref<HTMLDivElement>();
-  const showNextLinksCheckbox = ref<HTMLInputElement>();
-  const useDescendantLinksCheckbox = ref<HTMLInputElement>();
-  const filterInput = ref<HTMLInputElement>();
-  const audioRefs = {
-    container: ref<HTMLDivElement>(),
-    link: ref<HTMLAnchorElement>(),
-    image: ref<HTMLImageElement>(),
-    name: ref<HTMLDivElement>(),
-    tags: ref<HTMLDivElement>(),
-    audio: ref<HTMLAudioElement>()
-  };
+  let useNextLinksCheckbox: HTMLInputElement;
+  let showNextLinksContainer: HTMLDivElement;
+  let showNextLinksCheckbox: HTMLInputElement;
+  let useDescendantLinksCheckbox: HTMLInputElement;
+  let filterInput: HTMLInputElement;
+  let audioContainer: HTMLDivElement;
+  let audioLink: HTMLAnchorElement;
+  let audioImage: HTMLImageElement;
+  let audioName: HTMLDivElement;
+  let audioTags: HTMLDivElement;
+  let audioElement: HTMLAudioElement;
 
   const GraphRenderer: typeof ForceGraph = await importScript(win, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
   win.document.head.appendChild(style([colonyCss]));
@@ -43,48 +40,48 @@ export async function render(rawData: ColonyGraphData, {
         zIndex: '100',
       }
     }, [
-      div(graphContainer),
+      graphContainer = div(),
       div({ id: 'sidebar' }, [
         div({
           class: 'settings f-col'
         }, [
-          button(closeButton, { style: { backgroundColor: '#444', color: '#eee', marginBottom: '5px'} }, [
+          closeButton = button({ style: { backgroundColor: '#444', color: '#eee', marginBottom: '5px'} }, [
             'Close Colony'
           ]),
           h3(['Settings']),
           div(
             labeled('Attract based on time',
-              checkbox(useNextLinksCheckbox, { checked: true })
+              useNextLinksCheckbox = checkbox({ checked: true })
             )
           ),
-          div(showNextLinksContainer, 
+          showNextLinksContainer = div(
             labeled('Show time-based links',
-              checkbox(showNextLinksCheckbox)
+              showNextLinksCheckbox = checkbox()
             )
           ),
           div(
             labeled('Attract to root clip',
-              checkbox(useDescendantLinksCheckbox, { checked: true })
+              useDescendantLinksCheckbox = checkbox({ checked: true })
             )
           ),
           div([
-            textInput(filterInput, { placeholder: 'Filter by name, style or ID' }),
+            filterInput = textInput({ placeholder: 'Filter by name, style or ID' }),
             p({ class: 'smol' }, [
               'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
             ])
           ])
         ]),
-        div(audioRefs.container, { class: 'w-100', style: { display: 'none' } }, [
+        audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
           div({ class: 'relative' }, [
-            a(audioRefs.link, { target: '_blank' }, [
-              img(audioRefs.image, { style: 'opacity: 0.5', class: 'w-100' })
+            audioLink = a({ target: '_blank' }, [
+              audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
             ]),
             div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-              div(audioRefs.name),
-              div(audioRefs.tags, { class: 'smol' })
+              audioName = div(),
+              audioTags = div({ class: 'smol' })
             ])
           ]),
-          audio(audioRefs.audio, { controls: true, class: 'w-100' })
+          audioElement = audio({ controls: true, class: 'w-100' })
         ])
       ])
     ]
@@ -103,7 +100,7 @@ export async function render(rawData: ColonyGraphData, {
 
   showContainer();
 
-  ensure(closeButton).addEventListener('click', () => {
+  closeButton.addEventListener('click', () => {
     win.document.body.removeChild(container);
     win.document.body.appendChild(reopenButton);
   });
@@ -118,7 +115,7 @@ export async function render(rawData: ColonyGraphData, {
   }; //! because ForceGraph mutates links by including source and target nodes instead of their IDs
 
   const graph = new GraphRenderer<ColonyNode, ProcessedLink>(
-    ensure(graphContainer)
+    graphContainer
   )
     .graphData(rawData)
     .backgroundColor('#001')
@@ -140,14 +137,13 @@ export async function render(rawData: ColonyGraphData, {
       </div>
     `)
     .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
-      ensure(audioRefs.container).style.display = 'block';
-      ensure(audioRefs.link).href = `https://suno.com/song/${id}`;
-      ensure(audioRefs.image).src = image_url;
-      ensure(audioRefs.name).innerText = name || '[Untitled]';
-      ensure(audioRefs.tags).innerText = tags || '(no style)';
-      const audio = ensure(audioRefs.audio);
-      audio.src = audio_url;
-      audio.play();
+      audioContainer.style.display = 'block';
+      audioLink.href = `https://suno.com/song/${id}`;
+      audioImage.src = image_url;
+      audioName.innerText = name || '[Untitled]';
+      audioTags.innerText = tags || '(no style)';
+      audioElement.src = audio_url;
+      audioElement.play();
     })
     .onNodeRightClick(({ id }) => {
       window.open(`https://suno.com/song/${id}`);
@@ -165,7 +161,7 @@ export async function render(rawData: ColonyGraphData, {
   function visibilityChecker(link: ProcessedLink) {
     return !{
       descendant: true,
-      next: !ensure(showNextLinksCheckbox).checked
+      next: !showNextLinksCheckbox.checked
     }[link.kind];
   };
 
@@ -178,7 +174,7 @@ export async function render(rawData: ColonyGraphData, {
       links.push(...data.links.filter(l => l.kind === kind));
     }
     if ( kind === 'next' ) {
-      ensure(showNextLinksContainer).style.display = checkbox.checked ? 'block' : 'none';
+      showNextLinksContainer.style.display = checkbox.checked ? 'block' : 'none';
       // Remove 'next' links, just in case they're already there
       links = links.filter(l => l.kind !== 'next');
       if ( checkbox.checked ) {
@@ -205,19 +201,19 @@ export async function render(rawData: ColonyGraphData, {
     mapValues( {
       next: useNextLinksCheckbox,
       descendant: useDescendantLinksCheckbox
-    }, (checkbox, kind) => $with(ensure(checkbox), checkbox => {
+    }, (checkbox, kind) => {
       applyLinkFilter(kind, checkbox);
       if ( firstTime ) {
         checkbox.addEventListener('change', () => {
           applyLinkFilter(kind, checkbox);
         });
       };
-    }) );
+    } );
   };
 
   applyCheckboxFilters(true);
 
-  ensure(showNextLinksCheckbox).addEventListener('change', () => {
+  showNextLinksCheckbox.addEventListener('change', () => {
     graph.linkVisibility(visibilityChecker);
   });
 
@@ -232,9 +228,9 @@ export async function render(rawData: ColonyGraphData, {
     return (candidate: NodeOrId) => sameId(original, candidate);
   };
 
-  ensure(filterInput).addEventListener('keyup', e => {
+  filterInput.addEventListener('keyup', e => {
     if ( e.key === 'Enter' ) {
-      const filter = ensure(filterInput).value.toLowerCase();
+      const filter = filterInput.value.toLowerCase();
       const matchingNodes = filter 
         ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
         : data.nodes;
@@ -259,8 +255,8 @@ export async function render(rawData: ColonyGraphData, {
   });
 
   setTimeout(() => {
-    ensure(useNextLinksCheckbox).click();
-    ensure(useDescendantLinksCheckbox).click();
+    useNextLinksCheckbox.click();
+    useDescendantLinksCheckbox.click();
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
 
