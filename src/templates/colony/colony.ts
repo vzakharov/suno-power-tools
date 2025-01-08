@@ -2,7 +2,7 @@ import { type GraphData, type default as ForceGraph } from 'force-graph';
 import { a, assert, audio, body, button, checkbox, div, ensure, h3, head, html, img, importScript, labeled, p, ref, script, style, textInput } from "../../pork";
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind, SyntheticLink, SyntheticLinkKind } from "../../scripts/colony";
 import { mapValues } from '../../lodashish';
-import { $throw, $with } from '../../utils';
+import { $throw, $with, sortByDate } from '../../utils';
 import { colonyCss } from './css';
 
 export async function render(rawData: ColonyGraphData, {
@@ -177,6 +177,26 @@ export async function render(rawData: ColonyGraphData, {
     } else {
       links.push(...data.links.filter(l => l.kind === kind));
     }
+    if ( kind === 'next' ) {
+      ensure(showNextLinksContainer).style.display = checkbox.checked ? 'block' : 'none';
+      // Remove 'next' links, just in case they're already there
+      links = links.filter(l => l.kind !== 'next');
+      if ( checkbox.checked ) {
+        // Add 'next' links dynamically by going from the oldest to the newest node
+        sortByDate(nodes);
+        for ( let i = 1; i < nodes.length; i++ ) {
+          const source = nodes[i - 1];
+          const target = nodes[i];
+          links.push({
+            source: source.id,
+            target: target.id,
+            kind: 'next',
+            color: '#006',
+            isMain: false
+          });
+        };
+      }
+    };
     graph.graphData({ nodes, links });
   };
 
@@ -190,9 +210,6 @@ export async function render(rawData: ColonyGraphData, {
       if ( firstTime ) {
         checkbox.addEventListener('change', () => {
           applyLinkFilter(kind, checkbox);
-          if ( kind === 'next' ) {
-            ensure(showNextLinksContainer).style.display = checkbox.checked ? 'block' : 'none';
-          };
         });
       };
     }) );

@@ -563,6 +563,26 @@ body {
       } else {
         links.push(...data.links.filter((l) => l.kind === kind));
       }
+      if (kind === "next") {
+        ensure(showNextLinksContainer).style.display = checkbox2.checked ? "block" : "none";
+        links = links.filter((l) => l.kind !== "next");
+        if (checkbox2.checked) {
+          sortByDate(nodes);
+          for (let i = 1; i < nodes.length; i++) {
+            const source = nodes[i - 1];
+            const target = nodes[i];
+            links.push({
+              source: source.id,
+              target: target.id,
+              kind: "next",
+              color: "#006",
+              isMain: false
+            });
+          }
+          ;
+        }
+      }
+      ;
       graph.graphData({ nodes, links });
     }
     ;
@@ -575,10 +595,6 @@ body {
         if (firstTime) {
           checkbox3.addEventListener("change", () => {
             applyLinkFilter(kind, checkbox3);
-            if (kind === "next") {
-              ensure(showNextLinksContainer).style.display = checkbox3.checked ? "block" : "none";
-            }
-            ;
           });
         }
         ;
@@ -835,14 +851,6 @@ body {
       const syntheticLinks = [];
       const { rootClips } = this;
       let currentParent = rootClips[0];
-      for (const rootClip of rootClips.slice(1)) {
-        syntheticLinks.push([currentParent.id, rootClip.id, "next"]);
-        if (rootClip?.children?.length) {
-          currentParent = rootClip;
-        }
-        ;
-      }
-      ;
       //! Link every clip with children to its root, for better visualization.
       for (const clip of this.linkedClips.filter(({ children }) => children?.length)) {
         syntheticLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);

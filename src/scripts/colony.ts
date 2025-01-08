@@ -298,12 +298,6 @@ class Colony {
     const syntheticLinks: SyntheticLink[] = [];
     const { rootClips } = this;
     let currentParent = rootClips[0];
-    for ( const rootClip of rootClips.slice(1) ) {
-      syntheticLinks.push([ currentParent.id, rootClip.id, 'next' ]);
-      if ( rootClip?.children?.length ) {
-        currentParent = rootClip;
-      };
-    };
     //! Link every clip with children to its root, for better visualization.
     for ( const clip of this.linkedClips.filter(({ children }) => children?.length) ) {
       syntheticLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
