@@ -4,6 +4,7 @@ import { filter, find } from "../lodashish";
 import { getSuno } from "../manager";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
+import { render } from "../templates/colony/colony";
 import { renderTemplate, Template } from "../templating";
 import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 import { type GraphData }  from 'force-graph';
@@ -27,13 +28,23 @@ type BaseLink<Kind extends string> = [
   kind: Kind,
 ];
 
-type BaseLinkKind = 'extend' | 'inpaint' | 'apply' | 'cover' | 'remaster' | 'crop';
+const BASE_LINK_KINDS = ['extend', 'inpaint', 'apply', 'cover', 'remaster', 'crop'] as const;
 
-type Link = BaseLink<BaseLinkKind>
+export type BaseLinkKind = typeof BASE_LINK_KINDS[number];
 
-type SyntheticLinkKind = 'next' | 'descendant';
+export type Link = BaseLink<BaseLinkKind>
 
-type SyntheticLink = BaseLink<SyntheticLinkKind>;
+const SYNTHETIC_LINK_KINDS = ['next', 'descendant'] as const;
+
+export type SyntheticLinkKind = typeof SYNTHETIC_LINK_KINDS[number];
+
+export type SyntheticLink = BaseLink<SyntheticLinkKind>;
+
+function isSyntheticLink(link: Link | SyntheticLink): link is SyntheticLink {
+  return SYNTHETIC_LINK_KINDS.includes(link[2] as any);
+}
+
+export type LinkKind = BaseLinkKind | SyntheticLinkKind;
 
 type Relation = {
   kind: BaseLinkKind,
@@ -310,39 +321,37 @@ class Colony {
 
   get graphData() {
 
+    const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
+      id,
+      name: name || tags || created_at || id,
+      created_at,
+      audio_url,
+      image_url,
+      tags,
+      rootId: root?.id,
+      // val: Math.log10(this.getTotalDescendants(id) + 1),
+      val: id === root?.id && children?.length
+        ? 2
+        : children?.length
+          ? 1
+          : 0.5,
+    }));
+    
     const formatLink = ([ source, target, kind ]: Link | SyntheticLink) => ({
-      source, target, kind,
-      color: kind === 'next' ? '#006' : undefined //! (To make time-based links less prominent on a dark background)
+      source,
+      target,
+      kind,
+      color: kind === 'next' ? '#006' : undefined, //! (To make time-based links less prominent on a dark background)
+      isMain: !SYNTHETIC_LINK_KINDS.includes(kind as any) && this.getTotalDescendants(target) > 1,
     });
 
-    const links = this.state.links.map(formatLink).map(link => ({
-      ...link,
-      isMain: this.getTotalDescendants(link.target) > 1,
-    }));
-
-    const result: GraphData = {
-      nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({ 
-        id,
-        name: name || tags || created_at || id,
-        audio_url,
-        image_url,
-        tags,
-        rootId: root?.id,
-        // val: Math.log10(this.getTotalDescendants(id) + 1),
-        val: 
-          id === root?.id && children?.length 
-            ? 2 
-          : children?.length
-            ? 1
-          : 0.5,
-      })),
+    const result = {
+      nodes,
       links: [
-        ...this.syntheticLinks.map(formatLink),
-        ...links,
-        // ...filter(links, { isMain: true as const })
-        // //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
-      ]
-    };
+        ...this.syntheticLinks,
+        ...this.state.links,
+      ].map(formatLink),
+    } satisfies GraphData;
     return result;
   };
 
@@ -358,16 +367,11 @@ class Colony {
     });
   };
 
-  render(...params: Parameters<typeof this.getHtml>) {
-    const html = this.getHtml(...params);
-
-    const win = window.open();
-    if ( !win ) {
-      console.error('Failed to open new window.');
-      return;
-    };
-    win.document.write(html);
+  async render(...[mode]: Parameters<typeof this.getHtml>) {
+    console.log("Rendering your colony, give it a few seconds...");
+    await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
   };
+    
 
   renderToFile(...params: Parameters<typeof this.getHtml>) {
     const html = this.getHtml(...params);
@@ -382,6 +386,9 @@ class Colony {
 
 };
 
+export type ColonyGraphData = typeof Colony.prototype.graphData;
+export type ColonyNode = ColonyGraphData['nodes'][number];
+export type ColonyLink = ColonyGraphData['links'][number];
 
 const colony = new Colony();
 
