@@ -893,12 +893,7 @@ body {
         graph_url_slug: in3D ? "3d-force-graph" : "force-graph"
       });
     }
-    render(...params) {
-      const html3 = this.getHtml(...params);
-      const win = window.open() ?? $throw("Failed to open a new window.");
-      win.document.write(html3);
-    }
-    async renderWithPork(...[mode]) {
+    async render(...[mode]) {
       console.log("Rendering your colony, give it a few seconds...");
       await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
     }

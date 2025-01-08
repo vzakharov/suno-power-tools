@@ -367,14 +367,7 @@ class Colony {
     });
   };
 
-  render(...params: Parameters<typeof this.getHtml>) {
-    const html = this.getHtml(...params);
-
-    const win = window.open() ?? $throw('Failed to open a new window.');
-    win.document.write(html);
-  };
-
-  async renderWithPork(...[mode]: Parameters<typeof this.getHtml>) {
+  async render(...[mode]: Parameters<typeof this.getHtml>) {
     console.log("Rendering your colony, give it a few seconds...");
     await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
   };
