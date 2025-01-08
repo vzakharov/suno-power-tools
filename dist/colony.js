@@ -330,7 +330,81 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     });
   }
 
-  // src/templates/colony.ts
+  // src/templates/colony/css.ts
+  var colonyCss = `
+body { 
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+#sidebar {
+  position: fixed;
+  padding: 10px;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 200px;
+  background-color: #333;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.f-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.f-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.smol {
+  font-size: 0.8em;
+  color: #aaa;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.topleft {
+  top: 0;
+  left: 0;
+}
+
+.p-1 {
+  padding: 1rem;
+};
+
+.p-2 {
+  padding: 2rem;
+}
+
+.w-100 {
+  width: 100%;
+}
+
+.h-100 {
+  height: 100%;
+}
+
+.j-between {
+  justify-content: space-between;
+}
+
+.settings > div {
+  margin-top: 5px;
+}
+`;
+
+  // src/templates/colony/colony.ts
   async function render(rawData, {
     in3D = false
   }) {
@@ -350,9 +424,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     };
     const template = [
       head([
-        style(
-          // tba
-        )
+        style([
+          colonyCss
+        ])
       ]),
       body([
         div(graphContainer),
@@ -364,7 +438,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             div(
               labeled(
                 "Attract based on time",
-                checkbox(useNextLinksCheckbox)
+                checkbox(useNextLinksCheckbox, { checked: true })
               )
             ),
             div(
@@ -377,7 +451,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             div(
               labeled(
                 "Attract to root clip",
-                checkbox(useDescendantLinksCheckbox)
+                checkbox(useDescendantLinksCheckbox, { checked: true })
               )
             ),
             div([
@@ -403,6 +477,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       ])
     ];
     async function setup(win) {
+      debugger;
       const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
       //! because ForceGraph mutates links by including source and target nodes instead of their IDs
       const graph = new GraphRenderer(
@@ -463,6 +538,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           applyLinkFilter(kind, checkbox3);
           if (firstTime) {
             checkbox3.addEventListener("change", () => {
+              applyLinkFilter(kind, checkbox3);
               if (kind === "next") {
                 ensure(showNextLinksContainer).style.display = checkbox3.checked ? "block" : "none";
               }
@@ -791,7 +867,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
     async renderWithPork(...[mode]) {
       const { template, setup } = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
-      const win = window.open() ?? $throw("Failed to open a new window.");
+      const win = window;
+      //! (For testing)
       win.document.children[0].replaceChildren(...template);
       setup(win);
     }

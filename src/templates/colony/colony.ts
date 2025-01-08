@@ -1,8 +1,9 @@
 import { type GraphData, type default as ForceGraph } from 'force-graph';
-import { a, assert, audio, body, checkbox, div, ensure, h3, head, html, img, importScript, labeled, p, ref, script, style, textInput } from "../pork";
-import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind, SyntheticLink, SyntheticLinkKind } from "../scripts/colony";
-import { mapValues } from '../lodashish';
-import { $with } from '../utils';
+import { a, assert, audio, body, checkbox, div, ensure, h3, head, html, img, importScript, labeled, p, ref, script, style, textInput } from "../../pork";
+import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind, SyntheticLink, SyntheticLinkKind } from "../../scripts/colony";
+import { mapValues } from '../../lodashish';
+import { $with } from '../../utils';
+import { colonyCss } from './css';
 
 export async function render(rawData: ColonyGraphData, {
   in3D = false,
@@ -25,9 +26,9 @@ export async function render(rawData: ColonyGraphData, {
   
   const template = [
     head([
-      style(
-        // tba
-      ),
+      style([
+        colonyCss
+      ]),
     ]),
     body([
       div(graphContainer),
@@ -38,7 +39,7 @@ export async function render(rawData: ColonyGraphData, {
           h3(['Settings']),
           div(
             labeled('Attract based on time',
-              checkbox(useNextLinksCheckbox)
+              checkbox(useNextLinksCheckbox, { checked: true })
             )
           ),
           div(showNextLinksContainer, 
@@ -48,7 +49,7 @@ export async function render(rawData: ColonyGraphData, {
           ),
           div(
             labeled('Attract to root clip',
-              checkbox(useDescendantLinksCheckbox)
+              checkbox(useDescendantLinksCheckbox, { checked: true })
             )
           ),
           div([
@@ -75,6 +76,8 @@ export async function render(rawData: ColonyGraphData, {
   ] as const;
 
   async function setup(win: Window) {
+
+    debugger;
 
     const GraphRenderer: typeof ForceGraph = await importScript(win, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
 
@@ -155,6 +158,7 @@ export async function render(rawData: ColonyGraphData, {
         applyLinkFilter(kind, checkbox);
         if ( firstTime ) {
           checkbox.addEventListener('change', () => {
+            applyLinkFilter(kind, checkbox);
             if ( kind === 'next' ) {
               ensure(showNextLinksContainer).style.display = checkbox.checked ? 'block' : 'none';
             };

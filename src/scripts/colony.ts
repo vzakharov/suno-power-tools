@@ -4,7 +4,7 @@ import { filter, find } from "../lodashish";
 import { getSuno } from "../manager";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
-import { render } from "../templates/colony";
+import { render } from "../templates/colony/colony";
 import { renderTemplate, Template } from "../templating";
 import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 import { type GraphData }  from 'force-graph';
