@@ -27,12 +27,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     throw new Error(message);
   }
   async function uploadTextFile() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.click();
+    const input2 = document.createElement("input");
+    input2.type = "file";
+    input2.click();
     return new Promise((resolve) => {
-      input.onchange = () => {
-        const file = input.files?.[0];
+      input2.onchange = () => {
+        const file = input2.files?.[0];
         if (!file) {
           return resolve(void 0);
         }
@@ -40,7 +40,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
         const reader = new FileReader();
         reader.onload = () => {
           resolve(reader.result);
-          input.remove();
+          input2.remove();
         };
         reader.readAsText(file);
       };
@@ -50,7 +50,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     return isoString ? new Date(isoString).getTime() : 0;
   }
   function sortByDate(items, dateAccessor = (item) => item.created_at) {
-    return items.sort((a, b) => isoStringToTimestamp(dateAccessor(a)) - isoStringToTimestamp(dateAccessor(b)));
+    return items.sort((a2, b) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b)));
   }
 
   // src/cropping.ts
@@ -75,13 +75,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     const response = await fetch(url);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(img.src);
-        resolve(img);
+      const img2 = new Image();
+      img2.onload = () => {
+        URL.revokeObjectURL(img2.src);
+        resolve(img2);
       };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(blob);
+      img2.onerror = reject;
+      img2.src = URL.createObjectURL(blob);
     });
   }
   async function areImagesEqual(url1, url2) {
@@ -119,6 +119,15 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     return function(item) {
       return Object.entries(filter2).every(([key, value]) => item[key] === value);
     };
+  }
+  var lastId = 0;
+  function uniqueId(prefix = "") {
+    return `${prefix}${++lastId}`;
+  }
+  function mapValues(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
+    );
   }
 
   // src/manager.ts
@@ -185,6 +194,324 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
 
+  // src/pork.ts
+  //! Pork, the PORtable framewORK
+  var refBrand = Symbol("ref");
+  function ref() {
+    return {
+      [refBrand]: true,
+      value: void 0
+    };
+  }
+  function assert(ref2) {
+    if (ref2.value === void 0) {
+      throw new Error("Ref value is undefined");
+    }
+    ;
+  }
+  function ensure(ref2) {
+    assert(ref2);
+    return ref2.value;
+  }
+  function isRef(candidate) {
+    return candidate?.[refBrand];
+  }
+  var SUPPORTED_TAGS = [
+    "html",
+    "head",
+    "style",
+    "script",
+    "body",
+    "div",
+    "h3",
+    "p",
+    "a",
+    "img",
+    "audio",
+    "input",
+    "label"
+  ];
+  var {
+    html,
+    head,
+    style,
+    script,
+    body,
+    div,
+    h3,
+    p,
+    a,
+    img,
+    audio,
+    input,
+    label
+  } = createTags(SUPPORTED_TAGS);
+  function createTags(tagNames) {
+    return tagNames.reduce((acc, tagName) => {
+      return Object.assign(acc, {
+        [tagName]: tag(tagName)
+      });
+    }, {});
+  }
+  function tag(tagName) {
+    function element(...args) {
+      const ref2 = isRef(args[0]) ? args.shift() : void 0;
+      const props = Array.isArray(args[0]) ? void 0 : args.shift();
+      const children = args[0];
+      return elementFactory(ref2, props, children);
+    }
+    ;
+    function elementFactory(ref2, props, children) {
+      const element2 = document.createElement(tagName);
+      if (props) {
+        Object.assign(element2, props);
+        if (props.class) {
+          element2.className = props.class;
+        }
+        ;
+        if (element2 instanceof HTMLLabelElement && props.for) {
+          element2.htmlFor = props.for;
+        }
+        ;
+        Object.entries(props.style ?? {}).forEach(([key, value]) => {
+          element2.style[key] = value;
+        });
+      }
+      ;
+      if (children) {
+        children.forEach((child) => {
+          if (typeof child === "string") {
+            element2.appendChild(document.createTextNode(child));
+          } else {
+            element2.appendChild(child);
+          }
+          ;
+        });
+      }
+      ;
+      if (ref2) {
+        ref2.value = element2;
+      }
+      ;
+      return element2;
+    }
+    return element;
+  }
+  var checkbox = boundElementFactory(input, { type: "checkbox" });
+  var textInput = boundElementFactory(input, { type: "text" });
+  function boundElementFactory(baseFactory, boundProps) {
+    return (...args) => {
+      const element = baseFactory(...args);
+      Object.assign(element, boundProps);
+      return element;
+    };
+  }
+  function labeled(labelText, element) {
+    element.id ??= uniqueId("input-");
+    const output = [
+      label({ for: element.id }, [labelText]),
+      element
+    ];
+    if (element.type === "checkbox") {
+      output.reverse();
+    }
+    ;
+    return output;
+  }
+  async function importScript(win, windowKey, url) {
+    const script3 = win.document.createElement("script");
+    script3.type = "text/javascript";
+    script3.src = url;
+    win.document.head.appendChild(script3);
+    return new Promise((resolve) => {
+      script3.onload = () => {
+        resolve(win[windowKey]);
+      };
+    });
+  }
+
+  // src/templates/colony.ts
+  async function render(rawData, {
+    in3D = false
+  }) {
+    const graphContainer = ref();
+    const useNextLinksCheckbox = ref();
+    const showNextLinksContainer = ref();
+    const showNextLinksCheckbox = ref();
+    const useDescendantLinksCheckbox = ref();
+    const filterInput = ref();
+    const audioRefs = {
+      container: ref(),
+      link: ref(),
+      image: ref(),
+      name: ref(),
+      tags: ref(),
+      audio: ref()
+    };
+    const template = [
+      head([
+        style(
+          // tba
+        )
+      ]),
+      body([
+        div(graphContainer),
+        div({ id: "sidebar" }, [
+          div({
+            class: "settings f-col"
+          }, [
+            h3(["Settings"]),
+            div(
+              labeled(
+                "Attract based on time",
+                checkbox(useNextLinksCheckbox)
+              )
+            ),
+            div(
+              showNextLinksContainer,
+              labeled(
+                "Show time-based links",
+                checkbox(showNextLinksCheckbox)
+              )
+            ),
+            div(
+              labeled(
+                "Attract to root clip",
+                checkbox(useDescendantLinksCheckbox)
+              )
+            ),
+            div([
+              textInput(filterInput, { placeholder: "Filter by name, style or ID" }),
+              p({ class: "smol" }, [
+                "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+              ])
+            ])
+          ]),
+          div(audioRefs.container, { class: "w-100", style: { display: "none" } }, [
+            div({ class: "relative" }, [
+              a(audioRefs.link, { target: "_blank" }, [
+                img(audioRefs.image, { style: "opacity: 0.5", class: "w-100" })
+              ]),
+              div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
+                div(audioRefs.name),
+                div(audioRefs.tags, { class: "smol" })
+              ])
+            ]),
+            audio(audioRefs.audio, { controls: true, class: "w-100" })
+          ])
+        ])
+      ])
+    ];
+    async function setup(win) {
+      const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
+      //! because ForceGraph mutates links by including source and target nodes instead of their IDs
+      const graph = new GraphRenderer(
+        ensure(graphContainer)
+      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
+        <div class="relative" style="width: 200px;">
+          <img src="${image_url}" style="opacity: 0.5; width: 200px">
+          <div class="absolute topleft" style="width: 190px; padding: 5px;">
+            <div>${name || "[Untitled]"}</div>
+            <div class="smol">${tags || "(no style)"}</div>
+          </div>
+        </div>
+        <div class="smol">
+          Click to play, right-click to open in Suno
+        </div>
+      `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
+        ensure(audioRefs.container).style.display = "block";
+        ensure(audioRefs.link).href = `https://suno.com/song/${id2}`;
+        ensure(audioRefs.image).src = image_url;
+        ensure(audioRefs.name).innerText = name || "[Untitled]";
+        ensure(audioRefs.tags).innerText = tags || "(no style)";
+        const audio2 = ensure(audioRefs.audio);
+        audio2.src = audio_url;
+        audio2.play();
+      }).onNodeRightClick(({ id: id2 }) => {
+        window.open(`https://suno.com/song/${id2}`);
+      });
+      if (in3D) {
+        graph.linkOpacity((l) => l.isMain ? 1 : 0.2);
+      } else {
+        graph.linkLineDash((l) => l.isMain ? null : [1, 2]);
+      }
+      ;
+      const data = graph.graphData();
+      function visibilityChecker(link) {
+        return !{
+          descendant: true,
+          next: !ensure(showNextLinksCheckbox).checked
+        }[link.kind];
+      }
+      ;
+      function applyLinkFilter(kind, checkbox2) {
+        const useLinks = checkbox2.checked;
+        let { nodes, links } = graph.graphData();
+        if (!useLinks) {
+          links = links.filter((l) => l.kind !== kind);
+        } else {
+          links.push(...data.links.filter((l) => l.kind === kind));
+        }
+        graph.graphData({ nodes, links });
+      }
+      ;
+      function applyCheckboxFilters(firstTime = false) {
+        mapValues({
+          next: useNextLinksCheckbox,
+          descendant: useDescendantLinksCheckbox
+        }, (checkbox2, kind) => $with(ensure(checkbox2), (checkbox3) => {
+          applyLinkFilter(kind, checkbox3);
+          if (firstTime) {
+            checkbox3.addEventListener("change", () => {
+              if (kind === "next") {
+                ensure(showNextLinksContainer).style.display = checkbox3.checked ? "block" : "none";
+              }
+              ;
+            });
+          }
+          ;
+        }));
+      }
+      ;
+      applyCheckboxFilters(true);
+      ensure(showNextLinksCheckbox).addEventListener("change", () => {
+        graph.linkVisibility(visibilityChecker);
+      });
+      function id(node) {
+        return typeof node === "string" ? node : node.id;
+      }
+      ;
+      function sameId(node1, node2) {
+        return id(node1) === id(node2);
+      }
+      ;
+      function sameIdAs(original) {
+        return (candidate) => sameId(original, candidate);
+      }
+      ;
+      ensure(filterInput).addEventListener("keyup", (e) => {
+        if (e.key === "Enter") {
+          const filter2 = ensure(filterInput).value.toLowerCase();
+          const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
+          const existing = graph.graphData();
+          const nodes = [
+            ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+            ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+          ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
+          const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+          graph.graphData({ nodes, links });
+          if (filter2)
+            graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
+          else
+            graph.nodeVal("val");
+          applyCheckboxFilters();
+        }
+      });
+    }
+    ;
+    return { template, setup };
+  }
+
   // src/templating.ts
   function renderTemplate(template, values) {
     return Object.keys(values).reduce((acc, key) => {
@@ -193,6 +520,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
 
   // src/scripts/colony.ts
+  var SYNTHETIC_LINK_KINDS = ["next", "descendant"];
   var DEFAULT_STATE = {
     rawClips: EmptyArray(),
     lastProcessedPage: -1,
@@ -231,10 +559,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
         const json = JSON.stringify(this.state);
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "suno_colony.json";
-        a.click();
+        const a2 = document.createElement("a");
+        a2.href = url;
+        a2.download = "suno_colony.json";
+        a2.click();
         URL.revokeObjectURL(url);
       } else {
         await this.storage.save(this.state);
@@ -418,34 +746,31 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return clip.totalDescendants ??= 1 + (clip.children?.reduce((sum, { clip: { id: childId } }) => sum + this.getTotalDescendants(childId), 0) ?? 0);
     }
     get graphData() {
+      const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
+        id,
+        name: name || tags || created_at || id,
+        created_at,
+        audio_url,
+        image_url,
+        tags,
+        rootId: root?.id,
+        // val: Math.log10(this.getTotalDescendants(id) + 1),
+        val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
+      }));
       const formatLink = ([source, target, kind]) => ({
         source,
         target,
         kind,
-        color: kind === "next" ? "#006" : void 0
+        color: kind === "next" ? "#006" : void 0,
         //! (To make time-based links less prominent on a dark background)
+        isMain: !SYNTHETIC_LINK_KINDS.includes(kind) && this.getTotalDescendants(target) > 1
       });
-      const links = this.state.links.map(formatLink).map((link) => ({
-        ...link,
-        isMain: this.getTotalDescendants(link.target) > 1
-      }));
       const result = {
-        nodes: this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
-          id,
-          name: name || tags || created_at || id,
-          audio_url,
-          image_url,
-          tags,
-          rootId: root?.id,
-          // val: Math.log10(this.getTotalDescendants(id) + 1),
-          val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
-        })),
+        nodes,
         links: [
-          ...this.syntheticLinks.map(formatLink),
-          ...links
-          // ...filter(links, { isMain: true as const })
-          // //! (We're making main links twice as forceful as the rest, to make them attract the nodes more)
-        ]
+          ...this.syntheticLinks,
+          ...this.state.links
+        ].map(formatLink)
       };
       return result;
     }
@@ -460,23 +785,24 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       });
     }
     render(...params) {
-      const html = this.getHtml(...params);
-      const win = window.open();
-      if (!win) {
-        console.error("Failed to open new window.");
-        return;
-      }
-      ;
-      win.document.write(html);
+      const html3 = this.getHtml(...params);
+      const win = window.open() ?? $throw("Failed to open a new window.");
+      win.document.write(html3);
+    }
+    async renderWithPork(...[mode]) {
+      const { template, setup } = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
+      const win = window.open() ?? $throw("Failed to open a new window.");
+      win.document.children[0].replaceChildren(...template);
+      setup(win);
     }
     renderToFile(...params) {
-      const html = this.getHtml(...params);
-      const blob = new Blob([html], { type: "text/html" });
+      const html3 = this.getHtml(...params);
+      const blob = new Blob([html3], { type: "text/html" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "suno_colony.html";
-      a.click();
+      const a2 = document.createElement("a");
+      a2.href = url;
+      a2.download = "suno_colony.html";
+      a2.click();
       URL.revokeObjectURL(url);
     }
   };
