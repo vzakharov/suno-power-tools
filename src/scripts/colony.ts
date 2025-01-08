@@ -375,10 +375,8 @@ class Colony {
   };
 
   async renderWithPork(...[mode]: Parameters<typeof this.getHtml>) {
-    const { template, setup } = await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
-    const win = window.open() ?? $throw('Failed to open a new window.');
-    win.document.children[0].replaceChildren(...template);
-    setup(win);
+    console.log("Rendering your colony, give it a few seconds...");
+    await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
   };
     
 

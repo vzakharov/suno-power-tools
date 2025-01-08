@@ -229,7 +229,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     "img",
     "audio",
     "input",
-    "label"
+    "label",
+    "button"
   ];
   var {
     html,
@@ -244,7 +245,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     img,
     audio,
     input,
-    label
+    label,
+    button
   } = createTags(SUPPORTED_TAGS);
   function createTags(tagNames) {
     return tagNames.reduce((acc, tagName) => {
@@ -307,7 +309,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     };
   }
   function labeled(labelText, element) {
-    element.id ??= uniqueId("input-");
+    element.id ||= uniqueId("pork-input-");
     const output = [
       label({ for: element.id }, [labelText]),
       element
@@ -406,9 +408,11 @@ body {
 
   // src/templates/colony/colony.ts
   async function render(rawData, {
-    in3D = false
+    in3D = false,
+    win = window
   }) {
     const graphContainer = ref();
+    const closeButton = ref();
     const useNextLinksCheckbox = ref();
     const showNextLinksContainer = ref();
     const showNextLinksCheckbox = ref();
@@ -422,18 +426,29 @@ body {
       tags: ref(),
       audio: ref()
     };
-    const template = [
-      head([
-        style([
-          colonyCss
-        ])
-      ]),
-      body([
+    const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
+    win.document.head.appendChild(style([colonyCss]));
+    const container = div(
+      {
+        style: {
+          position: "fixed",
+          top: "0px",
+          left: "0px",
+          width: "100%",
+          height: "100%",
+          backgroundColor: "#000",
+          zIndex: "100"
+        }
+      },
+      [
         div(graphContainer),
         div({ id: "sidebar" }, [
           div({
             class: "settings f-col"
           }, [
+            button(closeButton, { style: { backgroundColor: "#444", color: "#eee", marginBottom: "5px" } }, [
+              "Close Colony"
+            ]),
             h3(["Settings"]),
             div(
               labeled(
@@ -474,118 +489,136 @@ body {
             audio(audioRefs.audio, { controls: true, class: "w-100" })
           ])
         ])
-      ])
-    ];
-    async function setup(win) {
-      debugger;
-      const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
-      //! because ForceGraph mutates links by including source and target nodes instead of their IDs
-      const graph = new GraphRenderer(
-        ensure(graphContainer)
-      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
-        <div class="relative" style="width: 200px;">
-          <img src="${image_url}" style="opacity: 0.5; width: 200px">
-          <div class="absolute topleft" style="width: 190px; padding: 5px;">
-            <div>${name || "[Untitled]"}</div>
-            <div class="smol">${tags || "(no style)"}</div>
-          </div>
-        </div>
-        <div class="smol">
-          Click to play, right-click to open in Suno
-        </div>
-      `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
-        ensure(audioRefs.container).style.display = "block";
-        ensure(audioRefs.link).href = `https://suno.com/song/${id2}`;
-        ensure(audioRefs.image).src = image_url;
-        ensure(audioRefs.name).innerText = name || "[Untitled]";
-        ensure(audioRefs.tags).innerText = tags || "(no style)";
-        const audio2 = ensure(audioRefs.audio);
-        audio2.src = audio_url;
-        audio2.play();
-      }).onNodeRightClick(({ id: id2 }) => {
-        window.open(`https://suno.com/song/${id2}`);
-      });
-      if (in3D) {
-        graph.linkOpacity((l) => l.isMain ? 1 : 0.2);
-      } else {
-        graph.linkLineDash((l) => l.isMain ? null : [1, 2]);
-      }
-      ;
-      const data = graph.graphData();
-      function visibilityChecker(link) {
-        return !{
-          descendant: true,
-          next: !ensure(showNextLinksCheckbox).checked
-        }[link.kind];
-      }
-      ;
-      function applyLinkFilter(kind, checkbox2) {
-        const useLinks = checkbox2.checked;
-        let { nodes, links } = graph.graphData();
-        if (!useLinks) {
-          links = links.filter((l) => l.kind !== kind);
-        } else {
-          links.push(...data.links.filter((l) => l.kind === kind));
-        }
-        graph.graphData({ nodes, links });
-      }
-      ;
-      function applyCheckboxFilters(firstTime = false) {
-        mapValues({
-          next: useNextLinksCheckbox,
-          descendant: useDescendantLinksCheckbox
-        }, (checkbox2, kind) => $with(ensure(checkbox2), (checkbox3) => {
-          applyLinkFilter(kind, checkbox3);
-          if (firstTime) {
-            checkbox3.addEventListener("change", () => {
-              applyLinkFilter(kind, checkbox3);
-              if (kind === "next") {
-                ensure(showNextLinksContainer).style.display = checkbox3.checked ? "block" : "none";
-              }
-              ;
-            });
-          }
-          ;
-        }));
-      }
-      ;
-      applyCheckboxFilters(true);
-      ensure(showNextLinksCheckbox).addEventListener("change", () => {
-        graph.linkVisibility(visibilityChecker);
-      });
-      function id(node) {
-        return typeof node === "string" ? node : node.id;
-      }
-      ;
-      function sameId(node1, node2) {
-        return id(node1) === id(node2);
-      }
-      ;
-      function sameIdAs(original) {
-        return (candidate) => sameId(original, candidate);
-      }
-      ;
-      ensure(filterInput).addEventListener("keyup", (e) => {
-        if (e.key === "Enter") {
-          const filter2 = ensure(filterInput).value.toLowerCase();
-          const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
-          const existing = graph.graphData();
-          const nodes = [
-            ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-            ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
-          ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
-          const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
-          graph.graphData({ nodes, links });
-          if (filter2)
-            graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
-          else
-            graph.nodeVal("val");
-          applyCheckboxFilters();
-        }
-      });
+      ]
+    );
+    const reopenButton = button({ style: {
+      position: "fixed",
+      top: "0px",
+      left: "0px",
+      padding: "5px",
+      backgroundColor: "#444",
+      color: "#eee",
+      zIndex: "100"
+    } }, [
+      "Reopen Colony"
+    ]);
+    function showContainer() {
+      win.document.body.appendChild(container);
+      reopenButton.parentElement?.removeChild(reopenButton);
     }
     ;
-    return { template, setup };
+    showContainer();
+    ensure(closeButton).addEventListener("click", () => {
+      win.document.body.removeChild(container);
+      win.document.body.appendChild(reopenButton);
+    });
+    reopenButton.addEventListener("click", () => {
+      showContainer();
+    });
+    //! because ForceGraph mutates links by including source and target nodes instead of their IDs
+    const graph = new GraphRenderer(
+      ensure(graphContainer)
+    ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
+      <div class="relative" style="width: 200px;">
+        <img src="${image_url}" style="opacity: 0.5; width: 200px">
+        <div class="absolute topleft" style="width: 190px; padding: 5px;">
+          <div>${name || "[Untitled]"}</div>
+          <div class="smol">${tags || "(no style)"}</div>
+        </div>
+      </div>
+      <div class="smol">
+        Click to play, right-click to open in Suno
+      </div>
+    `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
+      ensure(audioRefs.container).style.display = "block";
+      ensure(audioRefs.link).href = `https://suno.com/song/${id2}`;
+      ensure(audioRefs.image).src = image_url;
+      ensure(audioRefs.name).innerText = name || "[Untitled]";
+      ensure(audioRefs.tags).innerText = tags || "(no style)";
+      const audio2 = ensure(audioRefs.audio);
+      audio2.src = audio_url;
+      audio2.play();
+    }).onNodeRightClick(({ id: id2 }) => {
+      window.open(`https://suno.com/song/${id2}`);
+    });
+    if (in3D) {
+      graph.linkOpacity((l) => l.isMain ? 1 : 0.2);
+    } else {
+      graph.linkLineDash((l) => l.isMain ? null : [1, 2]);
+    }
+    ;
+    const data = graph.graphData();
+    function visibilityChecker(link) {
+      return !{
+        descendant: true,
+        next: !ensure(showNextLinksCheckbox).checked
+      }[link.kind];
+    }
+    ;
+    function applyLinkFilter(kind, checkbox2) {
+      const useLinks = checkbox2.checked;
+      let { nodes, links } = graph.graphData();
+      if (!useLinks) {
+        links = links.filter((l) => l.kind !== kind);
+      } else {
+        links.push(...data.links.filter((l) => l.kind === kind));
+      }
+      graph.graphData({ nodes, links });
+    }
+    ;
+    function applyCheckboxFilters(firstTime = false) {
+      mapValues({
+        next: useNextLinksCheckbox,
+        descendant: useDescendantLinksCheckbox
+      }, (checkbox2, kind) => $with(ensure(checkbox2), (checkbox3) => {
+        applyLinkFilter(kind, checkbox3);
+        if (firstTime) {
+          checkbox3.addEventListener("change", () => {
+            applyLinkFilter(kind, checkbox3);
+            if (kind === "next") {
+              ensure(showNextLinksContainer).style.display = checkbox3.checked ? "block" : "none";
+            }
+            ;
+          });
+        }
+        ;
+      }));
+    }
+    ;
+    applyCheckboxFilters(true);
+    ensure(showNextLinksCheckbox).addEventListener("change", () => {
+      graph.linkVisibility(visibilityChecker);
+    });
+    function id(node) {
+      return typeof node === "string" ? node : node.id;
+    }
+    ;
+    function sameId(node1, node2) {
+      return id(node1) === id(node2);
+    }
+    ;
+    function sameIdAs(original) {
+      return (candidate) => sameId(original, candidate);
+    }
+    ;
+    ensure(filterInput).addEventListener("keyup", (e) => {
+      if (e.key === "Enter") {
+        const filter2 = ensure(filterInput).value.toLowerCase();
+        const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
+        const existing = graph.graphData();
+        const nodes = [
+          ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+          ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+        ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
+        const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+        graph.graphData({ nodes, links });
+        if (filter2)
+          graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
+        else
+          graph.nodeVal("val");
+        applyCheckboxFilters();
+      }
+    });
   }
 
   // src/templating.ts
@@ -866,11 +899,8 @@ body {
       win.document.write(html3);
     }
     async renderWithPork(...[mode]) {
-      const { template, setup } = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
-      const win = window;
-      //! (For testing)
-      win.document.children[0].replaceChildren(...template);
-      setup(win);
+      console.log("Rendering your colony, give it a few seconds...");
+      await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
     }
     renderToFile(...params) {
       const html3 = this.getHtml(...params);

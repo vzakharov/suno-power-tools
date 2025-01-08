@@ -32,7 +32,7 @@ export function isRef(candidate: any): candidate is Ref<any> {
 };
 
 export const SUPPORTED_TAGS = [
-  'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label'
+  'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
 ] as const;
 
 export type SupportedTag = typeof SUPPORTED_TAGS[number];
@@ -43,7 +43,7 @@ export type TagName = keyof TagElementMap;
 export type SupportedElement = TagElementMap[SupportedTag];
 
 export const {
-  html, head, style, script, body, div, h3, p, a, img, audio, input, label
+  html, head, style, script, body, div, h3, p, a, img, audio, input, label, button
 } = createTags(SUPPORTED_TAGS);
 
 export function createTags(tagNames: typeof SUPPORTED_TAGS) {
@@ -136,7 +136,7 @@ export function boundElementFactory<TElement extends SupportedElement, TProps ex
 };
 
 export function labeled(labelText: string, element: HTMLInputElement) {
-  element.id ??= uniqueId('input-');
+  element.id ||= uniqueId('pork-input-');
   const output = [
     label({ for: element.id }, [labelText]),
     element
