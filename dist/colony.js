@@ -635,6 +635,12 @@ body {
         applyCheckboxFilters();
       }
     });
+    setTimeout(() => {
+      ensure(useNextLinksCheckbox).click();
+      ensure(useDescendantLinksCheckbox).click();
+    }, 2e3);
+    //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
+    return [container, reopenButton];
   }
 
   // src/templating.ts
@@ -901,9 +907,14 @@ body {
         graph_url_slug: in3D ? "3d-force-graph" : "force-graph"
       });
     }
+    renderedElements = [];
     async render(...[mode]) {
       console.log("Rendering your colony, give it a few seconds...");
-      await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
+      this.renderedElements = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
+    }
+    clear() {
+      this.renderedElements.forEach((element) => element.remove());
+      this.renderedElements = [];
     }
     renderToFile(...params) {
       const html3 = this.getHtml(...params);

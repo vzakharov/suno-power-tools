@@ -258,4 +258,11 @@ export async function render(rawData: ColonyGraphData, {
     }
   });
 
+  setTimeout(() => {
+    ensure(useNextLinksCheckbox).click();
+    ensure(useDescendantLinksCheckbox).click();
+  }, 2000);
+  //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
+
+  return [ container, reopenButton ];
 };

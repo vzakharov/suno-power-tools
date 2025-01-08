@@ -361,11 +361,17 @@ class Colony {
     });
   };
 
+  private renderedElements: HTMLElement[] = [];
+
   async render(...[mode]: Parameters<typeof this.getHtml>) {
     console.log("Rendering your colony, give it a few seconds...");
-    await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
+    this.renderedElements = await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
   };
-    
+
+  clear() {
+    this.renderedElements.forEach(element => element.remove());
+    this.renderedElements = [];
+  };
 
   renderToFile(...params: Parameters<typeof this.getHtml>) {
     const html = this.getHtml(...params);
