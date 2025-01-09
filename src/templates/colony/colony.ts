@@ -10,7 +10,6 @@ export async function render(rawData: ColonyGraphData, {
   win = window
 }) {
 
-  const hideUI = ref(false);
 
   let graphContainer: HTMLDivElement;
 
@@ -29,6 +28,8 @@ export async function render(rawData: ColonyGraphData, {
   const GraphRenderer: typeof ForceGraph = await importScript(win, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
   win.document.head.appendChild(style([colonyCss]));
   
+  const hideUI = ref(false);
+
   const container = div(
     () => ({
       class: 'colony',
@@ -36,11 +37,7 @@ export async function render(rawData: ColonyGraphData, {
         position: 'fixed',
         top: '0px',
         left: '0px',
-        // width: '100%',
-        // height: '100%',
-        // backgroundColor: '#000',
         zIndex: '100',
-        // ...hideIf(hideUI)
       }
     }), [
       div(() => ({
