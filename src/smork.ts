@@ -2,33 +2,70 @@
 
 import { uniqueId } from "./lodashish";
 
-const refBrand = Symbol('ref');
+export function ref<T>(): Ref<T | undefined>;
+export function ref<T extends {}>(value: T): Ref<T>;
+export function ref<T>(value?: T) {
+  return new Ref(value);
+};
 
-export function ref<T>(): Ref<T | undefined> {
-  return {
-    [refBrand]: true as const,
-    value: undefined as T | undefined
+const readCounts = new Map<Ref<any>, number>();
+
+export class Ref<T> {
+
+  private watchers: ((value: T, oldValue: T) => void)[] = [];
+
+  constructor(
+    private _value: T
+  ) {
+    readCounts.set(this, 0);
   };
-};
 
-export type Ref<T> = {
-  [refBrand]: true,
-  value: T
-};
-
-export function assert<T>(ref: Ref<T | undefined>): asserts ref is Ref<T> {
-  if ( ref.value === undefined ) {
-    throw new Error('Ref value is undefined');
+  get() {
+    readCounts.set(this, readCounts.get(this) ?? 0 + 1);
+    return this._value;
   };
+
+  set(value: T) {
+    if ( value !== this._value ) {
+      this.watchers.forEach(watcher => watcher(value, this._value));
+      this._value = value;
+    }
+  };
+
+  /**
+   * Note that unlike e.g. Vue watchers, this function will be called immediately.
+   */
+  watch(watcher: (value: T, oldValue: T) => void) {
+    watcher(this._value, this._value);
+    this.watchers.push(watcher);
+  };
+
+  onChange = this.watch; // just an alias
+
+  unwatch(watcher: (value: T, oldValue: T) => void) {
+    this.watchers = this.watchers.filter(w => w !== watcher);
+  };
+
+  get value() {
+    return this.get();
+  };
+
+  set value(value: T) {
+    this.set(value);
+  };
+
 };
 
-export function ensure<T>(ref: Ref<T | undefined>) {
-  assert(ref);
-  return ref.value;
-};
-
-export function isRef(candidate: any): candidate is Ref<any> {
-  return candidate?.[refBrand];
+export function computed<T extends {}>(getter: () => T) {
+  const initialCounts = new Map(readCounts);
+  const computedRef = ref(getter());
+  const affectedRefs = Array.from(readCounts.keys()).filter(ref => readCounts.get(ref) !== initialCounts.get(ref));
+  affectedRefs.forEach(ref => {
+    ref.watch(() => {
+      computedRef.set(getter());
+    });
+  });
+  return computedRef;
 };
 
 export const SUPPORTED_TAGS = [
@@ -56,6 +93,8 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
   });
 };
 
+export type Inferrable<T> = T | (() => T);
+
 export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'className' | 'style' | 'htmlFor'>> & {
   class?: T['className'],
   style?: Partial<T['style']>,
@@ -63,9 +102,7 @@ export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'cl
 }
 
 export type ElementFactory<TElement extends SupportedElement, TProps extends Props<TElement> = Props<TElement>> = {
-  (ref: Ref<TElement | undefined>, props?: TProps, children?: (string | SupportedElement)[]): TElement;
-  (ref: Ref<TElement | undefined>, children: (string | SupportedElement)[]): TElement;
-  (props?: TProps, children?: (string | SupportedElement)[]): TElement;
+  (props?: Inferrable<TProps>, children?: (string | SupportedElement)[]): TElement;
   (children?: (string | SupportedElement)[]): TElement
 }
 
@@ -74,30 +111,43 @@ export function tag<T extends SupportedTag>(tagName: T) {
   type Element = TagElementMap[T];
   
   function element(
-    ...args: any
+    propsOrChildren?: Inferrable<Props<Element>> | (string | SupportedElement)[],
+    childrenOrNone?: (string | SupportedElement)[]
   ) {
-    const ref = isRef(args[0]) ? args.shift() : undefined;
-    const props = Array.isArray(args[0]) ? undefined : args.shift();
-    const children = args[0];
-    return elementFactory(ref, props, children);
+    const [ props, children ] = 
+      Array.isArray(propsOrChildren) 
+        ? [ undefined, propsOrChildren ] 
+        : [ propsOrChildren, childrenOrNone ];
+    return elementFactory(props, children);
   };
 
   function elementFactory(
-    props: Props<Element> | undefined,
+    props: Inferrable<Props<Element>> | undefined,
     children: (string | SupportedElement)[] | undefined
   ) {
     const element = document.createElement(tagName);
-    if (props) {
-      Object.assign(element, props);
-      if ( props.class ) {
-        element.className = props.class;
+    if ( props ) {
+
+      if ( typeof props === 'function' ) {
+        const ref = computed(props);
+        ref.onChange(assignProps);  
+      } else {
+        assignProps(props);
       };
-      if ( element instanceof HTMLLabelElement && props.for ) {
-        element.htmlFor = props.for;
+      
+      function assignProps(props: Props<Element>) {
+        Object.assign(element, props);
+        if ( props.class ) {
+          element.className = props.class;
+        };
+        if ( element instanceof HTMLLabelElement && props.for ) {
+          element.htmlFor = props.for;
+        };
+        Object.entries(props.style ?? {}).forEach(([key, value]) => {
+          element.style[key as any] = value;
+        });
       };
-      Object.entries(props.style ?? {}).forEach(([key, value]) => {
-        element.style[key as any] = value;
-      });
+
     };
     if (children) {
       children.forEach(child => {
@@ -107,9 +157,6 @@ export function tag<T extends SupportedTag>(tagName: T) {
           element.appendChild(child);
         };
       });
-    };
-    if (ref) {
-      ref.value = element;
     };
     return element;
   }
