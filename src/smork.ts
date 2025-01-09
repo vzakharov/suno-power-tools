@@ -20,8 +20,7 @@ export class BaseRef<T> {
   ) { };
 
   get() {
-    // computedPreHandlers.forEach(hook => hook(this));
-    computedPreHandlers.at(-1)?.(this);
+    currentComputedPreHandler?.(this);
     return this._value;
   };
 
@@ -76,8 +75,8 @@ export class Ref<T> extends BaseRef<T> {
 
 };
 
-// const computedPreHandlers = new Set<(ref: BaseRef<any>) => void>();
-const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
+// const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
+let currentComputedPreHandler: ((ref: BaseRef<any>) => void) | undefined = undefined;
 
 export class ComputedRef<T> extends BaseRef<T> {
 
@@ -88,16 +87,16 @@ export class ComputedRef<T> extends BaseRef<T> {
   constructor(
     private getter: () => T
   ) {
-    super(undefined as any); // we need to call super before we can use this
-    const handler = (ref: BaseRef<any>) => {
-      ref.watch(() => this.refresh());
+    if ( currentComputedPreHandler ) {
+      throw new Error('smork: currentComputedPreHandler is already set (this should never happen)');
     };
-    // computedPreHandlers.add(handler);
-    computedPreHandlers.push(handler);
-    this.refresh();
-    // computedPreHandlers.delete(handler);
-    if ( computedPreHandlers.pop() !== handler ) {
-      throw new Error('smork: computedPreHandlers stack is corrupted');
+    try {
+      currentComputedPreHandler = ref => {
+        ref.watch(() => this.refresh());
+      };
+      super(getter()); // to register any refs that are used in the getter
+    } finally {
+      currentComputedPreHandler = undefined;
     };
   };
 
