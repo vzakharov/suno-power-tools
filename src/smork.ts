@@ -8,26 +8,24 @@ export function ref<T>(value?: T) {
   return new Ref(value);
 };
 
-const readCounts = new Map<Ref<any>, number>();
+class BaseRef<T> {
 
-export class Ref<T> {
-
-  private watchers: ((value: T, oldValue: T) => void)[] = [];
+  protected watchers: ((value: T, oldValue: T) => void)[] = [];
 
   constructor(
-    private _value: T
+    protected _value: T
   ) {
-    readCounts.set(this, 0);
+    // readCounts.set(this, 0);
   };
 
   get() {
-    readCounts.set(this, readCounts.get(this) ?? 0 + 1);
+    // readCounts.set(this, readCounts.get(this) ?? 0 + 1);
     return this._value;
   };
 
-  set(value: T) {
-    if ( value !== this._value ) {
-      this.watchers.forEach(watcher => watcher(value, this._value));
+  protected set(value: T) {
+    if ( value !== this.value ) {
+      this.watchers.forEach(watcher => watcher(value, this.value));
       this._value = value;
     }
   };
@@ -47,8 +45,17 @@ export class Ref<T> {
   };
 
   get value() {
+    firstRunningComputeds.forEach(computedRefProvider => {
+      computedRefProvider().dependsOn.add(this);
+    });
     return this.get();
   };
+
+};
+
+export class Ref<T> extends BaseRef<T> {
+  
+  set = super.set;
 
   set value(value: T) {
     this.set(value);
@@ -56,16 +63,30 @@ export class Ref<T> {
 
 };
 
-export function computed<T extends {}>(getter: () => T) {
-  const initialCounts = new Map(readCounts);
-  const computedRef = ref(getter());
-  const affectedRefs = Array.from(readCounts.keys()).filter(ref => readCounts.get(ref) !== initialCounts.get(ref));
-  affectedRefs.forEach(ref => {
-    ref.watch(() => {
-      computedRef.set(getter());
+const firstRunningComputeds = new Set<() => ComputedRef<any>>();
+
+export class ComputedRef<T> extends BaseRef<T> {
+
+  dependsOn = new Set<BaseRef<any>>();
+
+  constructor(
+    private getter: () => T
+  ) {
+    const thisProvider = () => this;
+    firstRunningComputeds.add(thisProvider);
+    super(getter());
+    firstRunningComputeds.delete(thisProvider);
+    this.dependsOn.forEach(ref => {
+      ref.watch(() => {
+        this.set(this.getter());
+      });
     });
-  });
-  return computedRef;
+  };
+
+};
+
+export function computed<T extends {}>(getter: () => T) {
+  return new ComputedRef(getter);
 };
 
 export const SUPPORTED_TAGS = [
