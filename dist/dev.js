@@ -10,6 +10,7 @@
       this._value = _value;
     }
     watchers = [];
+    activeWatchers = /* @__PURE__ */ new WeakSet();
     get() {
       currentComputedPreHandler?.(this);
       return this._value;
@@ -18,7 +19,20 @@
       const { _value: oldValue } = this;
       if (value !== this._value) {
         this._value = value;
-        this.watchers.forEach((watcher) => watcher(value, oldValue));
+        try {
+          for (const watcher of this.watchers) {
+            if (this.activeWatchers.has(watcher)) {
+              console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
+              return;
+            }
+            this.activeWatchers.add(watcher);
+            watcher(value, oldValue);
+          }
+          ;
+        } finally {
+          this.activeWatchers = /* @__PURE__ */ new WeakSet();
+        }
+        ;
       }
     }
     runAndWatch(watcher) {

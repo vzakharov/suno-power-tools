@@ -14,6 +14,7 @@ export type Watcher<T> = (value: T, oldValue: T) => void;
 export class BaseRef<T> {
 
   protected watchers: Watcher<T>[] = [];
+  private activeWatchers = new WeakSet<Watcher<T>>();
 
   constructor(
     protected _value: T
@@ -28,7 +29,18 @@ export class BaseRef<T> {
     const { _value: oldValue } = this;
     if ( value !== this._value ) {
       this._value = value;
-      this.watchers.forEach(watcher => watcher(value, oldValue));
+      try {
+        for ( const watcher of this.watchers ) {
+          if ( this.activeWatchers.has(watcher) ) {
+            console.warn('smork: watcher is already active — perhaps a circular dependency — exiting watch to prevent infinite loop');
+            return;
+          }
+          this.activeWatchers.add(watcher);
+          watcher(value, oldValue);
+        };
+      } finally {
+        this.activeWatchers = new WeakSet();
+      };
     }
   };
 
