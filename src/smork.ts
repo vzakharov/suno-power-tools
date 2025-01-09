@@ -83,7 +83,6 @@ export function tag<T extends SupportedTag>(tagName: T) {
   };
 
   function elementFactory(
-    ref: Ref<Element> | undefined,
     props: Props<Element> | undefined,
     children: (string | SupportedElement)[] | undefined
   ) {
