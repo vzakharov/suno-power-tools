@@ -206,7 +206,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
     watchers = [];
     get() {
-      computedPreHandlers.at(-1)?.(this);
+      currentComputedPreHandler?.(this);
       return this._value;
     }
     _set(value) {
@@ -248,18 +248,25 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return this.get();
     }
   };
-  var computedPreHandlers = [];
+  var currentComputedPreHandler = void 0;
   var ComputedRef = class extends BaseRef {
     constructor(getter) {
-      super(void 0);
-      this.getter = getter;
-      const handler = (ref2) => {
-        ref2.watch(() => this.refresh());
+      var __super = (...args) => {
+        super(...args);
+        this.getter = getter;
+        return this;
       };
-      computedPreHandlers.push(handler);
-      this.refresh();
-      if (computedPreHandlers.pop() !== handler) {
-        throw new Error("smork: computedPreHandlers stack is corrupted");
+      if (currentComputedPreHandler) {
+        throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
+      }
+      ;
+      try {
+        currentComputedPreHandler = (ref2) => {
+          ref2.watch(() => this.refresh());
+        };
+        __super(getter());
+      } finally {
+        currentComputedPreHandler = void 0;
       }
       ;
     }
@@ -485,7 +492,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     in3D = false,
     win = window
   }) {
-    const hideUI = ref(false);
     let graphContainer;
     let useNextLinksCheckbox;
     let showNextLinksContainer;
@@ -500,6 +506,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     let audioElement;
     const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     win.document.head.appendChild(style([colonyCss]));
+    const hideUI = ref(false);
     const container = div(
       () => ({
         class: "colony",
@@ -507,11 +514,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           position: "fixed",
           top: "0px",
           left: "0px",
-          // width: '100%',
-          // height: '100%',
-          // backgroundColor: '#000',
           zIndex: "100"
-          // ...hideIf(hideUI)
         }
       }),
       [

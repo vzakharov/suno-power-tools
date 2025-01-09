@@ -11,7 +11,7 @@
     }
     watchers = [];
     get() {
-      computedPreHandlers.at(-1)?.(this);
+      currentComputedPreHandler?.(this);
       return this._value;
     }
     _set(value) {
@@ -53,18 +53,25 @@
       return this.get();
     }
   };
-  var computedPreHandlers = [];
+  var currentComputedPreHandler = void 0;
   var ComputedRef = class extends BaseRef {
     constructor(getter) {
-      super(void 0);
-      this.getter = getter;
-      const handler = (ref2) => {
-        ref2.watch(() => this.refresh());
+      var __super = (...args) => {
+        super(...args);
+        this.getter = getter;
+        return this;
       };
-      computedPreHandlers.push(handler);
-      this.refresh();
-      if (computedPreHandlers.pop() !== handler) {
-        throw new Error("smork: computedPreHandlers stack is corrupted");
+      if (currentComputedPreHandler) {
+        throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
+      }
+      ;
+      try {
+        currentComputedPreHandler = (ref2) => {
+          ref2.watch(() => this.refresh());
+        };
+        __super(getter());
+      } finally {
+        currentComputedPreHandler = void 0;
       }
       ;
     }
