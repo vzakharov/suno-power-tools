@@ -13,7 +13,7 @@ export type Watcher<T> = (value: T, oldValue: T) => void;
 
 export class BaseRef<T> {
 
-  protected watchers: ((value: T, oldValue: T) => void)[] = [];
+  protected watchers: Watcher<T>[] = [];
 
   constructor(
     protected _value: T
