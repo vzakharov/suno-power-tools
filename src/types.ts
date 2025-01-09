@@ -10,5 +10,3 @@ export type UnionToIntersection<U> =
   (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
 
 export type StringKey<T> = Extract<keyof T, string>;
-
-export type NonUndefined<T> = T extends undefined ? never : T;

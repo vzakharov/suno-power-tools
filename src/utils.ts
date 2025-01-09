@@ -74,15 +74,3 @@ export function sortByDate<T, TDateAccessor extends (item: T) => string | null>(
 export function sortByDate(items: any[], dateAccessor = (item: any) => item.created_at) {
   return items.sort((a, b) => isoStringToTimestamp(dateAccessor(a)) - isoStringToTimestamp(dateAccessor(b)));
 };
-
-export function addGetter<
-  TObject extends {}, TKey extends string, TValue>(obj: TObject, key: TKey, get: () => TValue
-): asserts obj is TObject & { readonly [K in TKey]: TValue } {
-  Object.defineProperty(obj, key, { get });
-};
-
-export function addAccessor<
-  TObject extends {}, TKey extends string, TValue>(obj: TObject, key: TKey, accessor: { get: () => TValue, set: (value: TValue) => void }
-): asserts obj is TObject & { [K in TKey]: TValue } {
-  Object.defineProperty(obj, key, accessor);
-};

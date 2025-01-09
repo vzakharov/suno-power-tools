@@ -1,4 +1,5 @@
-import { BaseClassRef, ClassRef, computed, ComputedClassRef, ref, useNot } from "../smork";
+import { BaseRef, computed, ComputedRef, Ref, ref, useNot } from "../smork";
+import { Storage } from "../storage";
 import { mutate } from "../utils";
 
-mutate(window, { ref, computed, useNot, BaseClassRef, ClassRef, ComputedClassRef });
+mutate(window, { ref, computed, useNot, BaseRef, Ref, ComputedRef });

@@ -1,32 +1,11 @@
 (() => {
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
-  }
-
   // src/smork.ts
   //! Smork, the smol framework
   //! Refs
   function ref(value) {
-    return createRef(value);
+    return new Ref(value);
   }
-  var refBrand = Symbol("ref");
-  function createRef(value) {
-    const ref2 = new ClassRef(value);
-    function accessor(value2) {
-      if (value2 === void 0) {
-        return ref2.get();
-      } else {
-        ref2.set(value2);
-      }
-      ;
-    }
-    ;
-    mutate(ref2, accessor);
-    mutate(ref2, { [refBrand]: true });
-    return ref2;
-  }
-  var BaseClassRef = class {
+  var BaseRef = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -65,7 +44,7 @@
       return this.get();
     }
   };
-  var ClassRef = class extends BaseClassRef {
+  var Ref = class extends BaseRef {
     set = super._set;
     set value(value) {
       this.set(value);
@@ -75,7 +54,7 @@
     }
   };
   var computedPreHandlers = [];
-  var ComputedClassRef = class extends BaseClassRef {
+  var ComputedRef = class extends BaseRef {
     constructor(getter) {
       super(void 0);
       this.getter = getter;
@@ -94,10 +73,7 @@
     }
   };
   function computed(getter) {
-    const ref2 = new ComputedClassRef(getter);
-    mutate(ref2, () => ref2.get());
-    mutate(ref2, { [refBrand]: true });
-    return ref2;
+    return new ComputedRef(getter);
   }
   function useNot(ref2) {
     return computed(() => {
@@ -202,6 +178,11 @@
     };
   }
 
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
+  }
+
   // src/scripts/dev.ts
-  mutate(window, { ref, computed, useNot, BaseClassRef, ClassRef, ComputedClassRef });
+  mutate(window, { ref, computed, useNot, BaseRef, Ref, ComputedRef });
 })();
