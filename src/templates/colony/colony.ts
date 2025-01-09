@@ -47,7 +47,7 @@ export async function render(rawData: ColonyGraphData, {
           height: '100%',
           width: '100%',
           backgroundColor: '#000',
-          ...hideIf(hideUI)
+          ...hideIf(hideUI())
         }
       }), [
         graphContainer = div(),
@@ -103,9 +103,9 @@ export async function render(rawData: ColonyGraphData, {
       button(() => ({ 
         style: { 
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          ...showIf(hideUI),
+          ...showIf(hideUI()),
         },
-        onclick: () => hideUI.set(false)
+        onclick: () => hideUI(false)
       }), [
         'Reopen Colony'
       ])

@@ -1,17 +1,49 @@
 //! Smork, the smol framework
 import { uniqueId } from "./lodashish";
+import { NonUndefined } from "./types";
+import { mutate } from "./utils";
 
 //! Refs
 
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T extends {}>(value: T): Ref<T>;
 export function ref<T>(value?: T) {
-  return new Ref(value);
+  return createRef(value);
+};
+
+const refBrand = Symbol('ref');
+
+export function createRef<T>(value: T) {
+  
+  const ref = new ClassRef(value);
+
+  function accessor(value: NonUndefined<T>): void;
+  function accessor(): T;
+  function accessor(value?: T) {
+    if ( value === undefined ) {
+      return ref.get();
+    } else {
+      ref.set(value);
+    };
+  };
+
+  mutate(ref, accessor);
+  mutate(ref, { [refBrand]: true });
+
+
+  return ref;
+
+}
+
+export type Ref<T> = ReturnType<typeof createRef<T>>;
+
+export function isRef(value: any): value is Ref<any> {
+  return value instanceof BaseClassRef && refBrand in value;
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
 
-export class BaseRef<T> {
+export class BaseClassRef<T> {
 
   protected watchers: ((value: T, oldValue: T) => void)[] = [];
 
@@ -62,7 +94,7 @@ export class BaseRef<T> {
 
 };
 
-export class Ref<T> extends BaseRef<T> {
+export class ClassRef<T> extends BaseClassRef<T> {
   
   set = super._set;
 
@@ -77,9 +109,9 @@ export class Ref<T> extends BaseRef<T> {
 };
 
 // const computedPreHandlers = new Set<(ref: BaseRef<any>) => void>();
-const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
+const computedPreHandlers: Array<(ref: BaseClassRef<any>) => void> = [];
 
-export class ComputedRef<T> extends BaseRef<T> {
+export class ComputedClassRef<T> extends BaseClassRef<T> {
 
   refresh() {
     this._set(this.getter());
@@ -89,7 +121,7 @@ export class ComputedRef<T> extends BaseRef<T> {
     private getter: () => T
   ) {
     super(undefined as any); // we need to call super before we can use this
-    const handler = (ref: BaseRef<any>) => {
+    const handler = (ref: BaseClassRef<any>) => {
       ref.watch(() => this.refresh());
     };
     // computedPreHandlers.add(handler);
@@ -104,10 +136,15 @@ export class ComputedRef<T> extends BaseRef<T> {
 };
 
 export function computed<T extends {}>(getter: () => T) {
-  return new ComputedRef(getter);
+  const ref = new ComputedClassRef(getter);
+  mutate(ref, () => ref.get());
+  mutate(ref, { [refBrand]: true });
+  return ref;
 };
 
-export function useNot<T>(ref: BaseRef<T>) {
+export type ComputedRef<T extends {}> = ReturnType<typeof computed<T>>;
+
+export function useNot<T>(ref: BaseClassRef<T>) {
   return computed(() => {
     return !ref.value
   });
@@ -252,10 +289,10 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function showIf(conditionRef: BaseRef<boolean>) {
-  return conditionRef.value ? {} : { display: 'none' };
+export function showIf(condition: boolean) {
+  return condition ? {} : { display: 'none' };
 };
 
-export function hideIf(conditionRef: BaseRef<boolean>) {
-  return showIf(useNot(conditionRef));
+export function hideIf(condition: boolean) {
+  return showIf(!condition);
 };

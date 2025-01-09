@@ -198,9 +198,25 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   //! Smork, the smol framework
   //! Refs
   function ref(value) {
-    return new Ref(value);
+    return createRef(value);
   }
-  var BaseRef = class {
+  var refBrand = Symbol("ref");
+  function createRef(value) {
+    const ref2 = new ClassRef(value);
+    function accessor(value2) {
+      if (value2 === void 0) {
+        return ref2.get();
+      } else {
+        ref2.set(value2);
+      }
+      ;
+    }
+    ;
+    mutate(ref2, accessor);
+    mutate(ref2, { [refBrand]: true });
+    return ref2;
+  }
+  var BaseClassRef = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -239,7 +255,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return this.get();
     }
   };
-  var Ref = class extends BaseRef {
+  var ClassRef = class extends BaseClassRef {
     set = super._set;
     set value(value) {
       this.set(value);
@@ -249,7 +265,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
   var computedPreHandlers = [];
-  var ComputedRef = class extends BaseRef {
+  var ComputedClassRef = class extends BaseClassRef {
     constructor(getter) {
       super(void 0);
       this.getter = getter;
@@ -268,12 +284,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
   function computed(getter) {
-    return new ComputedRef(getter);
-  }
-  function useNot(ref2) {
-    return computed(() => {
-      return !ref2.value;
-    });
+    const ref2 = new ComputedClassRef(getter);
+    mutate(ref2, () => ref2.get());
+    mutate(ref2, { [refBrand]: true });
+    return ref2;
   }
   //! Elements
   var SUPPORTED_TAGS = [
@@ -395,11 +409,11 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       };
     });
   }
-  function showIf(conditionRef) {
-    return conditionRef.value ? {} : { display: "none" };
+  function showIf(condition) {
+    return condition ? {} : { display: "none" };
   }
-  function hideIf(conditionRef) {
-    return showIf(useNot(conditionRef));
+  function hideIf(condition) {
+    return showIf(!condition);
   }
 
   // src/templates/colony/css.ts
@@ -485,7 +499,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     in3D = false,
     win = window
   }) {
-    const hideUI = ref(false);
     let graphContainer;
     let useNextLinksCheckbox;
     let showNextLinksContainer;
@@ -500,6 +513,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     let audioElement;
     const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     win.document.head.appendChild(style([colonyCss]));
+    const hideUI = ref(false);
     const container = div(
       () => ({
         class: "colony",
@@ -507,11 +521,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           position: "fixed",
           top: "0px",
           left: "0px",
-          // width: '100%',
-          // height: '100%',
-          // backgroundColor: '#000',
           zIndex: "100"
-          // ...hideIf(hideUI)
         }
       }),
       [
@@ -522,7 +532,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             height: "100%",
             width: "100%",
             backgroundColor: "#000",
-            ...hideIf(hideUI)
+            ...hideIf(hideUI())
           }
         }), [
           graphContainer = div(),
@@ -585,9 +595,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             left: "0px",
             padding: "5px",
             zIndex: "100",
-            ...showIf(hideUI)
+            ...showIf(hideUI())
           },
-          onclick: () => hideUI.set(false)
+          onclick: () => hideUI(false)
         }), [
           "Reopen Colony"
         ])
