@@ -1,6 +1,5 @@
 //! Smork, the smol framework
 import { uniqueId } from "./lodashish";
-import { KeyWithValueOfType } from "./types";
 
 //! Refs
 
