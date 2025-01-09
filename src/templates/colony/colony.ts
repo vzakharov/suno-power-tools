@@ -10,14 +10,15 @@ export async function render(rawData: ColonyGraphData, {
   win = window
 }) {
 
+  const hideUI = ref(false);
 
   let graphContainer: HTMLDivElement;
 
-  let useNextLinksCheckbox: HTMLInputElement;
-  let showNextLinksContainer: HTMLDivElement;
-  let showNextLinksCheckbox: HTMLInputElement;
-  let useDescendantLinksCheckbox: HTMLInputElement;
-  let filterInput: HTMLInputElement;
+  const useNextLinks = ref(true);
+  const showNextLinks = ref(false);
+  const useDescendantLinks = ref(true);
+  const filterString = ref('');
+
   let audioContainer: HTMLDivElement;
   let audioLink: HTMLAnchorElement;
   let audioImage: HTMLImageElement;
@@ -28,8 +29,6 @@ export async function render(rawData: ColonyGraphData, {
   const GraphRenderer: typeof ForceGraph = await importScript(win, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
   win.document.head.appendChild(style([colonyCss]));
   
-  const hideUI = ref(false);
-
   const container = div(
     () => ({
       class: 'colony',
@@ -47,8 +46,8 @@ export async function render(rawData: ColonyGraphData, {
           height: '100%',
           width: '100%',
           backgroundColor: '#000',
-          ...hideIf(hideUI)
-        }
+          ...hideIf(hideUI),
+        },
       }), [
         graphContainer = div(),
         div({ 
@@ -66,21 +65,23 @@ export async function render(rawData: ColonyGraphData, {
             h3(['Settings']),
             div(
               labeled('Attract based on time',
-                useNextLinksCheckbox = checkbox({ checked: true })
+                checkbox(useNextLinks)
               )
             ),
-            showNextLinksContainer = div(
+            div(() => ({
+              style: showIf(useNextLinks),
+            }),
               labeled('Show time-based links',
-                showNextLinksCheckbox = checkbox()
+                checkbox(showNextLinks)
               )
             ),
             div(
               labeled('Attract to root clip',
-                useDescendantLinksCheckbox = checkbox({ checked: true })
+                checkbox(useDescendantLinks)
               )
             ),
             div([
-              filterInput = textInput({ placeholder: 'Filter by name, style or ID' }),
+              textInput(filterString, { placeholder: 'Filter by name, style or ID' }),
               p({ class: 'smol' }, [
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])
@@ -166,12 +167,12 @@ export async function render(rawData: ColonyGraphData, {
   function visibilityChecker(link: ProcessedLink) {
     return !{
       descendant: true,
-      next: !showNextLinksCheckbox.checked
+      next: !showNextLinks.value,
     }[link.kind];
   };
 
-  function applyLinkFilter(kind: LinkKind, checkbox: HTMLInputElement) {
-    const useLinks = checkbox.checked;
+  // function applyLinkFilter(kind: LinkKind, checkbox: HTMLInputElement) {
+  function applyLinkFilter(kind: LinkKind, useLinks: boolean) {
     let { nodes, links } = graph.graphData();
     if ( !useLinks ) {
       links = links.filter(l => l.kind !== kind);
@@ -179,10 +180,10 @@ export async function render(rawData: ColonyGraphData, {
       links.push(...data.links.filter(l => l.kind === kind));
     }
     if ( kind === 'next' ) {
-      showNextLinksContainer.style.display = checkbox.checked ? 'block' : 'none';
+      // showNextLinksContainer.style.display = checkbox.checked ? 'block' : 'none';
       // Remove 'next' links, just in case they're already there
       links = links.filter(l => l.kind !== 'next');
-      if ( checkbox.checked ) {
+      if ( useLinks ) {
         // Add 'next' links dynamically by going from the oldest to the newest node
         sortByDate(nodes);
         for ( let i = 1; i < nodes.length; i++ ) {
@@ -201,24 +202,10 @@ export async function render(rawData: ColonyGraphData, {
     graph.graphData({ nodes, links });
   };
 
+  useNextLinks.watchImmediate(useLinks => applyLinkFilter('next', useLinks));
+  useDescendantLinks.watchImmediate(useLinks => applyLinkFilter('descendant', useLinks));
 
-  function applyCheckboxFilters(firstTime = false) {
-    mapValues( {
-      next: useNextLinksCheckbox,
-      descendant: useDescendantLinksCheckbox
-    }, (checkbox, kind) => {
-      applyLinkFilter(kind, checkbox);
-      if ( firstTime ) {
-        checkbox.addEventListener('change', () => {
-          applyLinkFilter(kind, checkbox);
-        });
-      };
-    } );
-  };
-
-  applyCheckboxFilters(true);
-
-  showNextLinksCheckbox.addEventListener('change', () => {
+  showNextLinks.watchImmediate(() => {
     graph.linkVisibility(visibilityChecker);
   });
 
@@ -233,35 +220,32 @@ export async function render(rawData: ColonyGraphData, {
     return (candidate: NodeOrId) => sameId(original, candidate);
   };
 
-  filterInput.addEventListener('keyup', e => {
-    if ( e.key === 'Enter' ) {
-      const filter = filterInput.value.toLowerCase();
-      const matchingNodes = filter 
-        ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
-        : data.nodes;
-      const existing = graph.graphData();
-      const nodes = [
-        ...matchingNodes.map(node => existing.nodes.find(sameIdAs(node)) ?? node),
-        ...filter 
-          ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))
-          : []
-      ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);
-      const links = data.links
-        .filter(link => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target)))
-        .map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest }))
-        .map(link => existing.links.find(l => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
-      graph.graphData({ nodes, links });
-      if ( filter )
-        graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);
-      else
-        graph.nodeVal('val');
-      applyCheckboxFilters();
-    }
+  filterString.watchImmediate(filter => {
+    filter = filter.toLowerCase();
+    const matchingNodes = filter 
+      ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
+      : data.nodes;
+    const existing = graph.graphData();
+    const nodes = [
+      ...matchingNodes.map(node => existing.nodes.find(sameIdAs(node)) ?? node),
+      ...filter 
+        ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))
+        : []
+    ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);
+    const links = data.links
+      .filter(link => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target)))
+      .map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest }))
+      .map(link => existing.links.find(l => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+    graph.graphData({ nodes, links });
+    if ( filter )
+      graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);
+    else
+      graph.nodeVal('val');
   });
 
   setTimeout(() => {
-    useNextLinksCheckbox.click();
-    useDescendantLinksCheckbox.click();
+    useNextLinks.set(false);
+    useDescendantLinks.set(false);
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
 

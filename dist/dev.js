@@ -189,15 +189,6 @@
     }
     return element;
   }
-  var checkbox = boundElementFactory(input, { type: "checkbox" });
-  var textInput = boundElementFactory(input, { type: "text" });
-  function boundElementFactory(baseFactory, boundProps) {
-    return (...args) => {
-      const element = baseFactory(...args);
-      Object.assign(element, boundProps);
-      return element;
-    };
-  }
 
   // src/utils.ts
   function mutate(obj, partial) {

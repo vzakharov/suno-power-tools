@@ -1,5 +1,6 @@
 //! Smork, the smol framework
 import { uniqueId } from "./lodashish";
+import { KeyWithValueOfType } from "./types";
 
 //! Refs
 
@@ -129,6 +130,7 @@ export function useNot<T>(ref: BaseRef<T>) {
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
 ] as const;
+// TODO: Distinguish between void elements and non-void elements
 
 export type SupportedTag = typeof SUPPORTED_TAGS[number];
 
@@ -151,12 +153,13 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
   });
 };
 
+
 export type Inferrable<T> = T | (() => T);
 
 export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'className' | 'style' | 'htmlFor'>> & {
   class?: T['className'],
   style?: Partial<T['style']>,
-  for?: T extends HTMLLabelElement ? string : never
+  for?: T extends HTMLLabelElement ? string : never,
 }
 
 export type ElementFactory<TElement extends SupportedElement, TProps extends Props<TElement> = Props<TElement>> = {
@@ -223,21 +226,39 @@ export function tag<T extends SupportedTag>(tagName: T) {
 
 };
 
-export const checkbox = boundElementFactory(input, { type: 'checkbox' });
-export const textInput = boundElementFactory(input, { type: 'text' });
-
-export function boundElementFactory<TElement extends SupportedElement, TProps extends Props<TElement>, TBoundKey extends keyof TProps>(
-  baseFactory: ElementFactory<TElement, TProps>,
-  boundProps: {
-    [P in TBoundKey]: TProps[P]
-  }
+export function checkbox(
+  model: Ref<boolean>,
+  props?: Inferrable<
+    Omit<Props<HTMLInputElement>, 'type' | 'checked' | 'onchange'>
+  >,
 ) {
-  return ((...args: any) => {
-    const element = baseFactory(...args);
-    Object.assign(element, boundProps);
-    return element;
-  }) as ElementFactory<TElement, Omit<TProps, TBoundKey> extends Props<TElement> ? Omit<TProps, TBoundKey> : never>;
+  return input(() => ({
+    ...props,
+    type: 'checkbox',
+    checked: model.value,
+    onchange: () => {
+      model.set(!model.value);
+    }
+  }));
 };
+
+export function textInput(
+  model: Ref<string>,
+  props?: Inferrable<
+    Omit<Props<HTMLInputElement>, 'type' | 'value' | 'oninput'>
+  >,
+) {
+  return input(() => ({
+    ...props,
+    type: 'text',
+    value: model.value,
+    onkeyup: ({ key }: KeyboardEvent) => {
+      // TODO: Add support for other model "trigger" events (change, blur, etc.)
+      key === 'Enter' && model.set(model.value);
+    }
+  }));
+};
+
 
 export function labeled(labelText: string, element: HTMLInputElement) {
   element.id ||= uniqueId('smork-input-');

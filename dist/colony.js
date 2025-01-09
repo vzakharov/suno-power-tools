@@ -124,11 +124,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function uniqueId(prefix = "") {
     return `${prefix}${++lastId}`;
   }
-  function mapValues(obj, mapper) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
-    );
-  }
 
   // src/manager.ts
   function getSuno() {
@@ -384,14 +379,25 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
     return element;
   }
-  var checkbox = boundElementFactory(input, { type: "checkbox" });
-  var textInput = boundElementFactory(input, { type: "text" });
-  function boundElementFactory(baseFactory, boundProps) {
-    return (...args) => {
-      const element = baseFactory(...args);
-      Object.assign(element, boundProps);
-      return element;
-    };
+  function checkbox(model, props) {
+    return input(() => ({
+      ...props,
+      type: "checkbox",
+      checked: model.value,
+      onchange: () => {
+        model.set(!model.value);
+      }
+    }));
+  }
+  function textInput(model, props) {
+    return input(() => ({
+      ...props,
+      type: "text",
+      value: model.value,
+      onkeyup: ({ key }) => {
+        key === "Enter" && model.set(model.value);
+      }
+    }));
   }
   function labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
@@ -506,12 +512,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     in3D = false,
     win = window
   }) {
+    const hideUI = ref(false);
     let graphContainer;
-    let useNextLinksCheckbox;
-    let showNextLinksContainer;
-    let showNextLinksCheckbox;
-    let useDescendantLinksCheckbox;
-    let filterInput;
+    const useNextLinks = ref(true);
+    const showNextLinks = ref(false);
+    const useDescendantLinks = ref(true);
+    const filterString = ref("");
     let audioContainer;
     let audioLink;
     let audioImage;
@@ -520,7 +526,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     let audioElement;
     const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     win.document.head.appendChild(style([colonyCss]));
-    const hideUI = ref(false);
     const container = div(
       () => ({
         class: "colony",
@@ -559,23 +564,26 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
               div(
                 labeled(
                   "Attract based on time",
-                  useNextLinksCheckbox = checkbox({ checked: true })
+                  checkbox(useNextLinks)
                 )
               ),
-              showNextLinksContainer = div(
+              div(
+                () => ({
+                  style: showIf(useNextLinks)
+                }),
                 labeled(
                   "Show time-based links",
-                  showNextLinksCheckbox = checkbox()
+                  checkbox(showNextLinks)
                 )
               ),
               div(
                 labeled(
                   "Attract to root clip",
-                  useDescendantLinksCheckbox = checkbox({ checked: true })
+                  checkbox(useDescendantLinks)
                 )
               ),
               div([
-                filterInput = textInput({ placeholder: "Filter by name, style or ID" }),
+                textInput(filterString, { placeholder: "Filter by name, style or ID" }),
                 p({ class: "smol" }, [
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
@@ -646,12 +654,11 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     function visibilityChecker(link) {
       return !{
         descendant: true,
-        next: !showNextLinksCheckbox.checked
+        next: !showNextLinks.value
       }[link.kind];
     }
     ;
-    function applyLinkFilter(kind, checkbox2) {
-      const useLinks = checkbox2.checked;
+    function applyLinkFilter(kind, useLinks) {
       let { nodes, links } = graph.graphData();
       if (!useLinks) {
         links = links.filter((l) => l.kind !== kind);
@@ -659,9 +666,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
         links.push(...data.links.filter((l) => l.kind === kind));
       }
       if (kind === "next") {
-        showNextLinksContainer.style.display = checkbox2.checked ? "block" : "none";
         links = links.filter((l) => l.kind !== "next");
-        if (checkbox2.checked) {
+        if (useLinks) {
           sortByDate(nodes);
           for (let i = 1; i < nodes.length; i++) {
             const source = nodes[i - 1];
@@ -681,23 +687,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       graph.graphData({ nodes, links });
     }
     ;
-    function applyCheckboxFilters(firstTime = false) {
-      mapValues({
-        next: useNextLinksCheckbox,
-        descendant: useDescendantLinksCheckbox
-      }, (checkbox2, kind) => {
-        applyLinkFilter(kind, checkbox2);
-        if (firstTime) {
-          checkbox2.addEventListener("change", () => {
-            applyLinkFilter(kind, checkbox2);
-          });
-        }
-        ;
-      });
-    }
-    ;
-    applyCheckboxFilters(true);
-    showNextLinksCheckbox.addEventListener("change", () => {
+    useNextLinks.watchImmediate((useLinks) => applyLinkFilter("next", useLinks));
+    useDescendantLinks.watchImmediate((useLinks) => applyLinkFilter("descendant", useLinks));
+    showNextLinks.watchImmediate(() => {
       graph.linkVisibility(visibilityChecker);
     });
     function id(node) {
@@ -712,27 +704,24 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return (candidate) => sameId(original, candidate);
     }
     ;
-    filterInput.addEventListener("keyup", (e) => {
-      if (e.key === "Enter") {
-        const filter2 = filterInput.value.toLowerCase();
-        const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
-        const existing = graph.graphData();
-        const nodes = [
-          ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-          ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
-        ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
-        const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
-        graph.graphData({ nodes, links });
-        if (filter2)
-          graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
-        else
-          graph.nodeVal("val");
-        applyCheckboxFilters();
-      }
+    filterString.watchImmediate((filter2) => {
+      filter2 = filter2.toLowerCase();
+      const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
+      const existing = graph.graphData();
+      const nodes = [
+        ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+        ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+      ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
+      const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+      graph.graphData({ nodes, links });
+      if (filter2)
+        graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
+      else
+        graph.nodeVal("val");
     });
     setTimeout(() => {
-      useNextLinksCheckbox.click();
-      useDescendantLinksCheckbox.click();
+      useNextLinks.set(false);
+      useDescendantLinks.set(false);
     }, 2e3);
     //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
     return container;
