@@ -2,13 +2,15 @@
 
 import { uniqueId } from "./lodashish";
 
+//! Refs
+
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T extends {}>(value: T): Ref<T>;
 export function ref<T>(value?: T) {
   return new Ref(value);
 };
 
-class BaseRef<T> {
+export class BaseRef<T> {
 
   protected watchers: ((value: T, oldValue: T) => void)[] = [];
 
@@ -45,8 +47,8 @@ class BaseRef<T> {
   };
 
   get value() {
-    firstRunningComputeds.forEach(computedRefProvider => {
-      computedRefProvider().dependsOn.add(this);
+    firstRunningComputeds.forEach(computedRef => {
+      computedRef.dependsOn.add(this);
     });
     return this.get();
   };
@@ -63,7 +65,7 @@ export class Ref<T> extends BaseRef<T> {
 
 };
 
-const firstRunningComputeds = new Set<() => ComputedRef<any>>();
+const firstRunningComputeds = new Set<ComputedRef<any>>();
 
 export class ComputedRef<T> extends BaseRef<T> {
 
@@ -72,10 +74,10 @@ export class ComputedRef<T> extends BaseRef<T> {
   constructor(
     private getter: () => T
   ) {
-    const thisProvider = () => this;
-    firstRunningComputeds.add(thisProvider);
-    super(getter());
-    firstRunningComputeds.delete(thisProvider);
+    super(undefined as any); // we need to call super before we can use this
+    firstRunningComputeds.add(this);
+    this.set(getter());
+    firstRunningComputeds.delete(this);
     this.dependsOn.forEach(ref => {
       ref.watch(() => {
         this.set(this.getter());
@@ -85,9 +87,15 @@ export class ComputedRef<T> extends BaseRef<T> {
 
 };
 
-export function computed<T extends {}>(getter: () => T) {
+export function computed<T>(getter: () => T) {
   return new ComputedRef(getter);
 };
+
+export function useNot<T>(ref: BaseRef<T>) {
+  return computed(() => !ref.value);
+};
+
+//! Elements
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -203,7 +211,7 @@ export function boundElementFactory<TElement extends SupportedElement, TProps ex
 };
 
 export function labeled(labelText: string, element: HTMLInputElement) {
-  element.id ||= uniqueId('pork-input-');
+  element.id ||= uniqueId('smork-input-');
   const output = [
     label({ for: element.id }, [labelText]),
     element
@@ -224,4 +232,12 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
       resolve(win[windowKey] as T);
     };
   });
-}
+};
+
+export function showIf(conditionRef: BaseRef<boolean>) {
+  return conditionRef.value ? {} : { display: 'none' };
+};
+
+export function hideIf(conditionRef: BaseRef<boolean>) {
+  return showIf(useNot(conditionRef));
+};
