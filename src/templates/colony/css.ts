@@ -1,10 +1,14 @@
 export const colonyCss = `
-body { 
-  margin: 0;
+.colony { 
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-#sidebar {
+.colony button {
+  background-color: #444;
+  color: #eee
+}
+
+.colony #sidebar {
   position: fixed;
   padding: 10px;
   top: 0;
@@ -18,55 +22,55 @@ body {
   justify-content: space-between;
 }
 
-.f-row {
+.colony .f-row {
   display: flex;
   flex-direction: row;
 }
 
-.f-col {
+.colony .f-col {
   display: flex;
   flex-direction: column;
 }
 
-.smol {
+.colony .smol {
   font-size: 0.8em;
   color: #aaa;
 }
 
-.relative {
+.colony .relative {
   position: relative;
 }
 
-.absolute {
+.colony .absolute {
   position: absolute;
 }
 
-.topleft {
+.colony .topleft {
   top: 0;
   left: 0;
 }
 
-.p-1 {
+.colony .p-1 {
   padding: 1rem;
 };
 
-.p-2 {
+.colony .p-2 {
   padding: 2rem;
 }
 
-.w-100 {
+.colony .w-100 {
   width: 100%;
 }
 
-.h-100 {
+.colony .h-100 {
   height: 100%;
 }
 
-.j-between {
+.colony .j-between {
   justify-content: space-between;
 }
 
-.settings > div {
+.colony .settings > div {
   margin-top: 5px;
 }
 `;

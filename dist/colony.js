@@ -194,12 +194,88 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
 
-  // src/pork.ts
-  //! Pork, the PORtable framewORK
-  var refBrand = Symbol("ref");
-  function isRef(candidate) {
-    return candidate?.[refBrand];
+  // src/smork.ts
+  //! Smork, the smol framework
+  //! Refs
+  function ref(value) {
+    return new Ref(value);
   }
+  var BaseRef = class {
+    constructor(_value) {
+      this._value = _value;
+    }
+    watchers = [];
+    get() {
+      computedPreHandlers.at(-1)?.(this);
+      return this._value;
+    }
+    _set(value) {
+      const { _value: oldValue } = this;
+      if (value !== this._value) {
+        this._value = value;
+        this.watchers.forEach((watcher) => watcher(value, oldValue));
+      }
+    }
+    runAndWatch(watcher) {
+      watcher(this._value, this._value);
+      this.watch(watcher);
+    }
+    /**
+     * @alias runAndWatch
+     */
+    watchImmediate = this.runAndWatch;
+    watch(watcher) {
+      this.watchers.push(watcher);
+    }
+    /**
+     * @alias watch
+     */
+    onChange = this.watch;
+    // just an alias
+    unwatch(watcher) {
+      this.watchers = this.watchers.filter((w) => w !== watcher);
+    }
+    get value() {
+      return this.get();
+    }
+  };
+  var Ref = class extends BaseRef {
+    set = super._set;
+    set value(value) {
+      this.set(value);
+    }
+    get value() {
+      return this.get();
+    }
+  };
+  var computedPreHandlers = [];
+  var ComputedRef = class extends BaseRef {
+    constructor(getter) {
+      super(void 0);
+      this.getter = getter;
+      const handler = (ref2) => {
+        ref2.watch(() => this.refresh());
+      };
+      computedPreHandlers.push(handler);
+      this.refresh();
+      if (computedPreHandlers.pop() !== handler) {
+        throw new Error("smork: computedPreHandlers stack is corrupted");
+      }
+      ;
+    }
+    refresh() {
+      this._set(this.getter());
+    }
+  };
+  function computed(getter) {
+    return new ComputedRef(getter);
+  }
+  function useNot(ref2) {
+    return computed(() => {
+      return !ref2.value;
+    });
+  }
+  //! Elements
   var SUPPORTED_TAGS = [
     "html",
     "head",
@@ -240,28 +316,36 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }, {});
   }
   function tag(tagName) {
-    function element(...args) {
-      const ref2 = isRef(args[0]) ? args.shift() : void 0;
-      const props = Array.isArray(args[0]) ? void 0 : args.shift();
-      const children = args[0];
-      return elementFactory(ref2, props, children);
+    function element(propsOrChildren, childrenOrNone) {
+      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
+      return elementFactory(props, children);
     }
     ;
-    function elementFactory(ref2, props, children) {
+    function elementFactory(props, children) {
       const element2 = document.createElement(tagName);
       if (props) {
-        Object.assign(element2, props);
-        if (props.class) {
-          element2.className = props.class;
+        let assignProps = function(props2) {
+          Object.assign(element2, props2);
+          if (props2.class) {
+            element2.className = props2.class;
+          }
+          ;
+          if (element2 instanceof HTMLLabelElement && props2.for) {
+            element2.htmlFor = props2.for;
+          }
+          ;
+          Object.entries(props2.style ?? {}).forEach(([key, value]) => {
+            element2.style[key] = value;
+          });
+        };
+        if (typeof props === "function") {
+          const ref2 = computed(props);
+          ref2.runAndWatch(assignProps);
+        } else {
+          assignProps(props);
         }
         ;
-        if (element2 instanceof HTMLLabelElement && props.for) {
-          element2.htmlFor = props.for;
-        }
         ;
-        Object.entries(props.style ?? {}).forEach(([key, value]) => {
-          element2.style[key] = value;
-        });
       }
       ;
       if (children) {
@@ -273,10 +357,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           }
           ;
         });
-      }
-      ;
-      if (ref2) {
-        ref2.value = element2;
       }
       ;
       return element2;
@@ -293,7 +373,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     };
   }
   function labeled(labelText, element) {
-    element.id ||= uniqueId("pork-input-");
+    element.id ||= uniqueId("smork-input-");
     const output = [
       label({ for: element.id }, [labelText]),
       element
@@ -305,25 +385,35 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     return output;
   }
   async function importScript(win, windowKey, url) {
-    const script3 = win.document.createElement("script");
-    script3.type = "text/javascript";
-    script3.src = url;
-    win.document.head.appendChild(script3);
+    const script2 = win.document.createElement("script");
+    script2.type = "text/javascript";
+    script2.src = url;
+    win.document.head.appendChild(script2);
     return new Promise((resolve) => {
-      script3.onload = () => {
+      script2.onload = () => {
         resolve(win[windowKey]);
       };
     });
   }
+  function showIf(conditionRef) {
+    return conditionRef.value ? {} : { display: "none" };
+  }
+  function hideIf(conditionRef) {
+    return showIf(useNot(conditionRef));
+  }
 
   // src/templates/colony/css.ts
   var colonyCss = `
-body { 
-  margin: 0;
+.colony { 
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-#sidebar {
+.colony button {
+  background-color: #444;
+  color: #eee
+}
+
+.colony #sidebar {
   position: fixed;
   padding: 10px;
   top: 0;
@@ -337,55 +427,55 @@ body {
   justify-content: space-between;
 }
 
-.f-row {
+.colony .f-row {
   display: flex;
   flex-direction: row;
 }
 
-.f-col {
+.colony .f-col {
   display: flex;
   flex-direction: column;
 }
 
-.smol {
+.colony .smol {
   font-size: 0.8em;
   color: #aaa;
 }
 
-.relative {
+.colony .relative {
   position: relative;
 }
 
-.absolute {
+.colony .absolute {
   position: absolute;
 }
 
-.topleft {
+.colony .topleft {
   top: 0;
   left: 0;
 }
 
-.p-1 {
+.colony .p-1 {
   padding: 1rem;
 };
 
-.p-2 {
+.colony .p-2 {
   padding: 2rem;
 }
 
-.w-100 {
+.colony .w-100 {
   width: 100%;
 }
 
-.h-100 {
+.colony .h-100 {
   height: 100%;
 }
 
-.j-between {
+.colony .j-between {
   justify-content: space-between;
 }
 
-.settings > div {
+.colony .settings > div {
   margin-top: 5px;
 }
 `;
@@ -395,8 +485,8 @@ body {
     in3D = false,
     win = window
   }) {
+    const hideUI = ref(false);
     let graphContainer;
-    let closeButton;
     let useNextLinksCheckbox;
     let showNextLinksContainer;
     let showNextLinksCheckbox;
@@ -411,91 +501,99 @@ body {
     const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     win.document.head.appendChild(style([colonyCss]));
     const container = div(
-      {
+      () => ({
+        class: "colony",
         style: {
           position: "fixed",
           top: "0px",
           left: "0px",
-          width: "100%",
-          height: "100%",
-          backgroundColor: "#000",
+          // width: '100%',
+          // height: '100%',
+          // backgroundColor: '#000',
           zIndex: "100"
+          // ...hideIf(hideUI)
         }
-      },
+      }),
       [
-        graphContainer = div(),
-        div({ id: "sidebar" }, [
+        div(() => ({
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+            width: "100%",
+            backgroundColor: "#000",
+            ...hideIf(hideUI)
+          }
+        }), [
+          graphContainer = div(),
           div({
-            class: "settings f-col"
+            id: "sidebar"
           }, [
-            closeButton = button({ style: { backgroundColor: "#444", color: "#eee", marginBottom: "5px" } }, [
-              "Close Colony"
-            ]),
-            h3(["Settings"]),
-            div(
-              labeled(
-                "Attract based on time",
-                useNextLinksCheckbox = checkbox({ checked: true })
-              )
-            ),
-            showNextLinksContainer = div(
-              labeled(
-                "Show time-based links",
-                showNextLinksCheckbox = checkbox()
-              )
-            ),
-            div(
-              labeled(
-                "Attract to root clip",
-                useDescendantLinksCheckbox = checkbox({ checked: true })
-              )
-            ),
-            div([
-              filterInput = textInput({ placeholder: "Filter by name, style or ID" }),
-              p({ class: "smol" }, [
-                "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
-              ])
-            ])
-          ]),
-          audioContainer = div({ class: "w-100", style: { display: "none" } }, [
-            div({ class: "relative" }, [
-              audioLink = a({ target: "_blank" }, [
-                audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+            div({
+              class: "settings f-col"
+            }, [
+              button({
+                style: { marginBottom: "5px" },
+                onclick: () => hideUI.set(true)
+              }, [
+                "Close Colony"
               ]),
-              div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
-                audioName = div(),
-                audioTags = div({ class: "smol" })
+              h3(["Settings"]),
+              div(
+                labeled(
+                  "Attract based on time",
+                  useNextLinksCheckbox = checkbox({ checked: true })
+                )
+              ),
+              showNextLinksContainer = div(
+                labeled(
+                  "Show time-based links",
+                  showNextLinksCheckbox = checkbox()
+                )
+              ),
+              div(
+                labeled(
+                  "Attract to root clip",
+                  useDescendantLinksCheckbox = checkbox({ checked: true })
+                )
+              ),
+              div([
+                filterInput = textInput({ placeholder: "Filter by name, style or ID" }),
+                p({ class: "smol" }, [
+                  "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+                ])
               ])
             ]),
-            audioElement = audio({ controls: true, class: "w-100" })
+            audioContainer = div({ class: "w-100", style: { display: "none" } }, [
+              div({ class: "relative" }, [
+                audioLink = a({ target: "_blank" }, [
+                  audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+                ]),
+                div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
+                  audioName = div(),
+                  audioTags = div({ class: "smol" })
+                ])
+              ]),
+              audioElement = audio({ controls: true, class: "w-100" })
+            ])
           ])
+        ]),
+        button(() => ({
+          style: {
+            position: "fixed",
+            top: "0px",
+            left: "0px",
+            padding: "5px",
+            zIndex: "100",
+            ...showIf(hideUI)
+          },
+          onclick: () => hideUI.set(false)
+        }), [
+          "Reopen Colony"
         ])
       ]
     );
-    const reopenButton = button({ style: {
-      position: "fixed",
-      top: "0px",
-      left: "0px",
-      padding: "5px",
-      backgroundColor: "#444",
-      color: "#eee",
-      zIndex: "100"
-    } }, [
-      "Reopen Colony"
-    ]);
-    function showContainer() {
-      win.document.body.appendChild(container);
-      reopenButton.parentElement?.removeChild(reopenButton);
-    }
-    ;
-    showContainer();
-    closeButton.addEventListener("click", () => {
-      win.document.body.removeChild(container);
-      win.document.body.appendChild(reopenButton);
-    });
-    reopenButton.addEventListener("click", () => {
-      showContainer();
-    });
+    document.body.appendChild(container);
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
     const graph = new GraphRenderer(
       graphContainer
@@ -620,7 +718,7 @@ body {
       useDescendantLinksCheckbox.click();
     }, 2e3);
     //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
-    return [container, reopenButton];
+    return container;
   }
 
   // src/templating.ts
@@ -887,18 +985,17 @@ body {
         graph_url_slug: in3D ? "3d-force-graph" : "force-graph"
       });
     }
-    renderedElements = [];
+    renderedElement = void 0;
     async render(...[mode]) {
       console.log("Rendering your colony, give it a few seconds...");
-      this.renderedElements = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
+      this.renderedElement = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
     }
     clear() {
-      this.renderedElements.forEach((element) => element.remove());
-      this.renderedElements = [];
+      this.renderedElement?.remove();
     }
     renderToFile(...params) {
-      const html3 = this.getHtml(...params);
-      const blob = new Blob([html3], { type: "text/html" });
+      const html2 = this.getHtml(...params);
+      const blob = new Blob([html2], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const a2 = document.createElement("a");
       a2.href = url;

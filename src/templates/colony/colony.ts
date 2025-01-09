@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { mapValues } from '../../lodashish';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, textInput } from "../../smork";
+import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, ref, showIf, style, textInput } from "../../smork";
 import { sortByDate } from '../../utils';
 import { colonyCss } from './css';
 
@@ -10,8 +10,9 @@ export async function render(rawData: ColonyGraphData, {
   win = window
 }) {
 
+  const hideUI = ref(false);
+
   let graphContainer: HTMLDivElement;
-  let closeButton: HTMLButtonElement;
 
   let useNextLinksCheckbox: HTMLInputElement;
   let showNextLinksContainer: HTMLDivElement;
@@ -29,85 +30,92 @@ export async function render(rawData: ColonyGraphData, {
   win.document.head.appendChild(style([colonyCss]));
   
   const container = div(
-    {
+    () => ({
+      class: 'colony',
       style: {
         position: 'fixed',
         top: '0px',
         left: '0px',
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#000',
+        // width: '100%',
+        // height: '100%',
+        // backgroundColor: '#000',
         zIndex: '100',
+        // ...hideIf(hideUI)
       }
-    }, [
-      graphContainer = div(),
-      div({ id: 'sidebar' }, [
-        div({
-          class: 'settings f-col'
+    }), [
+      div(() => ({
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          width: '100%',
+          backgroundColor: '#000',
+          ...hideIf(hideUI)
+        }
+      }), [
+        graphContainer = div(),
+        div({ 
+          id: 'sidebar',
         }, [
-          closeButton = button({ style: { backgroundColor: '#444', color: '#eee', marginBottom: '5px'} }, [
-            'Close Colony'
-          ]),
-          h3(['Settings']),
-          div(
-            labeled('Attract based on time',
-              useNextLinksCheckbox = checkbox({ checked: true })
-            )
-          ),
-          showNextLinksContainer = div(
-            labeled('Show time-based links',
-              showNextLinksCheckbox = checkbox()
-            )
-          ),
-          div(
-            labeled('Attract to root clip',
-              useDescendantLinksCheckbox = checkbox({ checked: true })
-            )
-          ),
-          div([
-            filterInput = textInput({ placeholder: 'Filter by name, style or ID' }),
-            p({ class: 'smol' }, [
-              'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
-            ])
-          ])
-        ]),
-        audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
-          div({ class: 'relative' }, [
-            audioLink = a({ target: '_blank' }, [
-              audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+          div({
+            class: 'settings f-col'
+          }, [
+            button({ 
+              style: { marginBottom: '5px'},
+              onclick: () => hideUI.set(true)
+            }, [
+              'Close Colony'
             ]),
-            div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-              audioName = div(),
-              audioTags = div({ class: 'smol' })
+            h3(['Settings']),
+            div(
+              labeled('Attract based on time',
+                useNextLinksCheckbox = checkbox({ checked: true })
+              )
+            ),
+            showNextLinksContainer = div(
+              labeled('Show time-based links',
+                showNextLinksCheckbox = checkbox()
+              )
+            ),
+            div(
+              labeled('Attract to root clip',
+                useDescendantLinksCheckbox = checkbox({ checked: true })
+              )
+            ),
+            div([
+              filterInput = textInput({ placeholder: 'Filter by name, style or ID' }),
+              p({ class: 'smol' }, [
+                'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
+              ])
             ])
           ]),
-          audioElement = audio({ controls: true, class: 'w-100' })
+          audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
+            div({ class: 'relative' }, [
+              audioLink = a({ target: '_blank' }, [
+                audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+              ]),
+              div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
+                audioName = div(),
+                audioTags = div({ class: 'smol' })
+              ])
+            ]),
+            audioElement = audio({ controls: true, class: 'w-100' })
+          ])
         ])
+      ]),
+      button(() => ({ 
+        style: { 
+          position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
+          ...showIf(hideUI),
+        },
+        onclick: () => hideUI.set(false)
+      }), [
+        'Reopen Colony'
       ])
     ]
   );
 
-  const reopenButton = button({ style: { 
-    position: 'fixed', top: '0px', left: '0px', padding: '5px', backgroundColor: '#444', color: '#eee', zIndex: '100'
-  } }, [
-    'Reopen Colony'
-  ]);
-
-  function showContainer() {
-    win.document.body.appendChild(container);
-    reopenButton.parentElement?.removeChild(reopenButton);
-  };
-
-  showContainer();
-
-  closeButton.addEventListener('click', () => {
-    win.document.body.removeChild(container);
-    win.document.body.appendChild(reopenButton);
-  });
-  
-  reopenButton.addEventListener('click', () => {
-    showContainer();
-  });
+  document.body.appendChild(container);
 
   type ProcessedLink = Omit<ColonyLink, 'source' | 'target'> & {
     source: string | ColonyNode;
@@ -260,5 +268,5 @@ export async function render(rawData: ColonyGraphData, {
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
 
-  return [ container, reopenButton ];
+  return container;
 };

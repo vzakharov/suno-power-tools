@@ -1,5 +1,4 @@
 //! Smork, the smol framework
-
 import { uniqueId } from "./lodashish";
 
 //! Refs
@@ -10,46 +9,54 @@ export function ref<T>(value?: T) {
   return new Ref(value);
 };
 
+export type Watcher<T> = (value: T, oldValue: T) => void;
+
 export class BaseRef<T> {
 
   protected watchers: ((value: T, oldValue: T) => void)[] = [];
 
   constructor(
     protected _value: T
-  ) {
-    // readCounts.set(this, 0);
-  };
+  ) { };
 
   get() {
-    // readCounts.set(this, readCounts.get(this) ?? 0 + 1);
+    // computedPreHandlers.forEach(hook => hook(this));
+    computedPreHandlers.at(-1)?.(this);
     return this._value;
   };
 
-  protected set(value: T) {
-    if ( value !== this.value ) {
-      this.watchers.forEach(watcher => watcher(value, this.value));
+  protected _set(value: T) {
+    const { _value: oldValue } = this;
+    if ( value !== this._value ) {
       this._value = value;
+      this.watchers.forEach(watcher => watcher(value, oldValue));
     }
   };
 
-  /**
-   * Note that unlike e.g. Vue watchers, this function will be called immediately.
-   */
-  watch(watcher: (value: T, oldValue: T) => void) {
+  runAndWatch(watcher: Watcher<T>) {
     watcher(this._value, this._value);
+    this.watch(watcher);
+  };
+
+  /**
+   * @alias runAndWatch
+   */
+  watchImmediate = this.runAndWatch;
+
+  watch(watcher: Watcher<T>) {
     this.watchers.push(watcher);
   };
 
+  /**
+   * @alias watch
+   */
   onChange = this.watch; // just an alias
 
-  unwatch(watcher: (value: T, oldValue: T) => void) {
+  unwatch(watcher: Watcher<T>) {
     this.watchers = this.watchers.filter(w => w !== watcher);
   };
 
   get value() {
-    firstRunningComputeds.forEach(computedRef => {
-      computedRef.dependsOn.add(this);
-    });
     return this.get();
   };
 
@@ -57,42 +64,53 @@ export class BaseRef<T> {
 
 export class Ref<T> extends BaseRef<T> {
   
-  set = super.set;
+  set = super._set;
 
   set value(value: T) {
     this.set(value);
   };
 
+  get value() {
+    return this.get();
+  };
+
 };
 
-const firstRunningComputeds = new Set<ComputedRef<any>>();
+// const computedPreHandlers = new Set<(ref: BaseRef<any>) => void>();
+const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
 
 export class ComputedRef<T> extends BaseRef<T> {
 
-  dependsOn = new Set<BaseRef<any>>();
+  refresh() {
+    this._set(this.getter());
+  };
 
   constructor(
     private getter: () => T
   ) {
     super(undefined as any); // we need to call super before we can use this
-    firstRunningComputeds.add(this);
-    this.set(getter());
-    firstRunningComputeds.delete(this);
-    this.dependsOn.forEach(ref => {
-      ref.watch(() => {
-        this.set(this.getter());
-      });
-    });
+    const handler = (ref: BaseRef<any>) => {
+      ref.watch(() => this.refresh());
+    };
+    // computedPreHandlers.add(handler);
+    computedPreHandlers.push(handler);
+    this.refresh();
+    // computedPreHandlers.delete(handler);
+    if ( computedPreHandlers.pop() !== handler ) {
+      throw new Error('smork: computedPreHandlers stack is corrupted');
+    };
   };
 
 };
 
-export function computed<T>(getter: () => T) {
+export function computed<T extends {}>(getter: () => T) {
   return new ComputedRef(getter);
 };
 
 export function useNot<T>(ref: BaseRef<T>) {
-  return computed(() => !ref.value);
+  return computed(() => {
+    return !ref.value
+  });
 };
 
 //! Elements
@@ -159,7 +177,7 @@ export function tag<T extends SupportedTag>(tagName: T) {
 
       if ( typeof props === 'function' ) {
         const ref = computed(props);
-        ref.onChange(assignProps);  
+        ref.runAndWatch(assignProps);  
       } else {
         assignProps(props);
       };
