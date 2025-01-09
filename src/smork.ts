@@ -1,4 +1,4 @@
-//! Pork, the PORtable framewORK
+//! Smork, the smol framework
 
 import { uniqueId } from "./lodashish";
 
