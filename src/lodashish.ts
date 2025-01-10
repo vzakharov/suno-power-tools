@@ -34,3 +34,7 @@ export function mapValues<
 export function isFunction(value: any): value is Function {
   return typeof value === 'function';
 };
+
+export function identity<T>(value: T) {
+  return value;
+};

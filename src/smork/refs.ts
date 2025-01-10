@@ -2,7 +2,7 @@
 import { isFunction } from "../lodashish";
 import { Function } from "../types";
 
-export function ref<T extends {}>(value: Exclude<T, Function>): Ref<T>;
+export function ref<T>(value: Exclude<T, Function>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): BridgedRef<T>;
@@ -16,9 +16,16 @@ export function ref<T>(arg1?: T | (() => T), arg2?: (value: T) => void) {
     : new Ref(arg1);
 };
 
+/**
+ * A ref that can take an undefined value despite being initialized with a value. Useful for initializing refs that are used as models for elements supporting `undefined` values. Used for typing purposes only and does not affect any runtime behavior.
+ */
+export function uref<T extends {}>(value: T) {
+  return new Ref<T | undefined>(value);
+};
+
 export type Watcher<T> = (value: T, oldValue: T) => void;
 
-export class BaseRef<T> {
+export class ReadonlyRef<T> {
 
   protected watchers: Watcher<T>[] = [];
   private activeWatchers = new WeakSet<Watcher<T>>();
@@ -84,10 +91,18 @@ export class BaseRef<T> {
 
   compute = this.map;
 
+  merge<U>(mergee: MaybeRefOrGetter<U> | undefined) {
+    return mergee
+      ? computed(() => ({
+        ...this.value,
+        ...deref(mergee)
+      }))
+      : this;
+  };
 };
 
 
-export class Ref<T> extends BaseRef<T> {
+export class Ref<T> extends ReadonlyRef<T> {
   
   set(value: T) {
     this._set(value);
@@ -116,7 +131,7 @@ export function assignTo<T>(ref: Ref<T>) {
   };
 };
 
-let currentComputedPreHandler: ((ref: BaseRef<any>) => void) | undefined = undefined;
+let currentComputedPreHandler: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -172,8 +187,49 @@ export function bridged<T>(getter: () => T, setter: (value: T) => void) {
   return new BridgedRef(getter, setter);
 };
 
-export function useNot<T>(ref: BaseRef<T>) {
+export function useNot(ref: ReadonlyRef<any>) {
   return computed(() => {
     return !ref.value
   });
+};
+
+export type RefOrGetter<T> = (() => T) | ReadonlyRef<T>;
+
+export type MaybeRefOrGetter<T> = T | RefOrGetter<T>;
+
+export function isRefOrGetter<T>(value: MaybeRefOrGetter<T>) {
+  return isFunction(value) || value instanceof ReadonlyRef;
+};
+
+function refResolver<T>(arg: MaybeRefOrGetter<T>) {
+  return <U>(ifRef: (ref: ReadonlyRef<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
+    return (
+      arg instanceof ReadonlyRef
+        ? ifRef(arg)
+      : isFunction(arg)
+        ? ifFunction(arg)
+      : ifValue(arg)
+    )
+  }
+}
+
+export function deref<T>(arg: MaybeRefOrGetter<T>) {
+  return refResolver(arg)(
+    ref => ref.value,
+    fn => fn(),
+    value => value
+  )
+};
+
+/**
+ * ### Notes
+ * - If the value is already a ref, it will be returned as is, NOT wrapped in a new computed ref.
+ * - If a simple value is passed, it will be wrapped in a new **readonly** ref.
+ */
+export function toRef<T>(arg: MaybeRefOrGetter<T>) {
+  return refResolver(arg)(
+    ref => ref,
+    fn => computed(fn),
+    value => new ReadonlyRef(value)
+  )
 };

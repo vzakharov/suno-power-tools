@@ -10,6 +10,18 @@ export function Null<T>() {
   return null as T | null;
 };
 
+export function Nullable<T>(value?: T) {
+  return value ?? null;
+}
+
+export function Undefined<T>() {
+  return undefined as T | undefined;
+};
+
+export function Undefinable<T>(value?: T) {
+  return value;
+};
+
 export function EmptyArray<T>() {
   return [] as T[];
 };

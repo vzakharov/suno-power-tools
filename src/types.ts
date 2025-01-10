@@ -12,3 +12,7 @@ export type UnionToIntersection<U> =
 export type StringKey<T> = Extract<keyof T, string>;
 
 export type Function<TReturn = any, TArgs extends any[] = any[]> = (...args: TArgs) => TReturn;
+
+export type KeyWithValueOfType<T, V> = {
+  [K in keyof T]: T[K] extends V ? K : never;
+}[keyof T];

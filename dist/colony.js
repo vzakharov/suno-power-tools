@@ -197,7 +197,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function ref(arg1, arg2) {
     return isFunction(arg1) ? arg2 ? new BridgedRef(arg1, arg2) : new ComputedRef(arg1) : new Ref(arg1);
   }
-  var BaseRef = class {
+  function uref(value) {
+    return new Ref(value);
+  }
+  var ReadonlyRef = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -253,8 +256,14 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return new ComputedRef(() => getter(this.value));
     }
     compute = this.map;
+    merge(mergee) {
+      return mergee ? computed(() => ({
+        ...this.value,
+        ...deref(mergee)
+      })) : this;
+    }
   };
-  var Ref = class extends BaseRef {
+  var Ref = class extends ReadonlyRef {
     set(value) {
       this._set(value);
     }
@@ -272,10 +281,15 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
   var currentComputedPreHandler = void 0;
+  var SmorkError = class extends Error {
+    constructor(message) {
+      super(`smork: ${message}`);
+    }
+  };
   var ComputedRef = class extends Ref {
     constructor(getter) {
       if (currentComputedPreHandler) {
-        throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
+        throw new SmorkError("currentComputedPreHandler is already set (this should never happen)");
       }
       ;
       try {
@@ -302,7 +316,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     set(value) {
       this.setter(value);
       if (this.value !== value) {
-        throw new Error("smork: bridge value did not change to the one being set");
+        throw new SmorkError("bridge value did not change to the one being set");
       }
       ;
     }
@@ -311,6 +325,28 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     return computed(() => {
       return !ref2.value;
     });
+  }
+  function isRefOrGetter(value) {
+    return isFunction(value) || value instanceof ReadonlyRef;
+  }
+  function refResolver(arg) {
+    return (ifRef, ifFunction, ifValue) => {
+      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    };
+  }
+  function deref(arg) {
+    return refResolver(arg)(
+      (ref2) => ref2.value,
+      (fn) => fn(),
+      (value) => value
+    );
+  }
+  function toRef(arg) {
+    return refResolver(arg)(
+      (ref2) => ref2,
+      (fn) => computed(fn),
+      (value) => new ReadonlyRef(value)
+    );
   }
 
   // src/smork/rendering.ts
@@ -376,9 +412,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             element2.style[key] = value;
           });
         };
-        if (typeof props === "function") {
-          const ref2 = computed(props);
-          ref2.runAndWatch(assignProps);
+        if (isRefOrGetter(props)) {
+          toRef(props).runAndWatch(assignProps);
         } else {
           assignProps(props);
         }
@@ -401,25 +436,27 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
     return element;
   }
-  function checkbox(model, props) {
-    return input(() => ({
-      ...props,
-      type: "checkbox",
-      checked: model.value,
-      onchange: () => {
-        model.set(!model.value);
-      }
-    }));
-  }
-  function textInput(model, props) {
-    return input(() => ({
-      ...props,
-      type: "text",
-      value: model.value,
-      onkeyup: ({ key }) => {
-        key === "Enter" && model.set(model.value);
-      }
-    }));
+  var checkbox = modelElement(input, "checked", (model) => ({
+    type: "checkbox",
+    checked: model.value,
+    onchange: () => {
+      model.set(!model.value);
+    }
+  }));
+  var textInput = modelElement(input, "value", (model) => ({
+    type: "text",
+    value: model.value,
+    onkeyup: ({ key }) => {
+      key === "Enter" && model.set(model.value);
+    }
+  }));
+  function modelElement(elementFactory, modelKey, propsFactory) {
+    return (model, props) => {
+      const computedProps = ref(() => ({
+        ...propsFactory(model)
+      }));
+      return elementFactory(props ? computedProps.merge(props) : computedProps);
+    };
   }
   function labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
@@ -536,10 +573,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }) {
     const hideUI = ref(false);
     let graphContainer;
-    const useNextLinks = ref(true);
-    const showNextLinks = ref(false);
-    const useDescendantLinks = ref(true);
-    const filterString = ref("");
+    const useNextLinks = uref(true);
+    const showNextLinks = uref(false);
+    const useDescendantLinks = uref(true);
+    const filterString = ref();
     let audioContainer;
     let audioLink;
     let audioImage;
@@ -727,7 +764,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
     ;
     filterString.watchImmediate((filter2) => {
-      filter2 = filter2.toLowerCase();
+      filter2 = filter2?.toLowerCase();
       const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
       const existing = graph.graphData();
       const nodes = [

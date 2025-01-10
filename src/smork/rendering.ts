@@ -1,5 +1,6 @@
 import { uniqueId } from "../lodashish";
-import { computed, Ref, BaseRef, useNot } from "./refs";
+import { KeyWithValueOfType } from "../types";
+import { computed, Ref, ReadonlyRef, useNot, MaybeRefOrGetter, isRefOrGetter, toRef, ref } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -28,8 +29,6 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
 };
 
 
-export type Inferrable<T> = T | (() => T);
-
 export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'className' | 'style' | 'htmlFor'>> & {
   class?: T['className'],
   style?: Partial<T['style']>,
@@ -37,7 +36,7 @@ export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'cl
 }
 
 export type ElementFactory<TElement extends SupportedElement, TProps extends Props<TElement> = Props<TElement>> = {
-  (props?: Inferrable<TProps>, children?: (string | SupportedElement)[]): TElement;
+  (props?: MaybeRefOrGetter<TProps>, children?: (string | SupportedElement)[]): TElement;
   (children?: (string | SupportedElement)[]): TElement
 }
 
@@ -46,7 +45,7 @@ export function tag<T extends SupportedTag>(tagName: T) {
   type Element = TagElementMap[T];
   
   function element(
-    propsOrChildren?: Inferrable<Props<Element>> | (string | SupportedElement)[],
+    propsOrChildren?: MaybeRefOrGetter<Props<Element>> | (string | SupportedElement)[],
     childrenOrNone?: (string | SupportedElement)[]
   ) {
     const [ props, children ] = 
@@ -57,15 +56,14 @@ export function tag<T extends SupportedTag>(tagName: T) {
   };
 
   function elementFactory(
-    props: Inferrable<Props<Element>> | undefined,
+    props: MaybeRefOrGetter<Props<Element>> | undefined,
     children: (string | SupportedElement)[] | undefined
   ) {
     const element = document.createElement(tagName);
     if ( props ) {
 
-      if ( typeof props === 'function' ) {
-        const ref = computed(props);
-        ref.runAndWatch(assignProps);  
+      if ( isRefOrGetter(props) ) {
+        toRef(props).runAndWatch(assignProps);  
       } else {
         assignProps(props);
       };
@@ -100,38 +98,41 @@ export function tag<T extends SupportedTag>(tagName: T) {
 
 };
 
-export function checkbox(
-  model: Ref<boolean>,
-  props?: Inferrable<
-    Omit<Props<HTMLInputElement>, 'type' | 'checked' | 'onchange'>
-  >,
-) {
-  return input(() => ({
-    ...props,
-    type: 'checkbox',
-    checked: model.value,
-    onchange: () => {
-      model.set(!model.value);
-    }
-  }));
-};
+export const checkbox = modelElement(input, 'checked', model => ({
+  type: 'checkbox',
+  checked: model.value,
+  onchange: () => {
+    model.set(!model.value);
+  }
+}));
 
-export function textInput(
-  model: Ref<string>,
-  props?: Inferrable<
-    Omit<Props<HTMLInputElement>, 'type' | 'value' | 'oninput'>
-  >,
+export const textInput = modelElement(input, 'value', model => ({
+  type: 'text',
+  value: model.value,
+  onkeyup: ({ key }: KeyboardEvent) => {
+    key === 'Enter' && model.set(model.value);
+  }
+}));
+
+export function modelElement<
+  T extends SupportedElement, 
+  KModel extends keyof Props<T>,
+  TComputed extends Props<T>
+>(
+  elementFactory: ElementFactory<T>,
+  modelKey: KModel,
+  propsFactory: (model: Ref<Props<T>[KModel]>) => TComputed,
 ) {
-  return input(() => ({
-    ...props,
-    type: 'text',
-    value: model.value,
-    onkeyup: ({ key }: KeyboardEvent) => {
-      // TODO: Add support for other model "trigger" events (change, blur, etc.)
-      key === 'Enter' && model.set(model.value);
-    }
-  }));
-};
+  return (
+    model: Ref<Props<T>[KModel]>,
+    props?: MaybeRefOrGetter<Omit<Props<T>, KModel>>,
+  ) => {
+    const computedProps = ref<Props<T>>(() => ({
+      ...propsFactory(model),
+    }));
+    return elementFactory(props ? computedProps.merge(props) : computedProps);
+  };
+}
 
 
 export function labeled(labelText: string, element: HTMLInputElement) {
@@ -158,10 +159,10 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function showIf(conditionRef: BaseRef<boolean>) {
+export function showIf(conditionRef: ReadonlyRef<boolean> | ReadonlyRef<boolean | undefined>) {
   return conditionRef.value ? {} : { display: 'none' };
 };
 
-export function hideIf(conditionRef: BaseRef<boolean>) {
+export function hideIf(conditionRef: ReadonlyRef<boolean> | ReadonlyRef<boolean | undefined>) {
   return showIf(useNot(conditionRef));
 };

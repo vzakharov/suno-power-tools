@@ -9,7 +9,7 @@
   function ref(arg1, arg2) {
     return isFunction(arg1) ? arg2 ? new BridgedRef(arg1, arg2) : new ComputedRef(arg1) : new Ref(arg1);
   }
-  var BaseRef = class {
+  var ReadonlyRef = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -65,8 +65,14 @@
       return new ComputedRef(() => getter(this.value));
     }
     compute = this.map;
+    merge(mergee) {
+      return mergee ? computed(() => ({
+        ...this.value,
+        ...deref(mergee)
+      })) : this;
+    }
   };
-  var Ref = class extends BaseRef {
+  var Ref = class extends ReadonlyRef {
     set(value) {
       this._set(value);
     }
@@ -84,10 +90,15 @@
     }
   };
   var currentComputedPreHandler = void 0;
+  var SmorkError = class extends Error {
+    constructor(message) {
+      super(`smork: ${message}`);
+    }
+  };
   var ComputedRef = class extends Ref {
     constructor(getter) {
       if (currentComputedPreHandler) {
-        throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
+        throw new SmorkError("currentComputedPreHandler is already set (this should never happen)");
       }
       ;
       try {
@@ -114,7 +125,7 @@
     set(value) {
       this.setter(value);
       if (this.value !== value) {
-        throw new Error("smork: bridge value did not change to the one being set");
+        throw new SmorkError("bridge value did not change to the one being set");
       }
       ;
     }
@@ -124,6 +135,18 @@
       return !ref2.value;
     });
   }
+  function refResolver(arg) {
+    return (ifRef, ifFunction, ifValue) => {
+      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    };
+  }
+  function deref(arg) {
+    return refResolver(arg)(
+      (ref2) => ref2.value,
+      (fn) => fn(),
+      (value) => value
+    );
+  }
 
   // src/utils.ts
   function mutate(obj, partial) {
@@ -131,5 +154,5 @@
   }
 
   // src/scripts/dev.ts
-  mutate(window, { ref, computed, useNot, BaseRef, Ref, ComputedRef, BridgedRef });
+  mutate(window, { ref, computed, useNot, BaseRef: ReadonlyRef, Ref, ComputedRef, BridgedRef });
 })();

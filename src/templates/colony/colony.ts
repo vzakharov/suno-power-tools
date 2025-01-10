@@ -1,8 +1,8 @@
 import { type default as ForceGraph } from 'force-graph';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { ref } from '../../smork/refs';
+import { ref, uref } from '../../smork/refs';
 import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, showIf, style, textInput } from '../../smork/rendering';
-import { sortByDate } from '../../utils';
+import { sortByDate, Undefinable } from '../../utils';
 import { colonyCss } from './css';
 
 export async function render(rawData: ColonyGraphData, {
@@ -14,10 +14,10 @@ export async function render(rawData: ColonyGraphData, {
 
   let graphContainer: HTMLDivElement;
 
-  const useNextLinks = ref(true);
-  const showNextLinks = ref(false);
-  const useDescendantLinks = ref(true);
-  const filterString = ref('');
+  const useNextLinks = uref(true);
+  const showNextLinks = uref(false);
+  const useDescendantLinks = uref(true);
+  const filterString = ref<string>();
 
   let audioContainer: HTMLDivElement;
   let audioLink: HTMLAnchorElement;
@@ -172,7 +172,7 @@ export async function render(rawData: ColonyGraphData, {
   };
 
   // function applyLinkFilter(kind: LinkKind, checkbox: HTMLInputElement) {
-  function applyLinkFilter(kind: LinkKind, useLinks: boolean) {
+  function applyLinkFilter(kind: LinkKind, useLinks: boolean | undefined) {
     let { nodes, links } = graph.graphData();
     if ( !useLinks ) {
       links = links.filter(l => l.kind !== kind);
@@ -221,7 +221,7 @@ export async function render(rawData: ColonyGraphData, {
   };
 
   filterString.watchImmediate(filter => {
-    filter = filter.toLowerCase();
+    filter = filter?.toLowerCase();
     const matchingNodes = filter 
       ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
       : data.nodes;
