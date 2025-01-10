@@ -76,7 +76,20 @@ export class BaseRef<T> {
     return this.get();
   };
 
+  // map<U>(getter: (value: T) => U): ComputedRef<U>;
+  // map<K extends keyof T>(key: K): ComputedRef<T[K]>;
+  // map(arg: ((value: T) => any) | keyof T) {
+  //   return isFunction(arg) 
+  //     ? new ComputedRef(() => arg(this.get()))
+  //     : new ComputedRef(() => this.get()[arg]);
+  // };
+  // Let's remove the key-based mapping for now, until/unless we find a use case for it
+  map<U>(getter: (value: T) => U): ComputedRef<U> {
+    return new ComputedRef(() => getter(this.get()));
+  };
+
 };
+
 
 export class Ref<T> extends BaseRef<T> {
   
