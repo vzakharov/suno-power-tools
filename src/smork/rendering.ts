@@ -100,7 +100,6 @@ export function tag<T extends SupportedTag>(tagName: T) {
 
 export const checkbox = modelElement(input, 'checked', model => ({
   type: 'checkbox',
-  checked: model.value,
   onchange: () => {
     model.set(!model.value);
   }
@@ -108,9 +107,10 @@ export const checkbox = modelElement(input, 'checked', model => ({
 
 export const textInput = modelElement(input, 'value', model => ({
   type: 'text',
-  value: model.value,
-  onkeyup: ({ key }: KeyboardEvent) => {
-    key === 'Enter' && model.set(model.value);
+  onkeyup: ({ key, target }: KeyboardEvent ) => {
+    key === 'Enter'
+      && target instanceof HTMLInputElement
+      && model.set(target.value);
   }
 }));
 
@@ -121,14 +121,15 @@ export function modelElement<
 >(
   elementFactory: ElementFactory<T>,
   modelKey: KModel,
-  propsFactory: (model: Ref<Props<T>[KModel]>) => TComputed,
+  propsFactory: (model: Ref<NonNullable<Props<T>[KModel]>>) => TComputed,
 ) {
   return (
-    model: Ref<Props<T>[KModel]>,
+    model: Ref<NonNullable<Props<T>[KModel]>>,
     props?: MaybeRefOrGetter<Omit<Props<T>, KModel>>,
   ) => {
     const computedProps = ref<Props<T>>(() => ({
       ...propsFactory(model),
+      [modelKey]: model.value
     }));
     return elementFactory(props ? computedProps.merge(props) : computedProps);
   };
@@ -159,10 +160,10 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function showIf(conditionRef: ReadonlyRef<boolean> | ReadonlyRef<boolean | undefined>) {
-  return conditionRef.value ? {} : { display: 'none' };
+export function showIf(condition: boolean | undefined) {
+  return condition ? {} : { display: 'none' };
 };
 
-export function hideIf(conditionRef: ReadonlyRef<boolean> | ReadonlyRef<boolean | undefined>) {
-  return showIf(useNot(conditionRef));
+export function hideIf(condition: boolean | undefined) {
+  return showIf(!condition);
 };

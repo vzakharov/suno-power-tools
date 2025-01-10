@@ -14,10 +14,10 @@ export async function render(rawData: ColonyGraphData, {
 
   let graphContainer: HTMLDivElement;
 
-  const useNextLinks = uref(true);
-  const showNextLinks = uref(false);
-  const useDescendantLinks = uref(true);
-  const filterString = ref<string>();
+  const useNextLinks = ref(true);
+  const showNextLinks = ref(false);
+  const useDescendantLinks = ref(true);
+  const filterString = ref('');
 
   let audioContainer: HTMLDivElement;
   let audioLink: HTMLAnchorElement;
@@ -46,7 +46,7 @@ export async function render(rawData: ColonyGraphData, {
           height: '100%',
           width: '100%',
           backgroundColor: '#000',
-          ...hideIf(hideUI),
+          ...hideIf(hideUI.value),
         },
       }), [
         graphContainer = div(),
@@ -69,7 +69,7 @@ export async function render(rawData: ColonyGraphData, {
               )
             ),
             div(() => ({
-              style: showIf(useNextLinks),
+              style: showIf(useNextLinks.value),
             }),
               labeled('Show time-based links',
                 checkbox(showNextLinks)
@@ -104,7 +104,7 @@ export async function render(rawData: ColonyGraphData, {
       button(() => ({ 
         style: { 
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          ...showIf(hideUI),
+          ...showIf(hideUI.value),
         },
         onclick: () => hideUI.set(false)
       }), [

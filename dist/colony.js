@@ -197,9 +197,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function ref(arg1, arg2) {
     return isFunction(arg1) ? arg2 ? new BridgedRef(arg1, arg2) : new ComputedRef(arg1) : new Ref(arg1);
   }
-  function uref(value) {
-    return new Ref(value);
-  }
   var ReadonlyRef = class {
     constructor(_value) {
       this._value = _value;
@@ -321,11 +318,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       ;
     }
   };
-  function useNot(ref2) {
-    return computed(() => {
-      return !ref2.value;
-    });
-  }
   function isRefOrGetter(value) {
     return isFunction(value) || value instanceof ReadonlyRef;
   }
@@ -438,22 +430,21 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
   var checkbox = modelElement(input, "checked", (model) => ({
     type: "checkbox",
-    checked: model.value,
     onchange: () => {
       model.set(!model.value);
     }
   }));
   var textInput = modelElement(input, "value", (model) => ({
     type: "text",
-    value: model.value,
-    onkeyup: ({ key }) => {
-      key === "Enter" && model.set(model.value);
+    onkeyup: ({ key, target }) => {
+      key === "Enter" && target instanceof HTMLInputElement && model.set(target.value);
     }
   }));
   function modelElement(elementFactory, modelKey, propsFactory) {
     return (model, props) => {
       const computedProps = ref(() => ({
-        ...propsFactory(model)
+        ...propsFactory(model),
+        [modelKey]: model.value
       }));
       return elementFactory(props ? computedProps.merge(props) : computedProps);
     };
@@ -481,11 +472,11 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       };
     });
   }
-  function showIf(conditionRef) {
-    return conditionRef.value ? {} : { display: "none" };
+  function showIf(condition) {
+    return condition ? {} : { display: "none" };
   }
-  function hideIf(conditionRef) {
-    return showIf(useNot(conditionRef));
+  function hideIf(condition) {
+    return showIf(!condition);
   }
 
   // src/templates/colony/css.ts
@@ -573,10 +564,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }) {
     const hideUI = ref(false);
     let graphContainer;
-    const useNextLinks = uref(true);
-    const showNextLinks = uref(false);
-    const useDescendantLinks = uref(true);
-    const filterString = ref();
+    const useNextLinks = ref(true);
+    const showNextLinks = ref(false);
+    const useDescendantLinks = ref(true);
+    const filterString = ref("");
     let audioContainer;
     let audioLink;
     let audioImage;
@@ -603,7 +594,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             height: "100%",
             width: "100%",
             backgroundColor: "#000",
-            ...hideIf(hideUI)
+            ...hideIf(hideUI.value)
           }
         }), [
           graphContainer = div(),
@@ -628,7 +619,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
               ),
               div(
                 () => ({
-                  style: showIf(useNextLinks)
+                  style: showIf(useNextLinks.value)
                 }),
                 labeled(
                   "Show time-based links",
@@ -669,7 +660,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             left: "0px",
             padding: "5px",
             zIndex: "100",
-            ...showIf(hideUI)
+            ...showIf(hideUI.value)
           },
           onclick: () => hideUI.set(false)
         }), [
