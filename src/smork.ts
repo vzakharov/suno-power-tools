@@ -76,7 +76,39 @@ export class BaseRef<T> {
     return this.get();
   };
 
+  private computedGetter<U>(getter: (value: T) => U) {
+    return () => getter(this.get());
+  };
+
+  /**
+   * Creates a ref whose value is derived from the value of this ref
+   * 
+   * ### Important:
+   * Unlike `use`, `compute` will be updated whenever _any_ of its dependencies change, not just the one `.compute` is called on
+   */
+  compute<U>(getter: (value: T) => U) {
+    return new ComputedRef(this.computedGetter(getter));
+  };
+
+  /**
+   * Creates a ref whose value is derived from the value of this ref
+   * 
+   * ### Important:
+   * Unlike `compute`, `use` will only be updated when the ref it's called on changes, ignoring changes of any other refs accessed in the getter
+   */
+  use<U>(getter: (value: T) => U) {
+    return new ComputedRef(this.computedGetter(getter), [this]);
+  };
+
 };
+
+// let firstRef = ref(1);
+// let secondRef = ref(2);
+// let computedRef = firstRef.compute(v => v + secondRef.value);
+// let usedRef = firstRef.use(v => v + secondRef.value);
+// secondRef.value++;
+// console.log('computedRef:', computedRef.value); // 4
+// console.log('usedRef:', usedRef.value); // 3
 
 export class Ref<T> extends BaseRef<T> {
   
@@ -92,7 +124,6 @@ export class Ref<T> extends BaseRef<T> {
 
 };
 
-// const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
 let currentComputedPreHandler: ((ref: BaseRef<any>) => void) | undefined = undefined;
 
 export class ComputedRef<T> extends BaseRef<T> {
@@ -102,19 +133,28 @@ export class ComputedRef<T> extends BaseRef<T> {
   };
 
   constructor(
-    private getter: () => T
+    private getter: () => T,
+    private dependencies: BaseRef<any>[] = []
   ) {
-    if ( currentComputedPreHandler ) {
-      throw new Error('smork: currentComputedPreHandler is already set (this should never happen)');
-    };
-    try {
-      currentComputedPreHandler = ref => {
-        ref.watch(() => this.refresh());
+    if ( dependencies.length) 
+      // If dependencies are predefined, we don't need to run the getter to register them
+      super(getter());
+    else {
+      if ( currentComputedPreHandler ) {
+        throw new Error('smork: currentComputedPreHandler is already set (this should never happen)');
       };
-      super(getter()); // to register any refs that are used in the getter
-    } finally {
-      currentComputedPreHandler = undefined;
+      try {
+        currentComputedPreHandler = ref => {
+          dependencies.push(ref);
+        };
+        super(getter()); // First run to register any dependencies
+      } finally {
+        currentComputedPreHandler = undefined;
+      };
     };
+    this.dependencies.forEach(ref => {
+      ref.watch(() => this.refresh());
+    });
   };
 
 };
