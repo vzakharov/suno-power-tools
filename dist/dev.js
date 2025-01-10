@@ -1,9 +1,14 @@
 (() => {
+  // src/lodashish.ts
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+
   // src/smork.ts
   //! Smork, the smol framework
   //! Refs
-  function ref(value) {
-    return new Ref(value);
+  function ref(arg) {
+    return isFunction(arg) ? new ComputedRef(arg) : new Ref(arg);
   }
   var BaseRef = class {
     constructor(_value) {

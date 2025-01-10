@@ -124,6 +124,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function uniqueId(prefix = "") {
     return `${prefix}${++lastId}`;
   }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
 
   // src/manager.ts
   function getSuno() {
@@ -192,8 +195,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   // src/smork.ts
   //! Smork, the smol framework
   //! Refs
-  function ref(value) {
-    return new Ref(value);
+  function ref(arg) {
+    return isFunction(arg) ? new ComputedRef(arg) : new Ref(arg);
   }
   var BaseRef = class {
     constructor(_value) {

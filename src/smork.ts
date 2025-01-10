@@ -1,12 +1,16 @@
 //! Smork, the smol framework
-import { uniqueId } from "./lodashish";
+import { isFunction, uniqueId } from "./lodashish";
 
 //! Refs
 
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T extends {}>(value: T): Ref<T>;
-export function ref<T>(value?: T) {
-  return new Ref(value);
+export function ref<T>(getter: () => T): ComputedRef<T>;
+
+export function ref<T>(arg?: T | (() => T)) {
+  return isFunction(arg) 
+    ? new ComputedRef(arg)
+    : new Ref(arg);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
@@ -114,7 +118,7 @@ export class ComputedRef<T> extends BaseRef<T> {
 
 };
 
-export function computed<T extends {}>(getter: () => T) {
+export function computed<T>(getter: () => T) {
   return new ComputedRef(getter);
 };
 

@@ -28,3 +28,7 @@ export function mapValues<
     [K in keyof T]: V;
   };
 };
+
+export function isFunction(value: any): value is (...args: any[]) => any {
+  return typeof value === 'function';
+};
