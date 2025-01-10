@@ -118,13 +118,19 @@ export function assignTo<T>(ref: Ref<T>) {
 
 let currentComputedPreHandler: ((ref: BaseRef<any>) => void) | undefined = undefined;
 
+export class SmorkError extends Error {
+  constructor(message: string) {
+    super(`smork: ${message}`);
+  };
+}
+
 export class ComputedRef<T> extends Ref<T> {
 
   constructor(
     getter: () => T
   ) {
     if ( currentComputedPreHandler ) {
-      throw new Error('smork: currentComputedPreHandler is already set (this should never happen)');
+      throw new SmorkError('currentComputedPreHandler is already set (this should never happen)');
     };
     try {
       currentComputedPreHandler = ref => {
@@ -156,7 +162,7 @@ export class BridgedRef<T> extends Ref<T> {
   set(value: T) {
     this.setter(value);
     if ( this.value !== value ) {
-      throw new Error('smork: bridge value did not change to the one being set');
+      throw new SmorkError('bridge value did not change to the one being set');
     };
   };
 
