@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
-import { mapValues } from '../../lodashish';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, ref, showIf, style, textInput } from "../../smork";
+import { ref } from '../../smork/refs';
+import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, showIf, style, textInput } from '../../smork/rendering';
 import { sortByDate } from '../../utils';
 import { colonyCss } from './css';
 

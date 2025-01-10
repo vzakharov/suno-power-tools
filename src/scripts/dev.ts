@@ -1,4 +1,4 @@
-import { BaseRef, computed, ComputedRef, Ref, ref, useNot } from "../smork";
+import { BaseRef, computed, ComputedRef, Ref, ref, useNot } from "../smork/refs";
 import { Storage } from "../storage";
 import { mutate } from "../utils";
 
