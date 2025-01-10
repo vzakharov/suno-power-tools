@@ -194,8 +194,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
 
   // src/smork/refs.ts
   //! Smork, the smol framework
-  function ref(arg) {
-    return isFunction(arg) ? new ComputedRef(arg) : new Ref(arg);
+  function ref(arg1, arg2) {
+    return isFunction(arg1) ? arg2 ? new BridgedRef(arg1, arg2) : new ComputedRef(arg1) : new Ref(arg1);
   }
   var BaseRef = class {
     constructor(_value) {
@@ -285,6 +285,21 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function computed(getter) {
     return new ComputedRef(getter);
   }
+  var BridgedRef = class extends Ref {
+    constructor(getter, setter) {
+      const computedRef = new ComputedRef(getter);
+      super(computedRef.value);
+      this.setter = setter;
+      computedRef.watch((value) => this._set(value));
+    }
+    set(value) {
+      this.setter(value);
+      if (this.value !== value) {
+        throw new Error("smork: bridge value did not change to the one being set");
+      }
+      ;
+    }
+  };
   function useNot(ref2) {
     return computed(() => {
       return !ref2.value;

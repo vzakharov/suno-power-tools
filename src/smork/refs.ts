@@ -5,11 +5,15 @@ import { Function } from "../types";
 export function ref<T extends {}>(value: Exclude<T, Function>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
+export function ref<T>(getter: () => T, setter: (value: T) => void): BridgedRef<T>;
 
-export function ref<T>(arg?: T | (() => T)) {
-  return isFunction(arg) 
-    ? new ComputedRef(arg)
-    : new Ref(arg);
+export function ref<T>(arg1?: T | (() => T), arg2?: (value: T) => void) {
+  return isFunction(arg1) 
+    // ? new ComputedRef(arg1)
+    ? arg2
+      ? new BridgedRef(arg1, arg2)
+      : new ComputedRef(arg1)
+    : new Ref(arg1);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
@@ -125,6 +129,10 @@ export class ComputedRef<T> extends Ref<T> {
 
 };
 
+export function computed<T>(getter: () => T) {
+  return new ComputedRef(getter);
+};
+
 export class BridgedRef<T> extends Ref<T> {
   
   constructor(
@@ -143,10 +151,10 @@ export class BridgedRef<T> extends Ref<T> {
     };
   };
 
-}
+};
 
-export function computed<T>(getter: () => T) {
-  return new ComputedRef(getter);
+export function bridged<T>(getter: () => T, setter: (value: T) => void) {
+  return new BridgedRef(getter, setter);
 };
 
 export function useNot<T>(ref: BaseRef<T>) {
