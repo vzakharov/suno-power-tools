@@ -62,27 +62,6 @@
     get value() {
       return this.get();
     }
-    computedGetter(getter) {
-      return () => getter(this.get());
-    }
-    /**
-     * Creates a ref whose value is derived from the value of this ref
-     * 
-     * ### Important:
-     * Unlike `use`, `compute` will be updated whenever _any_ of its dependencies change, not just the one `.compute` is called on
-     */
-    compute(getter) {
-      return new ComputedRef(this.computedGetter(getter));
-    }
-    /**
-     * Creates a ref whose value is derived from the value of this ref
-     * 
-     * ### Important:
-     * Unlike `compute`, `use` will only be updated when the ref it's called on changes, ignoring changes of any other refs accessed in the getter
-     */
-    use(getter) {
-      return new ComputedRef(this.computedGetter(getter), [this]);
-    }
   };
   var Ref = class extends BaseRef {
     set = super._set;
@@ -95,34 +74,25 @@
   };
   var currentComputedPreHandler = void 0;
   var ComputedRef = class extends BaseRef {
-    constructor(getter, dependencies = []) {
+    constructor(getter) {
       var __super = (...args) => {
         super(...args);
         this.getter = getter;
-        this.dependencies = dependencies;
         return this;
       };
-      if (dependencies.length)
-        __super(getter());
-      else {
-        if (currentComputedPreHandler) {
-          throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
-        }
-        ;
-        try {
-          currentComputedPreHandler = (ref2) => {
-            dependencies.push(ref2);
-          };
-          __super(getter());
-        } finally {
-          currentComputedPreHandler = void 0;
-        }
-        ;
+      if (currentComputedPreHandler) {
+        throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
       }
       ;
-      this.dependencies.forEach((ref2) => {
-        ref2.watch(() => this.refresh());
-      });
+      try {
+        currentComputedPreHandler = (ref2) => {
+          ref2.watch(() => this.refresh());
+        };
+        __super(getter());
+      } finally {
+        currentComputedPreHandler = void 0;
+      }
+      ;
     }
     refresh() {
       this._set(this.getter());
