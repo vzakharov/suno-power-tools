@@ -74,16 +74,8 @@ export class BaseRef<T> {
     return this.get();
   };
 
-  // map<U>(getter: (value: T) => U): ComputedRef<U>;
-  // map<K extends keyof T>(key: K): ComputedRef<T[K]>;
-  // map(arg: ((value: T) => any) | keyof T) {
-  //   return isFunction(arg) 
-  //     ? new ComputedRef(() => arg(this.get()))
-  //     : new ComputedRef(() => this.get()[arg]);
-  // };
-  // Let's remove the key-based mapping for now, until/unless we find a use case for it
   map<U>(getter: (value: T) => U): ComputedRef<U> {
-    return new ComputedRef(() => getter(this.get()));
+    return new ComputedRef(() => getter(this.value));
   };
 
 };
@@ -91,7 +83,9 @@ export class BaseRef<T> {
 
 export class Ref<T> extends BaseRef<T> {
   
-  set = super._set;
+  set(value: T) {
+    this._set(value);
+  }
 
   set value(value: T) {
     this.set(value);
@@ -103,24 +97,25 @@ export class Ref<T> extends BaseRef<T> {
 
 };
 
-// const computedPreHandlers: Array<(ref: BaseRef<any>) => void> = [];
+export function assignTo<T>(ref: Ref<T>) {
+  return (value: T) => {
+    ref.set(value);
+  };
+};
+
 let currentComputedPreHandler: ((ref: BaseRef<any>) => void) | undefined = undefined;
 
-export class ComputedRef<T> extends BaseRef<T> {
-
-  refresh() {
-    this._set(this.getter());
-  };
+export class ComputedRef<T> extends Ref<T> {
 
   constructor(
-    private getter: () => T
+    getter: () => T
   ) {
     if ( currentComputedPreHandler ) {
       throw new Error('smork: currentComputedPreHandler is already set (this should never happen)');
     };
     try {
       currentComputedPreHandler = ref => {
-        ref.watch(() => this.refresh());
+        ref.watch(() => this._set(getter()));
       };
       super(getter()); // to register any refs that are used in the getter
     } finally {
@@ -129,6 +124,26 @@ export class ComputedRef<T> extends BaseRef<T> {
   };
 
 };
+
+export class BridgedRef<T> extends Ref<T> {
+  
+  constructor(
+    getter: () => T,
+    private setter: (value: T) => void
+  ) {
+    const computedRef = new ComputedRef(getter);
+    super(computedRef.value);
+    computedRef.watch(value => this._set(value));
+  };
+
+  set(value: T) {
+    this.setter(value);
+    if ( this.value !== value ) {
+      throw new Error('smork: bridge value did not change to the one being set');
+    };
+  };
+
+}
 
 export function computed<T>(getter: () => T) {
   return new ComputedRef(getter);

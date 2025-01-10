@@ -192,9 +192,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
 
-  // src/smork.ts
+  // src/smork/refs.ts
   //! Smork, the smol framework
-  //! Refs
   function ref(arg) {
     return isFunction(arg) ? new ComputedRef(arg) : new Ref(arg);
   }
@@ -250,20 +249,14 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     get value() {
       return this.get();
     }
-    // map<U>(getter: (value: T) => U): ComputedRef<U>;
-    // map<K extends keyof T>(key: K): ComputedRef<T[K]>;
-    // map(arg: ((value: T) => any) | keyof T) {
-    //   return isFunction(arg) 
-    //     ? new ComputedRef(() => arg(this.get()))
-    //     : new ComputedRef(() => this.get()[arg]);
-    // };
-    // Let's remove the key-based mapping for now, until/unless we find a use case for it
     map(getter) {
-      return new ComputedRef(() => getter(this.get()));
+      return new ComputedRef(() => getter(this.value));
     }
   };
   var Ref = class extends BaseRef {
-    set = super._set;
+    set(value) {
+      this._set(value);
+    }
     set value(value) {
       this.set(value);
     }
@@ -272,29 +265,21 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     }
   };
   var currentComputedPreHandler = void 0;
-  var ComputedRef = class extends BaseRef {
+  var ComputedRef = class extends Ref {
     constructor(getter) {
-      var __super = (...args) => {
-        super(...args);
-        this.getter = getter;
-        return this;
-      };
       if (currentComputedPreHandler) {
         throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
       }
       ;
       try {
         currentComputedPreHandler = (ref2) => {
-          ref2.watch(() => this.refresh());
+          ref2.watch(() => this._set(getter()));
         };
-        __super(getter());
+        super(getter());
       } finally {
         currentComputedPreHandler = void 0;
       }
       ;
-    }
-    refresh() {
-      this._set(this.getter());
     }
   };
   function computed(getter) {
@@ -305,7 +290,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return !ref2.value;
     });
   }
-  //! Elements
+
+  // src/smork/rendering.ts
   var SUPPORTED_TAGS = [
     "html",
     "head",

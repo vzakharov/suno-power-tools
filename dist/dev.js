@@ -4,9 +4,8 @@
     return typeof value === "function";
   }
 
-  // src/smork.ts
+  // src/smork/refs.ts
   //! Smork, the smol framework
-  //! Refs
   function ref(arg) {
     return isFunction(arg) ? new ComputedRef(arg) : new Ref(arg);
   }
@@ -62,20 +61,14 @@
     get value() {
       return this.get();
     }
-    // map<U>(getter: (value: T) => U): ComputedRef<U>;
-    // map<K extends keyof T>(key: K): ComputedRef<T[K]>;
-    // map(arg: ((value: T) => any) | keyof T) {
-    //   return isFunction(arg) 
-    //     ? new ComputedRef(() => arg(this.get()))
-    //     : new ComputedRef(() => this.get()[arg]);
-    // };
-    // Let's remove the key-based mapping for now, until/unless we find a use case for it
     map(getter) {
-      return new ComputedRef(() => getter(this.get()));
+      return new ComputedRef(() => getter(this.value));
     }
   };
   var Ref = class extends BaseRef {
-    set = super._set;
+    set(value) {
+      this._set(value);
+    }
     set value(value) {
       this.set(value);
     }
@@ -84,29 +77,36 @@
     }
   };
   var currentComputedPreHandler = void 0;
-  var ComputedRef = class extends BaseRef {
+  var ComputedRef = class extends Ref {
     constructor(getter) {
-      var __super = (...args) => {
-        super(...args);
-        this.getter = getter;
-        return this;
-      };
       if (currentComputedPreHandler) {
         throw new Error("smork: currentComputedPreHandler is already set (this should never happen)");
       }
       ;
       try {
         currentComputedPreHandler = (ref2) => {
-          ref2.watch(() => this.refresh());
+          ref2.watch(() => this._set(getter()));
         };
-        __super(getter());
+        super(getter());
       } finally {
         currentComputedPreHandler = void 0;
       }
       ;
     }
-    refresh() {
-      this._set(this.getter());
+  };
+  var BridgedRef = class extends Ref {
+    constructor(getter, setter) {
+      const computedRef = new ComputedRef(getter);
+      super(computedRef.value);
+      this.setter = setter;
+      computedRef.watch((value) => this._set(value));
+    }
+    set(value) {
+      this.setter(value);
+      if (this.value !== value) {
+        throw new Error("smork: bridge value did not change to the one being set");
+      }
+      ;
     }
   };
   function computed(getter) {
@@ -117,94 +117,6 @@
       return !ref2.value;
     });
   }
-  //! Elements
-  var SUPPORTED_TAGS = [
-    "html",
-    "head",
-    "style",
-    "script",
-    "body",
-    "div",
-    "h3",
-    "p",
-    "a",
-    "img",
-    "audio",
-    "input",
-    "label",
-    "button"
-  ];
-  var {
-    html,
-    head,
-    style,
-    script,
-    body,
-    div,
-    h3,
-    p,
-    a,
-    img,
-    audio,
-    input,
-    label,
-    button
-  } = createTags(SUPPORTED_TAGS);
-  function createTags(tagNames) {
-    return tagNames.reduce((acc, tagName) => {
-      return Object.assign(acc, {
-        [tagName]: tag(tagName)
-      });
-    }, {});
-  }
-  function tag(tagName) {
-    function element(propsOrChildren, childrenOrNone) {
-      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
-      return elementFactory(props, children);
-    }
-    ;
-    function elementFactory(props, children) {
-      const element2 = document.createElement(tagName);
-      if (props) {
-        let assignProps = function(props2) {
-          Object.assign(element2, props2);
-          if (props2.class) {
-            element2.className = props2.class;
-          }
-          ;
-          if (element2 instanceof HTMLLabelElement && props2.for) {
-            element2.htmlFor = props2.for;
-          }
-          ;
-          Object.entries(props2.style ?? {}).forEach(([key, value]) => {
-            element2.style[key] = value;
-          });
-        };
-        if (typeof props === "function") {
-          const ref2 = computed(props);
-          ref2.runAndWatch(assignProps);
-        } else {
-          assignProps(props);
-        }
-        ;
-        ;
-      }
-      ;
-      if (children) {
-        children.forEach((child) => {
-          if (typeof child === "string") {
-            element2.appendChild(document.createTextNode(child));
-          } else {
-            element2.appendChild(child);
-          }
-          ;
-        });
-      }
-      ;
-      return element2;
-    }
-    return element;
-  }
 
   // src/utils.ts
   function mutate(obj, partial) {
@@ -212,5 +124,5 @@
   }
 
   // src/scripts/dev.ts
-  mutate(window, { ref, computed, useNot, BaseRef, Ref, ComputedRef });
+  mutate(window, { ref, computed, useNot, BaseRef, Ref, ComputedRef, BridgedRef });
 })();
