@@ -82,6 +82,8 @@ export class BaseRef<T> {
     return new ComputedRef(() => getter(this.value));
   };
 
+  compute = this.map;
+
 };
 
 
@@ -97,6 +99,13 @@ export class Ref<T> extends BaseRef<T> {
 
   get value() {
     return this.get();
+  };
+
+  bridge<U>(forward: (value: T) => U, backward: (value: U) => T) {
+    return new BridgedRef(
+      () => forward(this.value),
+      value => this.set(backward(value))
+    );
   };
 
 };

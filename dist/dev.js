@@ -64,6 +64,7 @@
     map(getter) {
       return new ComputedRef(() => getter(this.value));
     }
+    compute = this.map;
   };
   var Ref = class extends BaseRef {
     set(value) {
@@ -74,6 +75,12 @@
     }
     get value() {
       return this.get();
+    }
+    bridge(forward, backward) {
+      return new BridgedRef(
+        () => forward(this.value),
+        (value) => this.set(backward(value))
+      );
     }
   };
   var currentComputedPreHandler = void 0;
