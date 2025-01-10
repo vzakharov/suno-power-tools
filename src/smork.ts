@@ -1,10 +1,11 @@
 //! Smork, the smol framework
 import { isFunction, uniqueId } from "./lodashish";
+import { Function } from "./types";
 
 //! Refs
 
+export function ref<T extends {}>(value: Exclude<T, Function>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
-export function ref<T extends {}>(value: T): Ref<T>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 
 export function ref<T>(arg?: T | (() => T)) {

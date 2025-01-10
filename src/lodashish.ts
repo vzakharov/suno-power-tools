@@ -1,3 +1,5 @@
+import { Function } from "./types";
+
 export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
   return arr.find(createPredicate(filter));
 }
@@ -29,6 +31,6 @@ export function mapValues<
   };
 };
 
-export function isFunction(value: any): value is (...args: any[]) => any {
+export function isFunction(value: any): value is Function {
   return typeof value === 'function';
 };
