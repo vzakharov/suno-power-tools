@@ -95,7 +95,7 @@ export class ReadonlyRef<T> {
     return mergee
       ? computed(() => ({
         ...this.value,
-        ...deref(mergee)
+        ...unref(mergee)
       }))
       : this;
   };
@@ -211,7 +211,7 @@ function refResolver<T>(arg: Refable<T>) {
   }
 }
 
-export function deref<T>(arg: Refable<T>) {
+export function unref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref.value,
     fn => fn(),
@@ -224,7 +224,7 @@ export function deref<T>(arg: Refable<T>) {
  * - If the value is already a ref, it will be returned as is, NOT wrapped in a new computed ref.
  * - If a simple value is passed, it will be wrapped in a new **readonly** ref.
  */
-export function toRef<T>(arg: Refable<T>) {
+export function toref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref,
     fn => computed(fn),

@@ -1,6 +1,6 @@
 import { uniqueId } from "../lodashish";
 import { KeyWithValueOfType } from "../types";
-import { computed, Ref, ReadonlyRef, useNot, Refable, isRefOrGetter, toRef, ref } from "./refs";
+import { computed, Ref, ReadonlyRef, useNot, Refable, isRefOrGetter, toref, ref } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -65,7 +65,7 @@ export function tag<T extends SupportedTag>(tagName: T) {
     if ( props ) {
 
       if ( isRefOrGetter(props) ) {
-        toRef(props).runAndWatch(assignProps);  
+        toref(props).runAndWatch(assignProps);  
       } else {
         assignProps(props);
       };
