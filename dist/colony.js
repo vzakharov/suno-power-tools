@@ -112,12 +112,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
 
   // src/lodashish.ts
-  function find(arr, filter2) {
-    return arr.find(createPredicate(filter2));
+  function find(arr, filter) {
+    return arr.find(createPredicate(filter));
   }
-  function createPredicate(filter2) {
+  function createPredicate(filter) {
     return function(item) {
-      return Object.entries(filter2).every(([key, value]) => item[key] === value);
+      return Object.entries(filter).every(([key, value]) => item[key] === value);
     };
   }
   var lastId = 0;
@@ -559,8 +559,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
 
   // src/templates/colony/colony.ts
   async function render(rawData, {
-    in3D = false,
-    win = window
+    in3D = false
   }) {
     const hideUI = ref(false);
     let graphContainer;
@@ -574,8 +573,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     let audioName;
     let audioTags;
     let audioElement;
-    const GraphRenderer = await importScript(win, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
-    win.document.head.appendChild(style([colonyCss]));
+    const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
+    window.document.head.appendChild(style([colonyCss]));
     const container = div(
       () => ({
         class: "colony",
@@ -591,8 +590,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           style: {
             display: "flex",
             flexDirection: "column",
-            height: "100%",
-            width: "100%",
+            height: "100vh",
+            width: "100vh",
             backgroundColor: "#000",
             ...hideIf(hideUI.value)
           }
@@ -637,6 +636,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
                 p({ class: "smol" }, [
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
+              ]),
+              button({ onclick: redrawGraph }, [
+                "Redraw"
               ])
             ]),
             audioContainer = div({ class: "w-100", style: { display: "none" } }, [
@@ -670,34 +672,46 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     );
     document.body.appendChild(container);
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
-    const graph = new GraphRenderer(
-      graphContainer
-    ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
-      <div class="relative" style="width: 200px;">
-        <img src="${image_url}" style="opacity: 0.5; width: 200px">
-        <div class="absolute topleft" style="width: 190px; padding: 5px;">
-          <div>${name || "[Untitled]"}</div>
-          <div class="smol">${tags || "(no style)"}</div>
+    let graph = createGraph();
+    function createGraph() {
+      const graph2 = new GraphRenderer(
+        graphContainer
+      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
+        <div class="relative" style="width: 200px;">
+          <img src="${image_url}" style="opacity: 0.5; width: 200px">
+          <div class="absolute topleft" style="width: 190px; padding: 5px;">
+            <div>${name || "[Untitled]"}</div>
+            <div class="smol">${tags || "(no style)"}</div>
+          </div>
         </div>
-      </div>
-      <div class="smol">
-        Click to play, right-click to open in Suno
-      </div>
-    `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
-      audioContainer.style.display = "block";
-      audioLink.href = `https://suno.com/song/${id2}`;
-      audioImage.src = image_url;
-      audioName.innerText = name || "[Untitled]";
-      audioTags.innerText = tags || "(no style)";
-      audioElement.src = audio_url;
-      audioElement.play();
-    }).onNodeRightClick(({ id: id2 }) => {
-      window.open(`https://suno.com/song/${id2}`);
-    });
-    if (in3D) {
-      graph.linkOpacity((l) => l.isMain ? 1 : 0.2);
-    } else {
-      graph.linkLineDash((l) => l.isMain ? null : [1, 2]);
+        <div class="smol">
+          Click to play, right-click to open in Suno
+        </div>
+      `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
+        audioContainer.style.display = "block";
+        audioLink.href = `https://suno.com/song/${id2}`;
+        audioImage.src = image_url;
+        audioName.innerText = name || "[Untitled]";
+        audioTags.innerText = tags || "(no style)";
+        audioElement.src = audio_url;
+        audioElement.play();
+      }).onNodeRightClick(({ id: id2 }) => {
+        window.open(`https://suno.com/song/${id2}`);
+      });
+      if (in3D) {
+        graph2.linkOpacity((l) => l.isMain ? 1 : 0.2);
+      } else {
+        graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
+      }
+      ;
+      return graph2;
+    }
+    ;
+    async function redrawGraph() {
+      new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
+      graph._destructor();
+      container.remove();
+      await render(rawData, { in3D });
     }
     ;
     const data = graph.graphData();
@@ -754,17 +768,17 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return (candidate) => sameId(original, candidate);
     }
     ;
-    filterString.watchImmediate((filter2) => {
-      filter2 = filter2?.toLowerCase();
-      const matchingNodes = filter2 ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter2)) : data.nodes;
+    filterString.watchImmediate((filter) => {
+      filter = filter?.toLowerCase();
+      const matchingNodes = filter ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.nodes;
       const existing = graph.graphData();
       const nodes = [
         ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        ...filter2 ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+        ...filter ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
       ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
       const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
       graph.graphData({ nodes, links });
-      if (filter2)
+      if (filter)
         graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
       else
         graph.nodeVal("val");
@@ -1067,7 +1081,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     if (!allPagesProcessed || !allLinksBuilt) {
       console.log("Run `await vovas.colony.build()` to start or continue building your colony!");
     } else {
-      console.log("Your colony is built, run `await vovas.colony.render()` to view it!");
+      console.log("Your colony is built, rendering!");
+      return colony.render();
     }
   });
   function isV2AudioFilename(id) {

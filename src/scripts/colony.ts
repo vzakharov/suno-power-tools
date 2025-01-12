@@ -1,13 +1,13 @@
+import { type GraphData } from 'force-graph';
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
-import { filter, find } from "../lodashish";
+import { find } from "../lodashish";
 import { getSuno } from "../manager";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
 import { renderTemplate, Template } from "../templating";
-import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
-import { type GraphData }  from 'force-graph';
+import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
 
 declare global {
   interface Window {
@@ -397,7 +397,8 @@ colony.stateLoaded.promise.then(() => {
   if ( !allPagesProcessed || !allLinksBuilt ) {
     console.log('Run `await vovas.colony.build()` to start or continue building your colony!');
   } else {
-    console.log('Your colony is built, run `await vovas.colony.render()` to view it!');
+    console.log('Your colony is built, rendering!');
+    return colony.render();
   }
 });
 

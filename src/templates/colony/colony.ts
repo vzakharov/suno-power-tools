@@ -7,7 +7,6 @@ import { colonyCss } from './css';
 
 export async function render(rawData: ColonyGraphData, {
   in3D = false,
-  win = window
 }) {
 
   const hideUI = ref(false);
@@ -26,8 +25,8 @@ export async function render(rawData: ColonyGraphData, {
   let audioTags: HTMLDivElement;
   let audioElement: HTMLAudioElement;
 
-  const GraphRenderer: typeof ForceGraph = await importScript(win, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
-  win.document.head.appendChild(style([colonyCss]));
+  const GraphRenderer: typeof ForceGraph = await importScript(window, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
+  window.document.head.appendChild(style([colonyCss]));
   
   const container = div(
     () => ({
@@ -43,8 +42,8 @@ export async function render(rawData: ColonyGraphData, {
         style: {
           display: 'flex',
           flexDirection: 'column',
-          height: '100%',
-          width: '100%',
+          height: '100vh',
+          width: '100vh',
           backgroundColor: '#000',
           ...hideIf(hideUI.value),
         },
@@ -85,6 +84,9 @@ export async function render(rawData: ColonyGraphData, {
               p({ class: 'smol' }, [
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])
+            ]),
+            button({ onclick: redrawGraph }, [
+              'Redraw'
             ])
           ]),
           audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
@@ -120,46 +122,58 @@ export async function render(rawData: ColonyGraphData, {
     target: string | ColonyNode;
   }; //! because ForceGraph mutates links by including source and target nodes instead of their IDs
 
-  const graph = new GraphRenderer<ColonyNode, ProcessedLink>(
-    graphContainer
-  )
-    .graphData(rawData)
-    .backgroundColor('#001')
-    .linkAutoColorBy('kind')
-    .nodeAutoColorBy('rootId')
-    .linkLabel('kind')
-    .linkVisibility(visibilityChecker)
-    .linkDirectionalParticles(1)
-    .nodeLabel(({ id, name, tags, image_url }) => `
-      <div class="relative" style="width: 200px;">
-        <img src="${image_url}" style="opacity: 0.5; width: 200px">
-        <div class="absolute topleft" style="width: 190px; padding: 5px;">
-          <div>${name || '[Untitled]'}</div>
-          <div class="smol">${tags || '(no style)'}</div>
+  let graph = createGraph();
+  
+  function createGraph(): ForceGraph<ColonyNode, ProcessedLink> {
+    const graph = new GraphRenderer<ColonyNode, ProcessedLink>(
+      graphContainer
+    )
+      .graphData(rawData)
+      .backgroundColor('#001')
+      .linkAutoColorBy('kind')
+      .nodeAutoColorBy('rootId')
+      .linkLabel('kind')
+      .linkVisibility(visibilityChecker)
+      .linkDirectionalParticles(1)
+      .nodeLabel(({ id, name, tags, image_url }) => `
+        <div class="relative" style="width: 200px;">
+          <img src="${image_url}" style="opacity: 0.5; width: 200px">
+          <div class="absolute topleft" style="width: 190px; padding: 5px;">
+            <div>${name || '[Untitled]'}</div>
+            <div class="smol">${tags || '(no style)'}</div>
+          </div>
         </div>
-      </div>
-      <div class="smol">
-        Click to play, right-click to open in Suno
-      </div>
-    `)
-    .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
-      audioContainer.style.display = 'block';
-      audioLink.href = `https://suno.com/song/${id}`;
-      audioImage.src = image_url;
-      audioName.innerText = name || '[Untitled]';
-      audioTags.innerText = tags || '(no style)';
-      audioElement.src = audio_url;
-      audioElement.play();
-    })
-    .onNodeRightClick(({ id }) => {
-      window.open(`https://suno.com/song/${id}`);
-    });
-  if ( in3D ) {
-    // @ts-expect-error
-    graph.linkOpacity(l => l.isMain ? 1 : 0.2)
-    // TODO: Implement type-safe access to 3D-specific methods
-  } else {
-    graph.linkLineDash(l => l.isMain ? null : [1, 2])
+        <div class="smol">
+          Click to play, right-click to open in Suno
+        </div>
+      `)
+      .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
+        audioContainer.style.display = 'block';
+        audioLink.href = `https://suno.com/song/${id}`;
+        audioImage.src = image_url;
+        audioName.innerText = name || '[Untitled]';
+        audioTags.innerText = tags || '(no style)';
+        audioElement.src = audio_url;
+        audioElement.play();
+      })
+      .onNodeRightClick(({ id }) => {
+        window.open(`https://suno.com/song/${id}`);
+      });
+    if ( in3D ) {
+      // @ts-expect-error
+      graph.linkOpacity(l => l.isMain ? 1 : 0.2)
+      // TODO: Implement type-safe access to 3D-specific methods
+    } else {
+      graph.linkLineDash(l => l.isMain ? null : [1, 2])
+    };
+    return graph;
+  };
+
+  async function redrawGraph() {
+    new FinalizationRegistry(() => console.log('Previous graph destroyed, container removed from memory')).register(graph, '');
+    graph._destructor();
+    container.remove();
+    await render(rawData, { in3D });
   };
 
   const data = graph.graphData();
