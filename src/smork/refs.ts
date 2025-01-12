@@ -91,7 +91,7 @@ export class ReadonlyRef<T> {
 
   compute = this.map;
 
-  merge<U>(mergee: MaybeRefOrGetter<U> | undefined) {
+  merge<U>(mergee: Refable<U> | undefined) {
     return mergee
       ? computed(() => ({
         ...this.value,
@@ -193,15 +193,13 @@ export function useNot(ref: ReadonlyRef<any>) {
   });
 };
 
-export type RefOrGetter<T> = (() => T) | ReadonlyRef<T>;
+export type Refable<T> = T | (() => T) | ReadonlyRef<T>;
 
-export type MaybeRefOrGetter<T> = T | RefOrGetter<T>;
-
-export function isRefOrGetter<T>(value: MaybeRefOrGetter<T>) {
+export function isRefOrGetter<T>(value: Refable<T>) {
   return isFunction(value) || value instanceof ReadonlyRef;
 };
 
-function refResolver<T>(arg: MaybeRefOrGetter<T>) {
+function refResolver<T>(arg: Refable<T>) {
   return <U>(ifRef: (ref: ReadonlyRef<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
     return (
       arg instanceof ReadonlyRef
@@ -213,7 +211,7 @@ function refResolver<T>(arg: MaybeRefOrGetter<T>) {
   }
 }
 
-export function deref<T>(arg: MaybeRefOrGetter<T>) {
+export function deref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref.value,
     fn => fn(),
@@ -226,7 +224,7 @@ export function deref<T>(arg: MaybeRefOrGetter<T>) {
  * - If the value is already a ref, it will be returned as is, NOT wrapped in a new computed ref.
  * - If a simple value is passed, it will be wrapped in a new **readonly** ref.
  */
-export function toRef<T>(arg: MaybeRefOrGetter<T>) {
+export function toRef<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref,
     fn => computed(fn),

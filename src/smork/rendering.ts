@@ -1,6 +1,6 @@
 import { uniqueId } from "../lodashish";
 import { KeyWithValueOfType } from "../types";
-import { computed, Ref, ReadonlyRef, useNot, MaybeRefOrGetter, isRefOrGetter, toRef, ref } from "./refs";
+import { computed, Ref, ReadonlyRef, useNot, Refable, isRefOrGetter, toRef, ref } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -35,9 +35,11 @@ export type Props<T extends SupportedElement> = Partial<Omit<T, 'children' | 'cl
   for?: T extends HTMLLabelElement ? string : never,
 }
 
+type HTMLNode = SupportedElement | string;
+
 export type ElementFactory<TElement extends SupportedElement, TProps extends Props<TElement> = Props<TElement>> = {
-  (props?: MaybeRefOrGetter<TProps>, children?: (string | SupportedElement)[]): TElement;
-  (children?: (string | SupportedElement)[]): TElement
+  (props?: Refable<TProps>, children?: HTMLNode[]): TElement;
+  (children?: HTMLNode[]): TElement
 }
 
 export function tag<T extends SupportedTag>(tagName: T) {
@@ -45,8 +47,8 @@ export function tag<T extends SupportedTag>(tagName: T) {
   type Element = TagElementMap[T];
   
   function element(
-    propsOrChildren?: MaybeRefOrGetter<Props<Element>> | (string | SupportedElement)[],
-    childrenOrNone?: (string | SupportedElement)[]
+    propsOrChildren?: Refable<Props<Element>> | HTMLNode[],
+    childrenOrNone?: HTMLNode[]
   ) {
     const [ props, children ] = 
       Array.isArray(propsOrChildren) 
@@ -56,8 +58,8 @@ export function tag<T extends SupportedTag>(tagName: T) {
   };
 
   function elementFactory(
-    props: MaybeRefOrGetter<Props<Element>> | undefined,
-    children: (string | SupportedElement)[] | undefined
+    props: Refable<Props<Element>> | undefined,
+    children: HTMLNode[] | undefined
   ) {
     const element = document.createElement(tagName);
     if ( props ) {
@@ -125,7 +127,7 @@ export function modelElement<
 ) {
   return (
     model: Ref<NonNullable<Props<T>[KModel]>>,
-    props?: MaybeRefOrGetter<Omit<Props<T>, KModel>>,
+    props?: Refable<Omit<Props<T>, KModel>>,
   ) => {
     const computedProps = ref<Props<T>>(() => ({
       ...propsFactory(model),
