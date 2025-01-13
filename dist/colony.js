@@ -201,7 +201,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     constructor(_value) {
       this._value = _value;
     }
-    watchers = [];
+    watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
     get() {
       currentComputedPreHandler?.(this);
@@ -236,7 +236,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
      */
     watchImmediate = this.runAndWatch;
     watch(watcher) {
-      this.watchers.push(watcher);
+      this.watchers.add(watcher);
     }
     /**
      * @alias watch
@@ -244,7 +244,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     onChange = this.watch;
     // just an alias
     unwatch(watcher) {
-      this.watchers = this.watchers.filter((w) => w !== watcher);
+      this.watchers.delete(watcher);
     }
     get value() {
       return this.get();
@@ -256,7 +256,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     merge(mergee) {
       return mergee ? computed(() => ({
         ...this.value,
-        ...deref(mergee)
+        ...unref(mergee)
       })) : this;
     }
   };
@@ -326,14 +326,14 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
     };
   }
-  function deref(arg) {
+  function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
       (fn) => fn(),
       (value) => value
     );
   }
-  function toRef(arg) {
+  function toref(arg) {
     return refResolver(arg)(
       (ref2) => ref2,
       (fn) => computed(fn),
@@ -405,7 +405,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           });
         };
         if (isRefOrGetter(props)) {
-          toRef(props).runAndWatch(assignProps);
+          toref(props).runAndWatch(assignProps);
         } else {
           assignProps(props);
         }

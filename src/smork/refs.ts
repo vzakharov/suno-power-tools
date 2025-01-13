@@ -27,7 +27,7 @@ export type Watcher<T> = (value: T, oldValue: T) => void;
 
 export class ReadonlyRef<T> {
 
-  protected watchers: Watcher<T>[] = [];
+  protected watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
 
   constructor(
@@ -69,7 +69,7 @@ export class ReadonlyRef<T> {
   watchImmediate = this.runAndWatch;
 
   watch(watcher: Watcher<T>) {
-    this.watchers.push(watcher);
+    this.watchers.add(watcher);
   };
 
   /**
@@ -78,7 +78,7 @@ export class ReadonlyRef<T> {
   onChange = this.watch; // just an alias
 
   unwatch(watcher: Watcher<T>) {
-    this.watchers = this.watchers.filter(w => w !== watcher);
+    this.watchers.delete(watcher);
   };
 
   get value() {

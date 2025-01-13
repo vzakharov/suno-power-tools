@@ -13,7 +13,7 @@
     constructor(_value) {
       this._value = _value;
     }
-    watchers = [];
+    watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
     get() {
       currentComputedPreHandler?.(this);
@@ -48,7 +48,7 @@
      */
     watchImmediate = this.runAndWatch;
     watch(watcher) {
-      this.watchers.push(watcher);
+      this.watchers.add(watcher);
     }
     /**
      * @alias watch
@@ -56,7 +56,7 @@
     onChange = this.watch;
     // just an alias
     unwatch(watcher) {
-      this.watchers = this.watchers.filter((w) => w !== watcher);
+      this.watchers.delete(watcher);
     }
     get value() {
       return this.get();
@@ -68,7 +68,7 @@
     merge(mergee) {
       return mergee ? computed(() => ({
         ...this.value,
-        ...deref(mergee)
+        ...unref(mergee)
       })) : this;
     }
   };
@@ -140,7 +140,7 @@
       return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
     };
   }
-  function deref(arg) {
+  function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
       (fn) => fn(),
