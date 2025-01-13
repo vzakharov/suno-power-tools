@@ -2,25 +2,21 @@
 import { isFunction } from "../lodashish";
 import { Function } from "../types";
 
+export class SmorkError extends Error {
+  constructor(message: string) {
+    super(`smork: ${message}`);
+  };
+};
+
 export function ref<T>(value: Exclude<T, Function>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
-export function ref<T>(getter: () => T, setter: (value: T) => void): BridgedRef<T>;
+export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 
 export function ref<T>(arg1?: T | (() => T), arg2?: (value: T) => void) {
   return isFunction(arg1) 
-    // ? new ComputedRef(arg1)
-    ? arg2
-      ? new BridgedRef(arg1, arg2)
-      : new ComputedRef(arg1)
+    ? computed(arg1, arg2)
     : new Ref(arg1);
-};
-
-/**
- * A ref that can take an undefined value despite being initialized with a value. Useful for initializing refs that are used as models for elements supporting `undefined` values. Used for typing purposes only and does not affect any runtime behavior.
- */
-export function uref<T extends {}>(value: T) {
-  return new Ref<T | undefined>(value);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
@@ -117,7 +113,7 @@ export class Ref<T> extends ReadonlyRef<T> {
   };
 
   bridge<U>(forward: (value: T) => U, backward: (value: U) => T) {
-    return new BridgedRef(
+    return new WritableComputedRef(
       () => forward(this.value),
       value => this.set(backward(value))
     );
@@ -132,12 +128,6 @@ export function assignTo<T>(ref: Ref<T>) {
 };
 
 let currentComputedTracker: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
-
-export class SmorkError extends Error {
-  constructor(message: string) {
-    super(`smork: ${message}`);
-  };
-}
 
 export class ComputedRef<T> extends Ref<T> {
 
@@ -171,11 +161,7 @@ export class ComputedRef<T> extends Ref<T> {
 
 };
 
-export function computed<T>(getter: () => T) {
-  return new ComputedRef(getter);
-};
-
-export class BridgedRef<T> extends Ref<T> {
+export class WritableComputedRef<T> extends Ref<T> {
   
   constructor(
     getter: () => T,
@@ -195,9 +181,15 @@ export class BridgedRef<T> extends Ref<T> {
 
 };
 
-export function bridged<T>(getter: () => T, setter: (value: T) => void) {
-  return new BridgedRef(getter, setter);
+export function computed<T>(getter: () => T): ComputedRef<T>;
+export function computed<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function computed<T>(getter: () => T, setter: ((value: T) => void) | undefined): ComputedRef<T> | WritableComputedRef<T>;
+export function computed<T>(getter: () => T, setter?: (value: T) => void) {
+  return setter
+    ? new WritableComputedRef(getter, setter)
+    : new ComputedRef(getter);
 };
+
 
 export function useNot(ref: ReadonlyRef<any>) {
   return computed(() => {

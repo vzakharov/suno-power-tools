@@ -194,8 +194,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
 
   // src/smork/refs.ts
   //! Smork, the smol framework
+  var SmorkError = class extends Error {
+    constructor(message) {
+      super(`smork: ${message}`);
+    }
+  };
   function ref(arg1, arg2) {
-    return isFunction(arg1) ? arg2 ? new BridgedRef(arg1, arg2) : new ComputedRef(arg1) : new Ref(arg1);
+    return isFunction(arg1) ? computed(arg1, arg2) : new Ref(arg1);
   }
   var ReadonlyRef = class {
     constructor(_value) {
@@ -204,7 +209,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
     get() {
-      currentComputedPreHandler?.(this);
+      currentComputedTracker?.(this);
       return this._value;
     }
     _set(value) {
@@ -271,39 +276,41 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return this.get();
     }
     bridge(forward, backward) {
-      return new BridgedRef(
+      return new WritableComputedRef(
         () => forward(this.value),
         (value) => this.set(backward(value))
       );
     }
   };
-  var currentComputedPreHandler = void 0;
-  var SmorkError = class extends Error {
-    constructor(message) {
-      super(`smork: ${message}`);
-    }
-  };
+  var currentComputedTracker = void 0;
   var ComputedRef = class extends Ref {
     constructor(getter) {
-      if (currentComputedPreHandler) {
-        throw new SmorkError("currentComputedPreHandler is already set (this should never happen)");
-      }
-      ;
-      try {
-        currentComputedPreHandler = (ref2) => {
-          ref2.watch(() => this._set(getter()));
-        };
-        super(getter());
-      } finally {
-        currentComputedPreHandler = void 0;
-      }
-      ;
+      super(void 0);
+      this.getter = getter;
+      this.track();
     }
+    dependencies = /* @__PURE__ */ new Set();
+    track = () => {
+      if (currentComputedTracker) {
+        throw new SmorkError(
+          "Tried to compute a ref while another one is already being computed \u2014 did you nest a computed ref in another ref's getter function?"
+        );
+      }
+      ;
+      this.dependencies.forEach((ref2) => ref2.unwatch(this.track));
+      this.dependencies = /* @__PURE__ */ new Set();
+      try {
+        currentComputedTracker = (ref2) => {
+          ref2.watch(this.track);
+          this.dependencies.add(ref2);
+        };
+        this._set(this.getter());
+      } finally {
+        currentComputedTracker = void 0;
+      }
+    };
   };
-  function computed(getter) {
-    return new ComputedRef(getter);
-  }
-  var BridgedRef = class extends Ref {
+  var WritableComputedRef = class extends Ref {
     constructor(getter, setter) {
       const computedRef = new ComputedRef(getter);
       super(computedRef.value);
@@ -318,6 +325,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       ;
     }
   };
+  function computed(getter, setter) {
+    return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
+  }
   function isRefOrGetter(value) {
     return isFunction(value) || value instanceof ReadonlyRef;
   }
