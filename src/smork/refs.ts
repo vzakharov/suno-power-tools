@@ -141,20 +141,20 @@ export class SmorkError extends Error {
 
 export class ComputedRef<T> extends Ref<T> {
 
-  private activeWatchers = new Set<Watcher<T>>();
+  private dependencies = new Set<ReadonlyRef<any>>();
 
-  private track() {
+  track = () => {
     if ( currentComputedTracker ) {
       throw new SmorkError(
         "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
       );
     };
-    this.activeWatchers = new Set(); // we need to recalculate the watchers every time a watcher is called, as the code is not guaranteed to be linear
+    this.dependencies.forEach(ref => ref.unwatch(this.track));
+    this.dependencies = new Set();
     try {
       currentComputedTracker = ref => {
-        const watcher = () => this.track();
-        ref.watch(watcher);
-        this.activeWatchers.add(watcher);
+        ref.watch(this.track);
+        this.dependencies.add(ref);
       };
       this._set(this.getter());
     } finally {
