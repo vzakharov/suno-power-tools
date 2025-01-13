@@ -124,6 +124,14 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function uniqueId(prefix = "") {
     return `${prefix}${++lastId}`;
   }
+  function mapValues(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
+    );
+  }
+  function forEach(obj, callback) {
+    return mapValues(obj, callback);
+  }
   function isFunction(value) {
     return typeof value === "function";
   }
@@ -297,12 +305,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
         );
       }
       ;
-      this.dependencies.forEach((ref2) => ref2.unwatch(this.track));
+      this.dependencies.forEach((ref3) => ref3.unwatch(this.track));
       this.dependencies = /* @__PURE__ */ new Set();
       try {
-        currentComputedTracker = (ref2) => {
-          ref2.watch(this.track);
-          this.dependencies.add(ref2);
+        currentComputedTracker = (ref3) => {
+          ref3.watch(this.track);
+          this.dependencies.add(ref3);
         };
         this._set(this.getter());
       } finally {
@@ -329,8 +337,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function computed(getter, setter) {
     return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
   }
-  function isRefOrGetter(value) {
-    return isFunction(value) || value instanceof ReadonlyRef;
+  function unrefs(refs) {
+    return mapValues(refs, unref);
   }
   function refResolver(arg) {
     return (ifRef, ifFunction, ifValue) => {
@@ -339,16 +347,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
   function unref(arg) {
     return refResolver(arg)(
-      (ref2) => ref2.value,
+      (ref3) => ref3.value,
       (fn) => fn(),
       (value) => value
-    );
-  }
-  function toref(arg) {
-    return refResolver(arg)(
-      (ref2) => ref2,
-      (fn) => computed(fn),
-      (value) => new ReadonlyRef(value)
     );
   }
 
@@ -369,6 +370,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     "label",
     "button"
   ];
+  var tags = createTags(SUPPORTED_TAGS);
   var {
     html,
     head,
@@ -384,80 +386,79 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     input,
     label,
     button
-  } = createTags(SUPPORTED_TAGS);
+  } = tags;
   function createTags(tagNames) {
     return tagNames.reduce((acc, tagName) => {
       return Object.assign(acc, {
-        [tagName]: tag(tagName)
+        [tagName]: createTag(tagName)
       });
     }, {});
   }
-  function tag(tagName) {
-    function element(propsOrChildren, childrenOrNone) {
-      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
-      return elementFactory(props, children);
+  function createTag(tagName) {
+    function elementFactory(propsOrChildren, eventsOrChildren, childrenOrNone) {
+      const [props, events, children] = Array.isArray(propsOrChildren) ? [void 0, void 0, propsOrChildren] : Array.isArray(eventsOrChildren) ? [propsOrChildren, void 0, eventsOrChildren] : [propsOrChildren, eventsOrChildren, childrenOrNone];
+      return verboseElementFactory(props, events, children);
     }
-    ;
-    function elementFactory(props, children) {
-      const element2 = document.createElement(tagName);
+    function verboseElementFactory(props, events, children) {
+      const element = document.createElement(tagName);
       if (props) {
         let assignProps = function(props2) {
-          Object.assign(element2, props2);
-          if (props2.class) {
-            element2.className = props2.class;
-          }
-          ;
-          if (element2 instanceof HTMLLabelElement && props2.for) {
-            element2.htmlFor = props2.for;
-          }
-          ;
-          Object.entries(props2.style ?? {}).forEach(([key, value]) => {
-            element2.style[key] = value;
+          const { style: style2, class: className, for: htmlFor, ...otherProps } = unrefs(props2);
+          Object.assign(element, {
+            ...otherProps,
+            ...events
+          });
+          className && Object.assign(element, { className });
+          element instanceof HTMLLabelElement && htmlFor && Object.assign(element, { htmlFor });
+          forEach(style2 ?? {}, (value, key) => {
+            element.style[key] = value;
           });
         };
-        if (isRefOrGetter(props)) {
-          toref(props).runAndWatch(assignProps);
-        } else {
-          assignProps(props);
-        }
-        ;
+        assignProps(props);
         ;
       }
       ;
       if (children) {
         children.forEach((child) => {
           if (typeof child === "string") {
-            element2.appendChild(document.createTextNode(child));
+            element.appendChild(document.createTextNode(child));
           } else {
-            element2.appendChild(child);
+            element.appendChild(child);
           }
           ;
         });
       }
       ;
-      return element2;
+      return element;
     }
-    return element;
+    return elementFactory;
   }
-  var checkbox = modelElement(input, "checked", (model) => ({
-    type: "checkbox",
-    onchange: () => {
-      model.set(!model.value);
-    }
-  }));
-  var textInput = modelElement(input, "value", (model) => ({
-    type: "text",
-    onkeyup: ({ key, target }) => {
-      key === "Enter" && target instanceof HTMLInputElement && model.set(target.value);
-    }
-  }));
-  function modelElement(elementFactory, modelKey, propsFactory) {
+  var checkbox = modelElement(
+    "input",
+    "checked",
+    { type: "checkbox" },
+    (model) => ({
+      onchange: () => model.set(!model.value)
+    })
+  );
+  var textInput = modelElement(
+    "input",
+    "value",
+    { type: "text" },
+    (model) => ({
+      onkeyup: ({ key, target }) => {
+        key === "Enter" && target instanceof HTMLInputElement && model.set(target.value);
+      }
+    })
+  );
+  function modelElement(tag, modelKey, initProps, eventFactory) {
     return (model, props) => {
-      const computedProps = ref(() => ({
-        ...propsFactory(model),
-        [modelKey]: model.value
-      }));
-      return elementFactory(props ? computedProps.merge(props) : computedProps);
+      return createTag(tag)({
+        ...initProps,
+        ...props,
+        [modelKey]: model,
+        ...eventFactory(model)
+      });
     };
   }
   function labeled(labelText, element) {
@@ -687,23 +688,23 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     function createGraph() {
       const graph2 = new GraphRenderer(
         graphContainer
-      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags, image_url }) => `
+      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags: tags2, image_url }) => `
         <div class="relative" style="width: 200px;">
           <img src="${image_url}" style="opacity: 0.5; width: 200px">
           <div class="absolute topleft" style="width: 190px; padding: 5px;">
             <div>${name || "[Untitled]"}</div>
-            <div class="smol">${tags || "(no style)"}</div>
+            <div class="smol">${tags2 || "(no style)"}</div>
           </div>
         </div>
         <div class="smol">
           Click to play, right-click to open in Suno
         </div>
-      `).onNodeClick(({ id: id2, name, tags, image_url, audio_url }) => {
+      `).onNodeClick(({ id: id2, name, tags: tags2, image_url, audio_url }) => {
         audioContainer.style.display = "block";
         audioLink.href = `https://suno.com/song/${id2}`;
         audioImage.src = image_url;
         audioName.innerText = name || "[Untitled]";
-        audioTags.innerText = tags || "(no style)";
+        audioTags.innerText = tags2 || "(no style)";
         audioElement.src = audio_url;
         audioElement.play();
       }).onNodeRightClick(({ id: id2 }) => {
@@ -1028,13 +1029,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return clip.totalDescendants ??= 1 + (clip.children?.reduce((sum, { clip: { id: childId } }) => sum + this.getTotalDescendants(childId), 0) ?? 0);
     }
     get graphData() {
-      const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
+      const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags: tags2 }, created_at, children, audio_url, image_url, root }) => ({
         id,
-        name: name || tags || created_at || id,
+        name: name || tags2 || created_at || id,
         created_at,
         audio_url,
         image_url,
-        tags,
+        tags: tags2,
         rootId: root?.id,
         // val: Math.log10(this.getTotalDescendants(id) + 1),
         val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5

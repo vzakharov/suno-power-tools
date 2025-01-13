@@ -1,4 +1,4 @@
-import { Function } from "./types";
+import { Functional } from "./types";
 
 export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
   return arr.find(createPredicate(filter));
@@ -31,7 +31,14 @@ export function mapValues<
   };
 };
 
-export function isFunction(value: any): value is Function {
+export function forEach<T extends object>(
+  obj: T,
+  callback: (value: T[keyof T], key: keyof T) => void
+) {
+  return mapValues(obj, callback);
+};
+
+export function isFunction(value: any): value is Functional {
   return typeof value === 'function';
 };
 

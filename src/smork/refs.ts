@@ -1,6 +1,6 @@
 //! Smork, the smol framework
-import { isFunction } from "../lodashish";
-import { Function } from "../types";
+import { isFunction, mapValues } from "../lodashish";
+import { Functional } from "../types";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -8,7 +8,7 @@ export class SmorkError extends Error {
   };
 };
 
-export function ref<T>(value: Exclude<T, Function>): Ref<T>;
+export function ref<T>(value: Exclude<T, Functional>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
@@ -199,6 +199,23 @@ export function useNot(ref: ReadonlyRef<any>) {
 };
 
 export type Refable<T> = T | (() => T) | ReadonlyRef<T>;
+export type Unref<TRefable> = 
+  TRefable extends ReadonlyRef<infer T> 
+    ? T 
+  : TRefable extends () => infer T
+    ? T
+  : TRefable;
+export type Refables<T extends Record<string, any>> = {
+  [K in keyof T]: Refable<Required<T>[K]>
+};
+
+export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
+  return mapValues(refs, unref) as {
+    [K in keyof T]: Unref<T[K]>
+  }
+};
+
+export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
 export function isRefOrGetter<T>(value: Refable<T>) {
   return isFunction(value) || value instanceof ReadonlyRef;
