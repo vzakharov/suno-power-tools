@@ -123,16 +123,17 @@
     };
   };
   var WritableComputedRef = class extends Ref {
-    constructor(getter, setter) {
+    constructor(getter, setter, allowMismatch = false) {
       const computedRef = new ComputedRef(getter);
       super(computedRef.value);
       this.setter = setter;
+      this.allowMismatch = allowMismatch;
       computedRef.watch((value) => this._set(value));
     }
     set(value) {
       this.setter(value);
-      if (this.value !== value) {
-        throw new SmorkError("bridge value did not change to the one being set");
+      if (!this.allowMismatch && this.value !== value) {
+        throw new SmorkError("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.");
       }
       ;
     }
