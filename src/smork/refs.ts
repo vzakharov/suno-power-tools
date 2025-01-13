@@ -35,7 +35,7 @@ export class ReadonlyRef<T> {
   ) { };
 
   get() {
-    currentComputedPreHandler?.(this);
+    currentComputedTracker?.(this);
     return this._value;
   };
 
@@ -131,7 +131,7 @@ export function assignTo<T>(ref: Ref<T>) {
   };
 };
 
-let currentComputedPreHandler: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
+let currentComputedTracker: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -141,20 +141,32 @@ export class SmorkError extends Error {
 
 export class ComputedRef<T> extends Ref<T> {
 
-  constructor(
-    getter: () => T
-  ) {
-    if ( currentComputedPreHandler ) {
-      throw new SmorkError('currentComputedPreHandler is already set (this should never happen)');
+  private activeWatchers = new Set<Watcher<T>>();
+
+  private track() {
+    if ( currentComputedTracker ) {
+      throw new SmorkError(
+        "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
+      );
     };
+    this.activeWatchers = new Set(); // we need to recalculate the watchers every time a watcher is called, as the code is not guaranteed to be linear
     try {
-      currentComputedPreHandler = ref => {
-        ref.watch(() => this._set(getter()));
+      currentComputedTracker = ref => {
+        const watcher = () => this.track();
+        ref.watch(watcher);
+        this.activeWatchers.add(watcher);
       };
-      super(getter()); // to register any refs that are used in the getter
+      this._set(this.getter());
     } finally {
-      currentComputedPreHandler = undefined;
-    };
+      currentComputedTracker = undefined;
+    }
+  };
+
+  constructor(
+    private getter: () => T
+  ) {
+    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
+    this.track();
   };
 
 };
