@@ -162,10 +162,11 @@ export class ComputedRef<T> extends Ref<T> {
 };
 
 export class WritableComputedRef<T> extends Ref<T> {
-  
+
   constructor(
     getter: () => T,
-    private setter: (value: T) => void
+    private setter: (value: T) => void,
+    public allowMismatch = false
   ) {
     const computedRef = new ComputedRef(getter);
     super(computedRef.value);
@@ -174,8 +175,8 @@ export class WritableComputedRef<T> extends Ref<T> {
 
   set(value: T) {
     this.setter(value);
-    if ( this.value !== value ) {
-      throw new SmorkError('bridge value did not change to the one being set');
+    if ( !this.allowMismatch && this.value !== value ) {
+      throw new SmorkError('Setter did not update the value. If you want to allow this, set the allowMismatch property to true.');
     };
   };
 
