@@ -13,10 +13,10 @@ export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 
-export function ref<T>(arg1?: T | (() => T), arg2?: (value: T) => void) {
-  return isFunction(arg1) 
-    ? computed(arg1, arg2)
-    : new Ref(arg1);
+export function ref<T>(valueOrGetter?: T | (() => T), setter?: (value: T) => void) {
+  return isFunction(valueOrGetter) 
+    ? computed(valueOrGetter, setter)
+    : new Ref(valueOrGetter);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;

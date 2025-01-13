@@ -11,8 +11,8 @@
       super(`smork: ${message}`);
     }
   };
-  function ref(arg1, arg2) {
-    return isFunction(arg1) ? computed(arg1, arg2) : new Ref(arg1);
+  function ref(valueOrGetter, setter) {
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
   }
   var ReadonlyRef = class {
     constructor(_value) {

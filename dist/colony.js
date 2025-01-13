@@ -207,8 +207,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       super(`smork: ${message}`);
     }
   };
-  function ref(arg1, arg2) {
-    return isFunction(arg1) ? computed(arg1, arg2) : new Ref(arg1);
+  function ref(valueOrGetter, setter) {
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
   }
   var ReadonlyRef = class {
     constructor(_value) {
@@ -305,12 +305,12 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
         );
       }
       ;
-      this.dependencies.forEach((ref3) => ref3.unwatch(this.track));
+      this.dependencies.forEach((ref2) => ref2.unwatch(this.track));
       this.dependencies = /* @__PURE__ */ new Set();
       try {
-        currentComputedTracker = (ref3) => {
-          ref3.watch(this.track);
-          this.dependencies.add(ref3);
+        currentComputedTracker = (ref2) => {
+          ref2.watch(this.track);
+          this.dependencies.add(ref2);
         };
         this._set(this.getter());
       } finally {
@@ -347,7 +347,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
   function unref(arg) {
     return refResolver(arg)(
-      (ref3) => ref3.value,
+      (ref2) => ref2.value,
       (fn) => fn(),
       (value) => value
     );
@@ -484,11 +484,16 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       };
     });
   }
-  function showIf(condition) {
-    return condition ? {} : { display: "none" };
+  function getDisplayStyle(condition, showIfTrue, displayOtherwise) {
+    return {
+      display: condition.compute((on) => on === showIfTrue ? displayOtherwise : "none")
+    };
   }
-  function hideIf(condition) {
-    return showIf(!condition);
+  function displayNoneUnless(condition, displayOtherwise) {
+    return getDisplayStyle(condition, true, displayOtherwise);
+  }
+  function displayNoneIf(condition, displayOtherwise) {
+    return getDisplayStyle(condition, false, displayOtherwise);
   }
 
   // src/templates/colony/css.ts
@@ -588,7 +593,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     window.document.head.appendChild(style([colonyCss]));
     const container = div(
-      () => ({
+      {
         class: "colony",
         style: {
           position: "fixed",
@@ -596,18 +601,17 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           left: "0px",
           zIndex: "100"
         }
-      }),
+      },
       [
-        div(() => ({
+        div({
           style: {
-            display: "flex",
             flexDirection: "column",
             height: "100vh",
             width: "100vh",
             backgroundColor: "#000",
-            ...hideIf(hideUI.value)
+            ...displayNoneIf(hideUI, "flex")
           }
-        }), [
+        }, [
           graphContainer = div(),
           div({
             id: "sidebar"
@@ -615,12 +619,17 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             div({
               class: "settings f-col"
             }, [
-              button({
-                style: { marginBottom: "5px" },
-                onclick: () => hideUI.set(true)
-              }, [
-                "Close Colony"
-              ]),
+              button(
+                {
+                  style: { marginBottom: "5px" }
+                },
+                {
+                  onclick: () => hideUI.set(true)
+                },
+                [
+                  "Close Colony"
+                ]
+              ),
               h3(["Settings"]),
               div(
                 labeled(
@@ -629,9 +638,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
                 )
               ),
               div(
-                () => ({
-                  style: showIf(useNextLinks.value)
-                }),
+                {
+                  style: displayNoneUnless(useNextLinks)
+                },
                 labeled(
                   "Show time-based links",
                   checkbox(showNextLinks)
@@ -649,7 +658,7 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
               ]),
-              button({ onclick: redrawGraph }, [
+              button({}, { onclick: redrawGraph }, [
                 "Redraw"
               ])
             ]),
@@ -667,17 +676,18 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
             ])
           ])
         ]),
-        button(() => ({
+        button({
           style: {
             position: "fixed",
             top: "0px",
             left: "0px",
             padding: "5px",
             zIndex: "100",
-            ...showIf(hideUI.value)
-          },
+            ...displayNoneUnless(hideUI)
+          }
+        }, {
           onclick: () => hideUI.set(false)
-        }), [
+        }, [
           "Reopen Colony"
         ])
       ]

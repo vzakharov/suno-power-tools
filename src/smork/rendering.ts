@@ -193,10 +193,10 @@ function getDisplayStyle(condition: Ref<boolean>, showIfTrue: boolean, displayOt
     display: condition.compute(on => on === showIfTrue ? displayOtherwise : 'none') 
   };
 };
-export function showIf(condition: Ref<boolean>, displayOtherwise?: string) {
+export function displayNoneUnless(condition: Ref<boolean>, displayOtherwise?: string) {
   return getDisplayStyle(condition, true, displayOtherwise)
 };
 
-export function hideIf(condition: Ref<boolean>, displayOtherwise?: string) {
+export function displayNoneIf(condition: Ref<boolean>, displayOtherwise?: string) {
   return getDisplayStyle(condition, false, displayOtherwise)
 }

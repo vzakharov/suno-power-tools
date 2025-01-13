@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, showIf, style, textInput } from '../../smork/rendering';
+import { a, audio, button, checkbox, div, h3, displayNoneIf, img, importScript, labeled, p, displayNoneUnless, style, textInput } from '../../smork/rendering';
 import { sortByDate } from '../../utils';
 import { colonyCss } from './css';
 
@@ -44,7 +44,7 @@ export async function render(rawData: ColonyGraphData, {
           height: '100vh',
           width: '100vh',
           backgroundColor: '#000',
-          ...hideIf(hideUI, 'flex'),
+          ...displayNoneIf(hideUI, 'flex'),
         },
       }, [
         graphContainer = div(),
@@ -68,7 +68,7 @@ export async function render(rawData: ColonyGraphData, {
               )
             ),
             div({
-              style: showIf(useNextLinks),
+              style: displayNoneUnless(useNextLinks),
             },
               labeled('Show time-based links',
                 checkbox(showNextLinks)
@@ -106,7 +106,7 @@ export async function render(rawData: ColonyGraphData, {
       button({ 
         style: { 
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          ...showIf(hideUI),
+          ...displayNoneUnless(hideUI),
         },
       }, {
         onclick: () => hideUI.set(false)
