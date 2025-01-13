@@ -206,7 +206,7 @@ export type Unref<TRefable> =
     ? T
   : TRefable;
 export type Refables<T extends Record<string, any>> = {
-  [K in keyof T]: Refable<Required<T>[K]>
+  [K in keyof T]: Refable<Required<T>[K] | undefined>
 };
 
 export function unrefs<T extends Refables<any>>(refs: Refables<T>) {

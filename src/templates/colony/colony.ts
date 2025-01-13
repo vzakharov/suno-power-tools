@@ -1,8 +1,8 @@
 import { type default as ForceGraph } from 'force-graph';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { ref, uref } from '../../smork/refs';
+import { ref } from '../../smork/refs';
 import { a, audio, button, checkbox, div, h3, hideIf, img, importScript, labeled, p, showIf, style, textInput } from '../../smork/rendering';
-import { sortByDate, Undefinable } from '../../utils';
+import { sortByDate } from '../../utils';
 import { colonyCss } from './css';
 
 export async function render(rawData: ColonyGraphData, {
@@ -29,7 +29,7 @@ export async function render(rawData: ColonyGraphData, {
   window.document.head.appendChild(style([colonyCss]));
   
   const container = div(
-    () => ({
+    {
       class: 'colony',
       style: {
         position: 'fixed',
@@ -37,17 +37,16 @@ export async function render(rawData: ColonyGraphData, {
         left: '0px',
         zIndex: '100',
       }
-    }), [
-      div(() => ({
+    }, [
+      div({
         style: {
-          display: 'flex',
           flexDirection: 'column',
           height: '100vh',
           width: '100vh',
           backgroundColor: '#000',
-          ...hideIf(hideUI.value),
+          ...hideIf(hideUI, 'flex'),
         },
-      }), [
+      }, [
         graphContainer = div(),
         div({ 
           id: 'sidebar',
@@ -56,7 +55,8 @@ export async function render(rawData: ColonyGraphData, {
             class: 'settings f-col'
           }, [
             button({ 
-              style: { marginBottom: '5px'},
+              style: { marginBottom: '5px'}},
+            {
               onclick: () => hideUI.set(true)
             }, [
               'Close Colony'
@@ -67,9 +67,9 @@ export async function render(rawData: ColonyGraphData, {
                 checkbox(useNextLinks)
               )
             ),
-            div(() => ({
-              style: showIf(useNextLinks.value),
-            }),
+            div({
+              style: showIf(useNextLinks),
+            },
               labeled('Show time-based links',
                 checkbox(showNextLinks)
               )
@@ -85,7 +85,7 @@ export async function render(rawData: ColonyGraphData, {
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])
             ]),
-            button({ onclick: redrawGraph }, [
+            button({}, { onclick: redrawGraph }, [
               'Redraw'
             ])
           ]),
@@ -103,13 +103,14 @@ export async function render(rawData: ColonyGraphData, {
           ])
         ])
       ]),
-      button(() => ({ 
+      button({ 
         style: { 
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          ...showIf(hideUI.value),
+          ...showIf(hideUI),
         },
+      }, {
         onclick: () => hideUI.set(false)
-      }), [
+      }, [
         'Reopen Colony'
       ])
     ]

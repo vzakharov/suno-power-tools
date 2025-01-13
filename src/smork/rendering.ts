@@ -1,5 +1,5 @@
 import { forEach, uniqueId } from "../lodashish";
-import { Ref, ref, Refable, unrefs } from "./refs";
+import { Ref, Refable, Unref, unrefs } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -32,10 +32,10 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
 export type Props<T extends SupportedElement> = {
   [K in Exclude<keyof T, 'children' | 'className' | 'style' | 'htmlFor' | keyof Events<T>>]?: Refable<T[K]>
 } & {
-  class?: Refable<T['className']>,
-  for?: T extends HTMLLabelElement ? Refable<string> : never,
+  class?: Refable<T['className'] | undefined>,
+  for?: T extends HTMLLabelElement ? Refable<string | undefined> : never,
   style?: {
-    [K in keyof CSSStyleDeclaration]: Refable<CSSStyleDeclaration[K]>
+    [K in keyof T['style']]?: Refable<T['style'][K] | undefined>
   }
 };
 
@@ -48,11 +48,6 @@ export type Events<T extends SupportedElement> = {
 };
 
 type HTMLNode = SupportedElement | string;
-
-// export type ElementFactory<TElement extends SupportedElement, TProps extends Props<TElement> = Props<TElement>> = {
-//   (props?: Refable<TProps>, children?: HTMLNode[]): TElement;
-//   (children?: HTMLNode[]): TElement
-// }
 
 function createTag<T extends SupportedTag>(tagName: T) {
 
@@ -136,6 +131,14 @@ export const textInput = modelElement('input', 'value',
   })
 );
 
+export type ModelRef<TElement extends SupportedElement, TModelKey extends keyof Props<TElement>> 
+  = Ref<NonNullable<Unref<Props<TElement>[TModelKey]>>>;
+
+// exmample
+
+type TextInputModelRef = ModelRef<HTMLInputElement, 'value'>; // should be Ref<string>
+type CheckboxModelRef = ModelRef<HTMLInputElement, 'checked'>; // should be Ref<boolean>
+
 export function modelElement<
   TTag extends SupportedTag,
   TModelKey extends keyof Props<TagElementMap[TTag]>,
@@ -144,11 +147,11 @@ export function modelElement<
   tag: TTag,
   modelKey: TModelKey,
   initProps: TProps,
-  eventFactory: (model: Ref<NonNullable<Props<TagElementMap[TTag]>[TModelKey]>>) => Events<TagElementMap[TTag]>
+  eventFactory: (model: ModelRef<TagElementMap[TTag], TModelKey>) => Events<TagElementMap[TTag]>
 ) {
   type TElement = TagElementMap[TTag];
   return (
-    model: Ref<NonNullable<Props<TElement>[TModelKey]>>,
+    model: ModelRef<TElement, TModelKey>,
     props?: Omit<Props<TElement>, TModelKey | keyof TProps>
   ) => {
     return createTag(tag)({
@@ -185,10 +188,15 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function showIf(condition: boolean | undefined) {
-  return condition ? {} : { display: 'none' };
+function getDisplayStyle(condition: Ref<boolean>, showIfTrue: boolean, displayOtherwise?: string) {
+  return { 
+    display: condition.compute(on => on === showIfTrue ? displayOtherwise : 'none') 
+  };
+};
+export function showIf(condition: Ref<boolean>, displayOtherwise?: string) {
+  return getDisplayStyle(condition, true, displayOtherwise)
 };
 
-export function hideIf(condition: boolean | undefined) {
-  return showIf(!condition);
-};
+export function hideIf(condition: Ref<boolean>, displayOtherwise?: string) {
+  return getDisplayStyle(condition, false, displayOtherwise)
+}
