@@ -365,7 +365,10 @@ class Colony {
 
   async render(...[mode]: Parameters<typeof this.getHtml>) {
     console.log("Rendering your colony, give it a few seconds...");
-    this.renderedElement = await render(this.graphData, { in3D: modeToIn3D(mode) });
+    //! this.renderedElement = await render(this.graphData, { in3D: modeToIn3D(mode) });
+    mutate(window, { colonyData: { graphData: this.graphData, in3D: modeToIn3D(mode) } });
+    render_compiled();
+    //! (This is less “pure”, but it allows us to save on not re-importing the same code for standalone and in-page rendering)
   };
 
   clear() {

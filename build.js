@@ -53,7 +53,7 @@ fs.readdir(templatesPath, (err, files) => {
           bundle: true,
           platform: 'browser',
           format: 'iife',
-          minify: true,
+          // minify: true,
           legalComments: 'none',
           banner: {
             js: 'export const render_compiled = () => '

@@ -1,13 +1,567 @@
 export const render_compiled = () => 
-(()=>{var Te=0;function $(t=""){return`${t}${++Te}`}function G(t,e){return Object.fromEntries(Object.entries(t).map(([n,r])=>[n,e(r,n)]))}function O(t,e){return G(t,e)}function V(t,e){return Object.fromEntries(Object.entries(t).map(([n,r])=>[e(n,r),r]))}function A(t){return typeof t=="function"}var M=class extends Error{constructor(e){super(`smork: ${e}`)}};function x(t,e){return A(t)?B(t,e):new b(t)}var S=class{constructor(e){this._value=e}watchers=new Set;activeWatchers=new WeakSet;get(){return K?.(this),this._value}_set(e){let{_value:n}=this;if(e!==this._value){this._value=e;try{for(let r of this.watchers){if(this.activeWatchers.has(r)){console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");return}this.activeWatchers.add(r),r(e,n)}}finally{this.activeWatchers=new WeakSet}}}runAndWatch(e){e(this._value,this._value),this.watch(e)}watchImmediate=this.runAndWatch;watch(e){this.watchers.add(e)}onChange=this.watch;unwatch(e){this.watchers.delete(e)}get value(){return this.get()}map(e){return new w(()=>e(this.value))}compute=this.map;merge(e){return e?B(()=>({...this.value,...fe(e)})):this}},b=class extends S{set(e){this._set(e)}set value(e){this.set(e)}get value(){return this.get()}bridge(e,n){return new P(()=>e(this.value),r=>this.set(n(r)))}};var K,w=class extends b{constructor(n){super(void 0);this.getter=n;this.track()}dependencies=new Set;track=()=>{if(K)throw new M("Tried to compute a ref while another one is already being computed \u2014 did you nest a computed ref in another ref's getter function?");this.dependencies.forEach(n=>n.unwatch(this.track)),this.dependencies=new Set;try{K=n=>{n.watch(this.track),this.dependencies.add(n)},this._set(this.getter())}finally{K=void 0}}},P=class extends b{constructor(n,r,s=!1){let u=new w(n);super(u.value);this.setter=r;this.allowMismatch=s;u.watch(p=>this._set(p))}set(n){if(this.setter(n),!this.allowMismatch&&this.value!==n)throw new M("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.")}};function B(t,e){return e?new P(t,e):new w(t)}function z(t){return(e,n,r)=>t instanceof S?e(t):A(t)?n(t):r(t)}function fe(t){return z(t)(e=>e.value,e=>e(),e=>e)}function q(t,e){z(t)(n=>n.watchImmediate(e),n=>x(n).watchImmediate(e),e)}function J(t){return t?new Date(t).getTime():0}function Q(t,e=n=>n.created_at){return t.sort((n,r)=>J(e(n))-J(e(r)))}function X(t,e){return V(t,n=>e[n]??n)}var ye=["html","head","style","script","body","div","h3","p","a","img","audio","input","label","button"],me=xe(ye),{html:De,head:Fe,style:Y,script:Oe,body:Ae,div:c,h3:Z,p:ee,a:te,img:ne,audio:oe,input:He,label:he,button:C}=me;function xe(t){return t.reduce((e,n)=>Object.assign(e,{[n]:re(n)}),{})}function re(t){function e(r,s,u){let[p,y,h]=Array.isArray(r)?[void 0,void 0,r]:Array.isArray(s)?[r,void 0,s]:[r,s,u];return n(p,y,h)}return e;function n(r,s,u){let p=document.createElement(t);return s&&Object.assign(p,s),r&&O(X(r,{class:"className",for:"htmlFor"}),(y,h)=>{q(y,g=>{h!=="style"?p[h]=g:O(g,(E,R)=>p.style[R]=E)})}),u&&u.forEach(y=>{typeof y=="string"?p.appendChild(document.createTextNode(y)):p.appendChild(y)}),p}}var L=ie("input","checked",{type:"checkbox"},t=>({onchange:()=>t.set(!t.value)})),ae=ie("input","value",{type:"text"},t=>({onkeyup:({key:e,target:n})=>{e==="Enter"&&n instanceof HTMLInputElement&&t.set(n.value)}}));function ie(t,e,n,r){return(s,u)=>re(t)({...n,...u,[e]:s},r(s))}function U(t,e){e.id||=$("smork-input-");let n=[he({for:e.id},[t]),e];return e.type==="checkbox"&&n.reverse(),n}async function se(t,e,n){let r=t.document.createElement("script");return r.type="text/javascript",r.src=n,t.document.head.appendChild(r),new Promise(s=>{r.onload=()=>{s(t[e])}})}var le='.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > div {margin-top: 5px;}';async function H(t,{in3D:e=!1}){let n=x(!1),r,s=x(!0),u=x(!1),p=x(!0),y=x(""),h,g,E,R,W,N,de=await se(window,"ForceGraph",`https://unpkg.com/${e?"3d-":""}force-graph`);window.document.head.appendChild(Y([le]));let I=c({class:"colony",style:{position:"fixed",top:"0px",left:"0px",zIndex:"100"}},[c({style:n.map(o=>({flexDirection:"column",height:"100vh",width:"100vh",backgroundColor:"#000",display:o?"none":"flex"}))},[r=c(),c({id:"sidebar"},[c({class:"settings f-col"},[C({style:{marginBottom:"5px"}},{onclick:()=>n.set(!0)},["Close Colony"]),Z(["Settings"]),c(U("Attract based on time",L(s))),c({style:s.map(o=>({display:o?"block":"none"}))},U("Show time-based links",L(u))),c(U("Attract to root clip",L(p))),c([ae(y,{placeholder:"Filter by name, style or ID"}),ee({class:"smol"},["Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"])]),C({},{onclick:pe},["Redraw"])]),h=c({class:"w-100",style:{display:"none"}},[c({class:"relative"},[g=te({target:"_blank"},[E=ne({style:"opacity: 0.5",class:"w-100"})]),c({class:"absolute topleft",style:"width: 190px; padding: 5px;"},[R=c(),W=c({class:"smol"})])]),N=oe({controls:!0,class:"w-100"})])])]),C({style:n.map(o=>({position:"fixed",top:"0px",left:"0px",padding:"5px",zIndex:"100",display:o?"block":"none"}))},{onclick:()=>n.set(!1)},["Reopen Colony"])]);document.body.appendChild(I);let m=ce();function ce(){let o=new de(r).graphData(t).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(_).linkDirectionalParticles(1).nodeLabel(({id:i,name:T,tags:d,image_url:l})=>`
+(() => {
+  // src/lodashish.ts
+  var lastId = 0;
+  function uniqueId(prefix = "") {
+    return `${prefix}${++lastId}`;
+  }
+  function mapValues(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
+    );
+  }
+  function forEach(obj, callback) {
+    return mapValues(obj, callback);
+  }
+  function mapKeys(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [mapper(key, value), value])
+    );
+  }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+
+  // src/smork/refs.ts
+  var SmorkError = class extends Error {
+    constructor(message) {
+      super(`smork: ${message}`);
+    }
+  };
+  function ref(valueOrGetter, setter) {
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
+  }
+  var ReadonlyRef = class {
+    constructor(_value) {
+      this._value = _value;
+    }
+    watchers = /* @__PURE__ */ new Set();
+    activeWatchers = /* @__PURE__ */ new WeakSet();
+    get() {
+      currentComputedTracker?.(this);
+      return this._value;
+    }
+    _set(value) {
+      const { _value: oldValue } = this;
+      if (value !== this._value) {
+        this._value = value;
+        try {
+          for (const watcher of this.watchers) {
+            if (this.activeWatchers.has(watcher)) {
+              console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
+              return;
+            }
+            this.activeWatchers.add(watcher);
+            watcher(value, oldValue);
+          }
+          ;
+        } finally {
+          this.activeWatchers = /* @__PURE__ */ new WeakSet();
+        }
+        ;
+      }
+    }
+    runAndWatch(watcher) {
+      watcher(this._value, this._value);
+      this.watch(watcher);
+    }
+    /**
+     * @alias runAndWatch
+     */
+    watchImmediate = this.runAndWatch;
+    watch(watcher) {
+      this.watchers.add(watcher);
+    }
+    /**
+     * @alias watch
+     */
+    onChange = this.watch;
+    // just an alias
+    unwatch(watcher) {
+      this.watchers.delete(watcher);
+    }
+    get value() {
+      return this.get();
+    }
+    map(getter) {
+      return new ComputedRef(() => getter(this.value));
+    }
+    compute = this.map;
+    merge(mergee) {
+      return mergee ? computed(() => ({
+        ...this.value,
+        ...unref(mergee)
+      })) : this;
+    }
+  };
+  var Ref = class extends ReadonlyRef {
+    set(value) {
+      this._set(value);
+    }
+    set value(value) {
+      this.set(value);
+    }
+    get value() {
+      return this.get();
+    }
+    bridge(forward, backward) {
+      return new WritableComputedRef(
+        () => forward(this.value),
+        (value) => this.set(backward(value))
+      );
+    }
+  };
+  var currentComputedTracker = void 0;
+  var ComputedRef = class extends Ref {
+    constructor(getter) {
+      super(void 0);
+      this.getter = getter;
+      this.track();
+    }
+    dependencies = /* @__PURE__ */ new Set();
+    track = () => {
+      if (currentComputedTracker) {
+        throw new SmorkError(
+          "Tried to compute a ref while another one is already being computed \u2014 did you nest a computed ref in another ref's getter function?"
+        );
+      }
+      ;
+      this.dependencies.forEach((ref2) => ref2.unwatch(this.track));
+      this.dependencies = /* @__PURE__ */ new Set();
+      try {
+        currentComputedTracker = (ref2) => {
+          ref2.watch(this.track);
+          this.dependencies.add(ref2);
+        };
+        this._set(this.getter());
+      } finally {
+        currentComputedTracker = void 0;
+      }
+    };
+  };
+  var WritableComputedRef = class extends Ref {
+    constructor(getter, setter, allowMismatch = false) {
+      const computedRef = new ComputedRef(getter);
+      super(computedRef.value);
+      this.setter = setter;
+      this.allowMismatch = allowMismatch;
+      computedRef.watch((value) => this._set(value));
+    }
+    set(value) {
+      this.setter(value);
+      if (!this.allowMismatch && this.value !== value) {
+        throw new SmorkError("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.");
+      }
+      ;
+    }
+  };
+  function computed(getter, setter) {
+    return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
+  }
+  function refResolver(arg) {
+    return (ifRef, ifFunction, ifValue) => {
+      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    };
+  }
+  function unref(arg) {
+    return refResolver(arg)(
+      (ref2) => ref2.value,
+      (fn) => fn(),
+      (value) => value
+    );
+  }
+  function runAndWatch(refable, callback) {
+    refResolver(refable)(
+      (ref2) => ref2.watchImmediate(callback),
+      (getter) => ref(getter).watchImmediate(callback),
+      callback
+    );
+  }
+
+  // src/utils.ts
+  function isoStringToTimestamp(isoString) {
+    return isoString ? new Date(isoString).getTime() : 0;
+  }
+  function sortByDate(items, dateAccessor = (item) => item.created_at) {
+    return items.sort((a2, b) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b)));
+  }
+  function renameKeys(record, keyMap) {
+    return mapKeys(record, (key) => keyMap[key] ?? key);
+  }
+
+  // src/smork/rendering.ts
+  var SUPPORTED_TAGS = [
+    "html",
+    "head",
+    "style",
+    "script",
+    "body",
+    "div",
+    "h3",
+    "p",
+    "a",
+    "img",
+    "audio",
+    "input",
+    "label",
+    "button"
+  ];
+  var tags = createTags(SUPPORTED_TAGS);
+  var {
+    html,
+    head,
+    style,
+    script,
+    body,
+    div,
+    h3,
+    p,
+    a,
+    img,
+    audio,
+    input,
+    label,
+    button
+  } = tags;
+  function createTags(tagNames) {
+    return tagNames.reduce((acc, tagName) => {
+      return Object.assign(acc, {
+        [tagName]: createTag(tagName)
+      });
+    }, {});
+  }
+  function createTag(tagName) {
+    function elementFactory(propsOrChildren, eventsOrChildren, childrenOrNone) {
+      const [props, events, children] = Array.isArray(propsOrChildren) ? [void 0, void 0, propsOrChildren] : Array.isArray(eventsOrChildren) ? [propsOrChildren, void 0, eventsOrChildren] : [propsOrChildren, eventsOrChildren, childrenOrNone];
+      return verboseElementFactory(props, events, children);
+    }
+    return elementFactory;
+    function verboseElementFactory(props, events, children) {
+      const element = document.createElement(tagName);
+      events && Object.assign(element, events);
+      props && forEach(
+        renameKeys(props, {
+          class: "className",
+          for: "htmlFor"
+        }),
+        (value, key) => {
+          runAndWatch(value, (value2) => {
+            key !== "style" ? element[key] = value2 : forEach(
+              value2,
+              (value3, key2) => element.style[key2] = value3
+            );
+          });
+        }
+      );
+      if (children) {
+        children.forEach((child) => {
+          if (typeof child === "string") {
+            element.appendChild(document.createTextNode(child));
+          } else {
+            element.appendChild(child);
+          }
+          ;
+        });
+      }
+      ;
+      return element;
+    }
+  }
+  var checkbox = modelElement(
+    "input",
+    "checked",
+    { type: "checkbox" },
+    (model) => ({
+      onchange: () => model.set(!model.value)
+    })
+  );
+  var textInput = modelElement(
+    "input",
+    "value",
+    { type: "text" },
+    (model) => ({
+      onkeyup: ({ key, target }) => {
+        key === "Enter" && target instanceof HTMLInputElement && model.set(target.value);
+      }
+    })
+  );
+  function modelElement(tag, modelKey, initProps, eventFactory) {
+    return (model, props) => {
+      return createTag(tag)({
+        ...initProps,
+        ...props,
+        [modelKey]: model
+      }, eventFactory(model));
+    };
+  }
+  function labeled(labelText, element) {
+    element.id ||= uniqueId("smork-input-");
+    const output = [
+      label({ for: element.id }, [labelText]),
+      element
+    ];
+    if (element.type === "checkbox") {
+      output.reverse();
+    }
+    ;
+    return output;
+  }
+  async function importScript(win, windowKey, url) {
+    const script2 = win.document.createElement("script");
+    script2.type = "text/javascript";
+    script2.src = url;
+    win.document.head.appendChild(script2);
+    return new Promise((resolve) => {
+      script2.onload = () => {
+        resolve(win[windowKey]);
+      };
+    });
+  }
+
+  // src/templates/colony/css.js
+  var colonyCss = '.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > div {margin-top: 5px;}';
+
+  // src/templates/colony/colony.ts
+  async function render(rawData, {
+    in3D: in3D2 = false
+  }) {
+    const hideUI = ref(false);
+    let graphContainer;
+    const useNextLinks = ref(true);
+    const showNextLinks = ref(false);
+    const useDescendantLinks = ref(true);
+    const filterString = ref("");
+    let audioContainer;
+    let audioLink;
+    let audioImage;
+    let audioName;
+    let audioTags;
+    let audioElement;
+    const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D2 ? "3d-" : ""}force-graph`);
+    window.document.head.appendChild(style([colonyCss]));
+    const container = div(
+      {
+        class: "colony",
+        style: {
+          position: "fixed",
+          top: "0px",
+          left: "0px",
+          zIndex: "100"
+        }
+      },
+      [
+        div({
+          style: hideUI.map((hide) => ({
+            flexDirection: "column",
+            height: "100vh",
+            width: "100vh",
+            backgroundColor: "#000",
+            display: hide ? "none" : "flex"
+          }))
+        }, [
+          graphContainer = div(),
+          div({
+            id: "sidebar"
+          }, [
+            div({
+              class: "settings f-col"
+            }, [
+              button(
+                {
+                  style: { marginBottom: "5px" }
+                },
+                {
+                  onclick: () => hideUI.set(true)
+                },
+                [
+                  "Close Colony"
+                ]
+              ),
+              h3(["Settings"]),
+              div(
+                labeled(
+                  "Attract based on time",
+                  checkbox(useNextLinks)
+                )
+              ),
+              div(
+                {
+                  // style: displayNoneUnless(useNextLinks),
+                  style: useNextLinks.map((useLinks) => ({
+                    display: useLinks ? "block" : "none"
+                  }))
+                },
+                labeled(
+                  "Show time-based links",
+                  checkbox(showNextLinks)
+                )
+              ),
+              div(
+                labeled(
+                  "Attract to root clip",
+                  checkbox(useDescendantLinks)
+                )
+              ),
+              div([
+                textInput(filterString, { placeholder: "Filter by name, style or ID" }),
+                p({ class: "smol" }, [
+                  "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+                ])
+              ]),
+              button({}, { onclick: redrawGraph }, [
+                "Redraw"
+              ])
+            ]),
+            audioContainer = div({ class: "w-100", style: { display: "none" } }, [
+              div({ class: "relative" }, [
+                audioLink = a({ target: "_blank" }, [
+                  audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+                ]),
+                div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
+                  audioName = div(),
+                  audioTags = div({ class: "smol" })
+                ])
+              ]),
+              audioElement = audio({ controls: true, class: "w-100" })
+            ])
+          ])
+        ]),
+        button({
+          style: hideUI.map((hide) => ({
+            position: "fixed",
+            top: "0px",
+            left: "0px",
+            padding: "5px",
+            zIndex: "100",
+            display: hide ? "block" : "none"
+          }))
+        }, {
+          onclick: () => hideUI.set(false)
+        }, [
+          "Reopen Colony"
+        ])
+      ]
+    );
+    document.body.appendChild(container);
+    let graph = createGraph();
+    function createGraph() {
+      const graph2 = new GraphRenderer(
+        graphContainer
+      ).graphData(rawData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags: tags2, image_url }) => `
         <div class="relative" style="width: 200px;">
-          <img src="${l}" style="opacity: 0.5; width: 200px">
+          <img src="${image_url}" style="opacity: 0.5; width: 200px">
           <div class="absolute topleft" style="width: 190px; padding: 5px;">
-            <div>${T||"[Untitled]"}</div>
-            <div class="smol">${d||"(no style)"}</div>
+            <div>${name || "[Untitled]"}</div>
+            <div class="smol">${tags2 || "(no style)"}</div>
           </div>
         </div>
         <div class="smol">
           Click to play, right-click to open in Suno
         </div>
-      `).onNodeClick(({id:i,name:T,tags:d,image_url:l,audio_url:a})=>{h.style.display="block",g.href=`https://suno.com/song/${i}`,E.src=l,R.innerText=T||"[Untitled]",W.innerText=d||"(no style)",N.src=a,N.play()}).onNodeRightClick(({id:i})=>{window.open(`https://suno.com/song/${i}`)});return e?o.linkOpacity(i=>i.isMain?1:.2):o.linkLineDash(i=>i.isMain?null:[1,2]),o}async function pe(){new FinalizationRegistry(()=>console.log("Previous graph destroyed, container removed from memory")).register(m,""),m._destructor(),I.remove(),await H(t,{in3D:e})}let v=m.graphData();function _(o){return!{descendant:!0,next:!u.value}[o.kind]}function j(o,i){let{nodes:T,links:d}=m.graphData();if(i?d.push(...v.links.filter(l=>l.kind===o)):d=d.filter(l=>l.kind!==o),o==="next"&&(d=d.filter(l=>l.kind!=="next"),i)){Q(T);for(let l=1;l<T.length;l++){let a=T[l-1],f=T[l];d.push({source:a.id,target:f.id,kind:"next",color:"#006",isMain:!1})}}m.graphData({nodes:T,links:d})}s.watchImmediate(o=>j("next",o)),p.watchImmediate(o=>j("descendant",o)),u.watchImmediate(()=>{m.linkVisibility(_)});function k(o){return typeof o=="string"?o:o.id}function D(o,i){return k(o)===k(i)}function F(o){return i=>D(o,i)}y.watchImmediate(o=>{o=o?.toLowerCase();let i=o?v.nodes.filter(a=>`${a.id} ${a.name} ${a.tags} ${a.created_at}`.toLowerCase().includes(o)):v.nodes,T=m.graphData(),d=[...i.map(a=>T.nodes.find(F(a))??a),...o?v.nodes.filter(a=>i.some(f=>f.rootId===a.rootId&&f.id!==a.id)):[]].map(a=>T.nodes.find(f=>f.id===a.id)??a),l=v.links.filter(a=>d.some(F(a.source))&&d.some(F(a.target))).map(({source:a,target:f,...ue})=>({source:k(a),target:k(f),...ue})).map(a=>T.links.find(f=>D(a.source,f.source)&&D(a.target,f.target))??a);m.graphData({nodes:d,links:l}),o?m.nodeVal(a=>i.some(f=>f.id===a.id)?3:a.val):m.nodeVal("val")}),setTimeout(()=>{s.set(!1),p.set(!1)},2e3);return I}var{graphData:ge,in3D:ve}=window.colonyData;H(ge,{in3D:ve});})();
+      `).onNodeClick(({ id: id2, name, tags: tags2, image_url, audio_url }) => {
+        audioContainer.style.display = "block";
+        audioLink.href = `https://suno.com/song/${id2}`;
+        audioImage.src = image_url;
+        audioName.innerText = name || "[Untitled]";
+        audioTags.innerText = tags2 || "(no style)";
+        audioElement.src = audio_url;
+        audioElement.play();
+      }).onNodeRightClick(({ id: id2 }) => {
+        window.open(`https://suno.com/song/${id2}`);
+      });
+      if (in3D2) {
+        graph2.linkOpacity((l) => l.isMain ? 1 : 0.2);
+      } else {
+        graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
+      }
+      ;
+      return graph2;
+    }
+    ;
+    async function redrawGraph() {
+      new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
+      graph._destructor();
+      container.remove();
+      await render(rawData, { in3D: in3D2 });
+    }
+    ;
+    const data = graph.graphData();
+    function visibilityChecker(link) {
+      return !{
+        descendant: true,
+        next: !showNextLinks.value
+      }[link.kind];
+    }
+    ;
+    function applyLinkFilter(kind, useLinks) {
+      let { nodes, links } = graph.graphData();
+      if (!useLinks) {
+        links = links.filter((l) => l.kind !== kind);
+      } else {
+        links.push(...data.links.filter((l) => l.kind === kind));
+      }
+      if (kind === "next") {
+        links = links.filter((l) => l.kind !== "next");
+        if (useLinks) {
+          sortByDate(nodes);
+          for (let i = 1; i < nodes.length; i++) {
+            const source = nodes[i - 1];
+            const target = nodes[i];
+            links.push({
+              source: source.id,
+              target: target.id,
+              kind: "next",
+              color: "#006",
+              isMain: false
+            });
+          }
+          ;
+        }
+      }
+      ;
+      graph.graphData({ nodes, links });
+    }
+    ;
+    useNextLinks.watchImmediate((useLinks) => applyLinkFilter("next", useLinks));
+    useDescendantLinks.watchImmediate((useLinks) => applyLinkFilter("descendant", useLinks));
+    showNextLinks.watchImmediate(() => {
+      graph.linkVisibility(visibilityChecker);
+    });
+    function id(node) {
+      return typeof node === "string" ? node : node.id;
+    }
+    ;
+    function sameId(node1, node2) {
+      return id(node1) === id(node2);
+    }
+    ;
+    function sameIdAs(original) {
+      return (candidate) => sameId(original, candidate);
+    }
+    ;
+    filterString.watchImmediate((filter) => {
+      filter = filter?.toLowerCase();
+      const matchingNodes = filter ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.nodes;
+      const existing = graph.graphData();
+      const nodes = [
+        ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+        ...filter ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+      ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
+      const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+      graph.graphData({ nodes, links });
+      if (filter)
+        graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
+      else
+        graph.nodeVal("val");
+    });
+    setTimeout(() => {
+      useNextLinks.set(false);
+      useDescendantLinks.set(false);
+    }, 2e3);
+    return container;
+  }
+
+  // src/templates/colony/standalone.ts
+  var { graphData, in3D } = window.colonyData;
+  render(graphData, { in3D });
+})();
