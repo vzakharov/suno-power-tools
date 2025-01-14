@@ -6,7 +6,7 @@ declare global {
     colonyData: {
       graphData: ColonyGraphData,
       in3D: boolean,
-    }
+    },
   }
 };
 

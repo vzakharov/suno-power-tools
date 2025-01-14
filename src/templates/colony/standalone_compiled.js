@@ -1,4 +1,6 @@
-export const render_compiled = () => 
+export function render_compiled() {
+window.render_compiled = arguments.callee;
+
 (() => {
   // src/lodashish.ts
   var lastId = 0;
@@ -179,6 +181,9 @@ export const render_compiled = () =>
   }
 
   // src/utils.ts
+  function $throw(message) {
+    throw new Error(message);
+  }
   function isoStringToTimestamp(isoString) {
     return isoString ? new Date(isoString).getTime() : 0;
   }
@@ -319,7 +324,7 @@ export const render_compiled = () =>
   }
 
   // src/templates/colony/css.js
-  var colonyCss = '.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > div {margin-top: 5px;}';
+  var colonyCss = '.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > * {margin-top: 5px;}';
 
   // src/templates/colony/colony.ts
   async function render(rawData, {
@@ -410,6 +415,18 @@ export const render_compiled = () =>
               ]),
               button({}, { onclick: redrawGraph }, [
                 "Redraw"
+              ]),
+              button({}, { onclick() {
+                const html2 = `<script>window.colonyData=${JSON.stringify({ graphData: rawData, in3D: in3D2 })}<\/script><script>(${"render_compiled" in window && typeof window.render_compiled === "function" ? window.render_compiled.toString() : $throw("render_compiled not found")})()<\/script>`;
+                const blob = new Blob([html2], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                const a2 = document.createElement("a");
+                a2.href = url;
+                a2.download = "suno_colony.html";
+                a2.click();
+                URL.revokeObjectURL(url);
+              } }, [
+                "Download"
               ])
             ]),
             audioContainer = div({ class: "w-100", style: { display: "none" } }, [
@@ -565,3 +582,5 @@ export const render_compiled = () =>
   var { graphData, in3D } = window.colonyData;
   render(graphData, { in3D });
 })();
+}
+

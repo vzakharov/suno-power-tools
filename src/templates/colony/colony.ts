@@ -2,8 +2,9 @@ import { type default as ForceGraph } from 'force-graph';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
 import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, StyleOptions, textInput } from '../../smork/rendering';
-import { sortByDate } from '../../utils';
+import { $throw, sortByDate } from '../../utils';
 import { colonyCss } from './css';
+import { render_compiled } from './standalone_compiled';
 
 export async function render(rawData: ColonyGraphData, {
   in3D = false,
@@ -90,6 +91,24 @@ export async function render(rawData: ColonyGraphData, {
             ]),
             button({}, { onclick: redrawGraph }, [
               'Redraw'
+            ]),
+            button({}, { onclick() {
+              const html = `<script>window.colonyData=${
+                JSON.stringify({ graphData: rawData, in3D })
+              }</script><script>(${
+                'render_compiled' in window && typeof window.render_compiled === 'function'
+                  ? window.render_compiled.toString()
+                  : $throw('render_compiled not found')
+              })()</script>`
+              const blob = new Blob([html], { type: 'text/html' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'suno_colony.html';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}, [
+              'Download'
             ])
           ]),
           audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [

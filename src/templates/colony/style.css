@@ -69,6 +69,6 @@
   justify-content: space-between;
 }
 
-.colony .settings > div {
+.colony .settings > * {
   margin-top: 5px;
 }
