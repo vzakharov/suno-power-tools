@@ -6,14 +6,12 @@ import { getSuno } from "../manager";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
-import { renderTemplate, Template } from "../templating";
-import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
-import { render_compiled } from '../templates/colony/standalone_compiled.js';
+import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
 
 declare global {
   interface Window {
-    templates: {
-      colony: Template<'data' | 'use3DGraph' | 'GraphRenderer' | 'graph_url_slug'>,
+    vovas: {
+      main: () => void,
     },
   }
 }
@@ -69,7 +67,7 @@ const DEFAULT_STATE = {
 
 type ColonyState = typeof DEFAULT_STATE;
 
-class Colony {
+export class Colony {
 
   constructor(
     public state: ColonyState = DEFAULT_STATE,
@@ -313,8 +311,9 @@ class Colony {
     );
   };
 
+  private _graphData = Undefined<ColonyGraphData>();
 
-  get graphData() {
+  getGraphData() {
 
     const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
       id,
@@ -350,29 +349,27 @@ class Colony {
     return result;
   };
 
+  get graphData() {
+    return this._graphData ??= this.getGraphData();
+  };
+
   getHtml(mode?: '3d' | '3D') {
     console.log("Rendering your colony, give it a few seconds...");
 
-    return `<script>window.colonyData=${JSON.stringify({
-      graphData: this.graphData,
-      in3D: modeToIn3D(mode)
-    })}</script><script>(${
-      render_compiled.toString()
-    })()</script>`
+    return `<script>(vovas = {${
+      window.vovas.main.toString()
+    }}).main();vovas.colony.render(...${
+      JSON.stringify([ mode, this.graphData ])
+    })</script>`;
   };
 
-  private renderedElement: HTMLElement | undefined = undefined;
-
-  async render(...[mode]: Parameters<typeof this.getHtml>) {
+  async render(
+    mode?: '3d' | '3D',
+    data?: ColonyGraphData,
+  ) {
     console.log("Rendering your colony, give it a few seconds...");
-    //! this.renderedElement = await render(this.graphData, { in3D: modeToIn3D(mode) });
-    mutate(window, { colonyData: { graphData: this.graphData, in3D: modeToIn3D(mode) } });
-    render_compiled();
-    //! (This is less “pure”, but it allows us to save on not re-importing the same code for standalone and in-page rendering)
-  };
-
-  clear() {
-    this.renderedElement?.remove();
+    this._graphData ??= data;
+    await render(this, this.graphData, { mode });
   };
 
   renderToFile(...params: Parameters<typeof this.getHtml>) {
@@ -388,7 +385,7 @@ class Colony {
 
 };
 
-export type ColonyGraphData = typeof Colony.prototype.graphData;
+export type ColonyGraphData = ReturnType<typeof Colony.prototype.getGraphData>;
 export type ColonyNode = ColonyGraphData['nodes'][number];
 export type ColonyLink = ColonyGraphData['links'][number];
 
@@ -404,10 +401,6 @@ colony.stateLoaded.promise.then(() => {
     return colony.render();
   }
 });
-
-function modeToIn3D(mode: string | undefined): boolean | undefined {
-  return mode?.toLowerCase() === '3d';
-}
 
 function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);
@@ -426,4 +419,4 @@ function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window, { vovas: { Colony, colony }});
+mutate(window.vovas, { Colony, colony });

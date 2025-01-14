@@ -1,3 +1,4 @@
+(vovas = { main() {
 (() => {
   // src/utils.ts
   function mutate(obj, partial) {
@@ -32,3 +33,4 @@
   }
   mutate(window, { getHistory });
 })();
+}}).main();

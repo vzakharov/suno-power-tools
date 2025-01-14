@@ -1,3 +1,4 @@
+(vovas = { main() {
 (() => {
   // src/lodashish.ts
   function isFunction(value) {
@@ -167,3 +168,4 @@
   // src/scripts/dev.ts
   mutate(window, { ref, computed, useNot, BaseRef: ReadonlyRef, Ref, ComputedRef, WritableComputedRef });
 })();
+}}).main();

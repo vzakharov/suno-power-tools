@@ -1,15 +1,18 @@
 import { type default as ForceGraph } from 'force-graph';
-import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
+import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
 import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, StyleOptions, textInput } from '../../smork/rendering';
-import { $throw, sortByDate } from '../../utils';
+import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
-import { render_compiled } from './standalone_compiled';
 
-export async function render(rawData: ColonyGraphData, {
-  in3D = false,
-}) {
+export async function render(
+  ctx: Colony,
+  rawData: ColonyGraphData, {
+    mode = Undefined<'3D' | '3d'>(),
+  }
+) {
 
+  const in3D = mode?.toLowerCase() === '3d';
   const hideUI = ref(false);
 
   let graphContainer: HTMLDivElement;
@@ -92,22 +95,7 @@ export async function render(rawData: ColonyGraphData, {
             button({}, { onclick: redrawGraph }, [
               'Redraw'
             ]),
-            button({}, { onclick() {
-              const html = `<script>window.colonyData=${
-                JSON.stringify({ graphData: rawData, in3D })
-              }</script><script>(${
-                'render_compiled' in window && typeof window.render_compiled === 'function'
-                  ? window.render_compiled.toString()
-                  : $throw('render_compiled not found')
-              })()</script>`
-              const blob = new Blob([html], { type: 'text/html' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'suno_colony.html';
-              a.click();
-              URL.revokeObjectURL(url);
-            }}, [
+            button({}, { onclick: () => ctx.renderToFile(mode) }, [
               'Download'
             ])
           ]),
@@ -145,13 +133,13 @@ export async function render(rawData: ColonyGraphData, {
     target: string | ColonyNode;
   }; //! because ForceGraph mutates links by including source and target nodes instead of their IDs
 
+  const graphData = jsonClone(rawData); //! again, because ForceGraph mutates the data
   let graph = createGraph();
-  
   function createGraph(): ForceGraph<ColonyNode, ProcessedLink> {
     const graph = new GraphRenderer<ColonyNode, ProcessedLink>(
       graphContainer
     )
-      .graphData(rawData)
+      .graphData(graphData)
       .backgroundColor('#001')
       .linkAutoColorBy('kind')
       .nodeAutoColorBy('rootId')
@@ -196,7 +184,7 @@ export async function render(rawData: ColonyGraphData, {
     new FinalizationRegistry(() => console.log('Previous graph destroyed, container removed from memory')).register(graph, '');
     graph._destructor();
     container.remove();
-    await render(rawData, { in3D });
+    await render.call(this, rawData, { in3D });
   };
 
   const data = graph.graphData();
@@ -285,6 +273,4 @@ export async function render(rawData: ColonyGraphData, {
     useDescendantLinks.set(false);
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
-
-  return container;
 };
