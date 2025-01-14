@@ -1,5 +1,35 @@
 window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n    }\n\n    #sidebar {\n      position: fixed;\n      padding: 10px;\n      top: 0;\n      left: 0;\n      bottom: 0;\n      width: 200px;\n      background-color: #333;\n      color: #eee;\n      display: flex;\n      flex-direction: column;\n      justify-content: space-between;\n    }\n\n    .f-row {\n      display: flex;\n      flex-direction: row;\n    }\n\n    .f-col {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .smol {\n      font-size: 0.8em;\n      color: #aaa;\n    }\n\n    .relative {\n      position: relative;\n    }\n\n    .absolute {\n      position: absolute;\n    }\n\n    .topleft {\n      top: 0;\n      left: 0;\n    }\n\n    .p-1 {\n      padding: 1rem;\n    };\n\n    .p-2 {\n      padding: 2rem;\n    }\n\n    .w-100 {\n      width: 100%;\n    }\n    \n    .h-100 {\n      height: 100%;\n    }\n\n    .j-between {\n      justify-content: space-between;\n    }\n\n    .settings > div {\n      margin-top: 5px;\n    }\n\n  </style>\n  <script src=\"https://unpkg.com/___graph_url_slug___\"></script>\n</head>\n\n<body>\n  <div id=\"graph\">\n  </div>\n  <div id=\"sidebar\">\n    <div class=\"settings f-col\">\n      <h3>Settings</h3>\n      <!-- Use next links -->\n      <div>\n        <input type=\"checkbox\" id=\"useNextLinks\" data-type=\"linkToggle\" data-kind=\"next\" checked>\n        <label for=\"useNextLinks\">Attract based on time</label>\n      </div>\n      <!-- Show next links -->\n      <div id=\"showNextLinksContainer\">\n        <input type=\"checkbox\" id=\"showNextLinks\" data-type=\"linkToggle\" data-kind=\"descendant\">\n        <label for=\"showNextLinks\">Show time-based links</label>\n      </div>\n      <!-- Use descendant links -->\n      <div>\n        <input type=\"checkbox\" id=\"useDescendantLinks\" data-type=\"linkToggle\" data-kind=\"descendant\" checked>\n        <label for=\"useDescendantLinks\">Attract to root clip</label>\n      </div>\n      <!-- Filter -->\n      <div>\n        <input type=\"text\" id=\"filter\" placeholder=\"Filter by name, style or ID\">\n        <p class=\"smol\">\n          Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)\n        </p>\n      </div>\n    </div>\n    <div id=\"audioContainer\" class=\"w-100\" style=\"display: none;\">\n      <div class=\"relative\">\n        <a id=\"audioLink\" target=\"_blank\">\n          <img id=\"audioImage\" style=\"opacity: 0.5\" class=\"w-100\">\n        </a>\n        <div class=\"absolute topleft\" style=\"width: 190px; padding: 5px;\">\n          <div id=\"audioName\"></div>\n          <div class=\"smol\" id=\"audioTags\"></div>\n        </div>\n      </div>\n      <audio controls id=\"audio\" class=\"w-100\"></audio>\n    </div>\n  </div>    \n  <div id=\"data\" style=\"display: none;\">\n    ___data___\n  </div>\n  <script>\n\n    const use3DGraph = ___use3DGraph___;\n    const data = JSON.parse(document.getElementById('data').innerText);\n    let graph = renderGraph(data);\n    Object.assign(window, { data, graph });\n\n    function visibilityChecker(link) {\n      return !{\n        descendant: true,\n        next: !document.getElementById('showNextLinks').checked\n      }[link.kind];\n    };\n\n    function renderGraph(data) {\n      const graph = new ___GraphRenderer___()\n        (document.getElementById('graph'))\n        .graphData(data)\n        .backgroundColor('#001')\n        .linkAutoColorBy('kind')\n        .nodeAutoColorBy('rootId')\n        .linkLabel('kind')\n        .linkVisibility(visibilityChecker)\n        .linkDirectionalParticles(1)\n        .nodeLabel(({ id, name, tags, image_url }) => `\n          <div class=\"relative\" style=\"width: 200px;\">\n            <img src=\"${image_url}\" style=\"opacity: 0.5; width: 200px\">\n            <div class=\"absolute topleft\" style=\"width: 190px; padding: 5px;\">\n              <div>${name || '[Untitled]'}</div>\n              <div class=\"smol\">${tags || '(no style)'}</div>\n            </div>\n          </div>\n          <div class=\"smol\">\n            Click to play, right-click to open in Suno\n          </div>\n        `)\n        .onNodeClick(({ id, name, tags, image_url, audio_url }) => {\n          document.getElementById('audioContainer').style.display = 'block';\n          document.getElementById('audioLink').href = `https://suno.com/song/${id}`;\n          document.getElementById('audioImage').src = image_url;\n          document.getElementById('audioName').innerText = name || '[Untitled]';\n          document.getElementById('audioTags').innerText = tags || '(no style)';\n          const audio = document.getElementById('audio');\n          audio.src = audio_url;\n          audio.play();\n        })\n        .onNodeRightClick(({ id }) => {\n          window.open(`https://suno.com/song/${id}`);\n        });\n      if ( use3DGraph ) {\n        graph.linkOpacity(l => l.isMain ? 1 : 0.2)\n      } else {\n        graph.linkLineDash(l => l.isMain ? undefined : [1, 2])\n      }\n      return graph;\n    };\n\n    document.querySelectorAll('[data-type=\"linkToggle\"]').forEach(checkbox => {\n      checkbox.addEventListener('change', () => {\n        const kind = checkbox.getAttribute('data-kind');\n        applyLinkFilter(checkbox);\n        if ( kind === 'next' ) {\n          document.getElementById('showNextLinksContainer').style.display = useLinks ? 'block' : 'none';\n        };\n      });\n    });\n\n    function applyLinkFilter(checkbox) {\n      const kind = checkbox.getAttribute('data-kind');\n      const useLinks = checkbox.checked;\n      let { nodes, links } = graph.graphData();\n      if ( !useLinks ) {\n        links = links.filter(l => l.kind !== kind);\n      } else {\n        links.push(...data.links.filter(l => l.kind === kind));\n      }\n      graph.graphData({ nodes, links });\n    };\n\n    document.getElementById('showNextLinks').addEventListener('change', () => {\n      graph.linkVisibility(visibilityChecker);\n    });\n    \n    // Filter (on Enter key)\n    document.getElementById('filter').addEventListener('keyup', e => {\n      if (e.keyCode === 13) {\n        const filter = e.target.value.toLowerCase();\n        const matchingNodes = filter \n          ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))\n          : data.nodes;\n        // const sameRootNodes = data.nodes.filter(node => matchingNodes.some(n => n.id !== node.id && n.rootId === node.rootId));\n        // const relevantNodes = [...matchingNodes, ...sameRootNodes];\n        const existing = graph.graphData();\n        const nodes = [\n          ...matchingNodes.map(node => existing.nodes.find(n => n.id === node.id) ?? node),\n          ...filter \n            ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))\n            : []\n        ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);\n        const links = data.links\n          .filter(link => nodes.some(n => n.id === link.source.id) && nodes.some(n => n.id === link.target.id))\n          .map(({ source: { id: source }, target: { id: target }, ...rest }) => ({ source, target, ...rest }))\n          .map(link => existing.links.find(l => l.source.id === link.source.id && l.target.id === link.target.id) ?? link);\n        graph.graphData({ nodes, links });\n        if ( filter )\n          graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);\n        else\n          graph.nodeVal('val');\n        document.querySelectorAll('[data-type=\"linkToggle\"]').forEach(applyLinkFilter);\n      };\n    });\n\n  </script>\n</body>"};
 (() => {
+  // src/lodashish.ts
+  function find(arr, filter) {
+    return arr.find(createPredicate(filter));
+  }
+  function createPredicate(filter) {
+    return function(item) {
+      return Object.entries(filter).every(([key, value]) => item[key] === value);
+    };
+  }
+  var lastId = 0;
+  function uniqueId(prefix = "") {
+    return `${prefix}${++lastId}`;
+  }
+  function mapValues(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
+    );
+  }
+  function forEach(obj, callback) {
+    return mapValues(obj, callback);
+  }
+  function mapKeys(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [mapper(key, value), value])
+    );
+  }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+
   // src/utils.ts
   function EmptyArray() {
     return [];
@@ -51,6 +81,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   }
   function sortByDate(items, dateAccessor = (item) => item.created_at) {
     return items.sort((a2, b) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b)));
+  }
+  function renameKeys(record, keyMap) {
+    return mapKeys(record, (key) => keyMap[key] ?? key);
   }
 
   // src/cropping.ts
@@ -109,31 +142,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     canvas.remove();
     return avgDiff < 32;
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
-  }
-
-  // src/lodashish.ts
-  function find(arr, filter) {
-    return arr.find(createPredicate(filter));
-  }
-  function createPredicate(filter) {
-    return function(item) {
-      return Object.entries(filter).every(([key, value]) => item[key] === value);
-    };
-  }
-  var lastId = 0;
-  function uniqueId(prefix = "") {
-    return `${prefix}${++lastId}`;
-  }
-  function mapValues(obj, mapper) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
-    );
-  }
-  function forEach(obj, callback) {
-    return mapValues(obj, callback);
-  }
-  function isFunction(value) {
-    return typeof value === "function";
   }
 
   // src/manager.ts
@@ -337,9 +345,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
   function computed(getter, setter) {
     return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
   }
-  function unrefs(refs) {
-    return mapValues(refs, unref);
-  }
   function refResolver(arg) {
     return (ifRef, ifFunction, ifValue) => {
       return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
@@ -350,6 +355,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       (ref2) => ref2.value,
       (fn) => fn(),
       (value) => value
+    );
+  }
+  function runAndWatch(refable, callback) {
+    refResolver(refable)(
+      (ref2) => ref2.watchImmediate(callback),
+      (getter) => ref(getter).watchImmediate(callback),
+      callback
     );
   }
 
@@ -399,25 +411,24 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       const [props, events, children] = Array.isArray(propsOrChildren) ? [void 0, void 0, propsOrChildren] : Array.isArray(eventsOrChildren) ? [propsOrChildren, void 0, eventsOrChildren] : [propsOrChildren, eventsOrChildren, childrenOrNone];
       return verboseElementFactory(props, events, children);
     }
+    return elementFactory;
     function verboseElementFactory(props, events, children) {
       const element = document.createElement(tagName);
-      if (props) {
-        let assignProps = function(props2) {
-          const { style: style2, class: className, for: htmlFor, ...otherProps } = unrefs(props2);
-          Object.assign(element, {
-            ...otherProps,
-            ...events
+      events && Object.assign(element, events);
+      props && forEach(
+        renameKeys(props, {
+          class: "className",
+          for: "htmlFor"
+        }),
+        (value, key) => {
+          runAndWatch(value, (value2) => {
+            key !== "style" ? element[key] = value2 : forEach(
+              value2,
+              (value3, key2) => element.style[key2] = value3
+            );
           });
-          className && Object.assign(element, { className });
-          element instanceof HTMLLabelElement && htmlFor && Object.assign(element, { htmlFor });
-          forEach(style2 ?? {}, (value, key) => {
-            element.style[key] = value;
-          });
-        };
-        assignProps(props);
-        ;
-      }
-      ;
+        }
+      );
       if (children) {
         children.forEach((child) => {
           if (typeof child === "string") {
@@ -431,7 +442,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       ;
       return element;
     }
-    return elementFactory;
   }
   var checkbox = modelElement(
     "input",

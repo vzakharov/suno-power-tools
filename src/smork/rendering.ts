@@ -1,5 +1,6 @@
 import { forEach, uniqueId } from "../lodashish";
-import { Ref, Refable, Unref, unrefs } from "./refs";
+import { mutate, renameKeys } from "../utils";
+import { assignAndWatch, Ref, Refable, Refables, runAndWatch, Unref } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -29,35 +30,39 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
   });
 };
 
-export type Props<T extends SupportedElement> = {
-  [K in Exclude<keyof T, 'children' | 'className' | 'style' | 'htmlFor' | keyof Events<T>>]?: Refable<T[K]>
-} & {
-  class?: Refable<T['className'] | undefined>,
-  for?: T extends HTMLLabelElement ? Refable<string | undefined> : never,
-  style?: {
-    [K in keyof T['style']]?: Refable<T['style'][K] | undefined>
-  }
-};
 
-export type Events<T extends SupportedElement> = {
-  [K in keyof T as 
-    T[K] extends ((this: GlobalEventHandlers, ev: any) => any) | null
+type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
+
+export type StyleDefinition = Omit<CSSStyleDeclaration, 'length' | 'parentRule'>
+
+export type Props<TElement extends SupportedElement> = {
+  [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' | keyof Events<TElement>>]: TElement[K]
+} & {
+  style: StyleDefinition,
+  class: string,
+  for: TElement extends HTMLLabelElement ? TElement['htmlFor'] : never,
+};
+    
+export type Events<TElement extends SupportedElement> = {
+  [K in keyof TElement as 
+    TElement[K] extends EventHandler
       ? K
       : never
-  ]?: T[K]
+  ]?: TElement[K]
 };
 
 type HTMLNode = SupportedElement | string;
 
-function createTag<T extends SupportedTag>(tagName: T) {
+function createTag<TTag extends SupportedTag>(tagName: TTag) {
 
-  type TElement = TagElementMap[T];
-  
-  function elementFactory(props: Props<TElement>, events?: Events<TElement>, children?: HTMLNode[]): TElement;
-  function elementFactory(props: Props<TElement>, children?: HTMLNode[]): TElement;
+  type TElement = TagElementMap[TTag];
+  type TProps = Partial<Refables<Props<TElement>>>;
+
+  function elementFactory(props: TProps, events?: Events<TElement>, children?: HTMLNode[]): TElement;
+  function elementFactory(props: TProps, children?: HTMLNode[]): TElement;
   function elementFactory(children?: HTMLNode[]): TElement;
   function elementFactory(
-    propsOrChildren?: Props<TElement> | HTMLNode[],
+    propsOrChildren?: TProps | HTMLNode[],
     eventsOrChildren?: Events<TElement> | HTMLNode[],
     childrenOrNone?: HTMLNode[]
   ) {
@@ -70,33 +75,30 @@ function createTag<T extends SupportedTag>(tagName: T) {
     return verboseElementFactory(props, events, children);
   }
 
+  return elementFactory;
 
   function verboseElementFactory(
-    props: Props<TElement> | undefined,
+    props: TProps | undefined,
     events: Events<TElement> | undefined,
     children: HTMLNode[] | undefined
   ) {
-    const element = document.createElement(tagName);
-    if ( props ) {
-
-      assignProps(props);
-      
-      function assignProps(props: Props<TElement>) {
-        const { style, class: className, for: htmlFor, ...otherProps } = unrefs(props);
-        Object.assign(element, {
-          ...otherProps,
-          ...events
-        });
-        className 
-          && Object.assign(element, { className });
-        element instanceof HTMLLabelElement && htmlFor 
-          && Object.assign(element, { htmlFor });
-        forEach(style ?? {}, (value, key) => {
-          element.style[key as any] = value as any;
-        });
-      };
-
-    };
+    const element = document.createElement(tagName) as TElement;
+    events && Object.assign(element, events);
+    props && forEach(
+        renameKeys(props, {
+          class: 'className',
+          for: 'htmlFor'
+        } as any) as Refables<TElement>,
+        (value, key) => {
+          runAndWatch(value, value => {
+            key !== 'style'
+              ? element[key] = value as any
+              : forEach(value as StyleDefinition, (value, key) =>
+                element.style[key] = value as any
+              );
+          });
+        }
+      );
     if (children) {
       children.forEach(child => {
         if (typeof child === 'string') {
@@ -108,8 +110,6 @@ function createTag<T extends SupportedTag>(tagName: T) {
     };
     return element;
   }
-
-  return elementFactory;
 
 };
 
@@ -146,7 +146,7 @@ export function modelElement<
 >(
   tag: TTag,
   modelKey: TModelKey,
-  initProps: TProps,
+  initProps: Partial<TProps>,
   eventFactory: (model: ModelRef<TagElementMap[TTag], TModelKey>) => Events<TagElementMap[TTag]>
 ) {
   type TElement = TagElementMap[TTag];

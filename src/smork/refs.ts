@@ -205,13 +205,30 @@ export type Unref<TRefable> =
   : TRefable extends () => infer T
     ? T
   : TRefable;
+
 export type Refables<T extends Record<string, any>> = {
-  [K in keyof T]: Refable<Required<T>[K] | undefined>
+  [K in keyof T]: Refable<T[K]>
 };
+
+// test
+
+type Test = {
+  a: number,
+  b?: string,
+  c: boolean
+};
+
+type RefTest = Refables<Test>;
 
 export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
   return mapValues(refs, unref) as {
     [K in keyof T]: Unref<T[K]>
+  }
+};
+
+export function torefs<T extends Record<string, any>>(values: T) {
+  return mapValues(values, toref) as {
+    [K in keyof T]: T[K] extends Functional ? T[K] : Ref<T[K]>
   }
 };
 
@@ -221,7 +238,7 @@ export function isRefOrGetter<T>(value: Refable<T>) {
   return isFunction(value) || value instanceof ReadonlyRef;
 };
 
-function refResolver<T>(arg: Refable<T>) {
+export function refResolver<T>(arg: Refable<T>) {
   return <U>(ifRef: (ref: ReadonlyRef<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
     return (
       arg instanceof ReadonlyRef
@@ -229,9 +246,9 @@ function refResolver<T>(arg: Refable<T>) {
       : isFunction(arg)
         ? ifFunction(arg)
       : ifValue(arg)
-    )
-  }
-}
+    );
+  };
+};
 
 export function unref<T>(arg: Refable<T>) {
   return refResolver(arg)(
@@ -252,4 +269,24 @@ export function toref<T>(arg: Refable<T>) {
     fn => computed(fn),
     value => new ReadonlyRef(value)
   )
+};
+
+/**
+ * Invokes the provided callback immediately on the current value of a ref, the current result of a getter, or the provided value itself.
+ * If a ref or a getter is provided, starts watching the ref itself or a new computed ref based on the getter.
+ * 
+ * **NB!** Unless a ref/getter is provided, the callback will only be invoked once.
+ */
+export function runAndWatch<T>(refable: Refable<T>, callback: (value: T) => void) {
+  refResolver(refable)(
+    ref => ref.watchImmediate(callback),
+    getter => ref(getter).watchImmediate(callback),
+    callback
+  )
+};
+
+export function assignAndWatch<T, K extends keyof T>(target: T, key: K, refable: Refable<T[K]>) {
+  runAndWatch(refable, value => {
+    target[key] = value;
+  });
 };

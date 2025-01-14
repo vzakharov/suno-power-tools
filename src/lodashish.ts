@@ -1,4 +1,4 @@
-import { Functional } from "./types";
+import { Functional, StringKey } from "./types";
 
 export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
   return arr.find(createPredicate(filter));
@@ -21,21 +21,34 @@ export function uniqueId(prefix = '') {
 };
 
 export function mapValues<
-  T extends object,
+  T extends Record<string, any>,
   V
->(obj: T, mapper: (value: T[keyof T], key: keyof T) => V) {
+>(obj: T, mapper: (value: T[StringKey<T>], key: StringKey<T>) => V) {
   return Object.fromEntries(
-    Object.entries(obj).map(([key, value]) => [key, mapper(value, key as keyof T)])
+    Object.entries(obj).map(([key, value]) => [key, mapper(value, key as StringKey<T>)])
   ) as {
-    [K in keyof T]: V;
+    [K in StringKey<T>]: V;
   };
 };
 
-export function forEach<T extends object>(
+export function forEach<T extends Record<string, any>>(
   obj: T,
-  callback: (value: T[keyof T], key: keyof T) => void
+  callback: (value: T[StringKey<T>], key: StringKey<T>) => void
 ) {
   return mapValues(obj, callback);
+};
+
+export function mapKeys<
+  T extends Record<string, any>,
+  K extends string
+>(
+  obj: T, 
+  mapper: ( (key: StringKey<T>, value: T[StringKey<T>]) => K )) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [mapper(key as StringKey<T>, value), value])
+  ) as {
+    [OldKey in StringKey<T> as K]: T[OldKey];
+  };
 };
 
 export function isFunction(value: any): value is Functional {
