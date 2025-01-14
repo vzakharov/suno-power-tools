@@ -494,17 +494,6 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       };
     });
   }
-  function getDisplayStyle(condition, showIfTrue, displayOtherwise) {
-    return {
-      display: condition.compute((on) => on === showIfTrue ? displayOtherwise : "none")
-    };
-  }
-  function displayNoneUnless(condition, displayOtherwise) {
-    return getDisplayStyle(condition, true, displayOtherwise);
-  }
-  function displayNoneIf(condition, displayOtherwise) {
-    return getDisplayStyle(condition, false, displayOtherwise);
-  }
 
   // src/templates/colony/css.ts
   var colonyCss = `
@@ -614,13 +603,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       },
       [
         div({
-          style: {
+          style: hideUI.map((hide) => ({
             flexDirection: "column",
             height: "100vh",
             width: "100vh",
             backgroundColor: "#000",
-            ...displayNoneIf(hideUI, "flex")
-          }
+            display: hide ? "none" : "flex"
+          }))
         }, [
           graphContainer = div(),
           div({
@@ -649,7 +638,10 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
               ),
               div(
                 {
-                  style: displayNoneUnless(useNextLinks)
+                  // style: displayNoneUnless(useNextLinks),
+                  style: useNextLinks.map((useLinks) => ({
+                    display: useLinks ? "block" : "none"
+                  }))
                 },
                 labeled(
                   "Show time-based links",
@@ -687,14 +679,18 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           ])
         ]),
         button({
-          style: {
+          // style: { 
+          //   position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
+          //   ...displayNoneUnless(hideUI),
+          // },
+          style: hideUI.map((hide) => ({
             position: "fixed",
             top: "0px",
             left: "0px",
             padding: "5px",
             zIndex: "100",
-            ...displayNoneUnless(hideUI)
-          }
+            display: hide ? "none" : "block"
+          }))
         }, {
           onclick: () => hideUI.set(false)
         }, [

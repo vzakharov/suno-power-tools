@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, checkbox, div, h3, displayNoneIf, img, importScript, labeled, p, displayNoneUnless, style, textInput } from '../../smork/rendering';
+import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, StyleOptions, textInput } from '../../smork/rendering';
 import { sortByDate } from '../../utils';
 import { colonyCss } from './css';
 
@@ -39,18 +39,18 @@ export async function render(rawData: ColonyGraphData, {
       }
     }, [
       div({
-        style: {
+        style: hideUI.map<StyleOptions>(hide => ({
           flexDirection: 'column',
           height: '100vh',
           width: '100vh',
           backgroundColor: '#000',
-          ...displayNoneIf(hideUI, 'flex'),
-        },
+          display: hide ? 'none' : 'flex',
+        })),
       }, [
         graphContainer = div(),
         div({ 
           id: 'sidebar',
-        }, [
+        }, [  
           div({
             class: 'settings f-col'
           }, [
@@ -68,7 +68,10 @@ export async function render(rawData: ColonyGraphData, {
               )
             ),
             div({
-              style: displayNoneUnless(useNextLinks),
+              // style: displayNoneUnless(useNextLinks),
+              style: useNextLinks.map<StyleOptions>(useLinks => ({
+                display: useLinks ? 'block' : 'none'
+              }))
             },
               labeled('Show time-based links',
                 checkbox(showNextLinks)
@@ -104,10 +107,14 @@ export async function render(rawData: ColonyGraphData, {
         ])
       ]),
       button({ 
-        style: { 
+        // style: { 
+        //   position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
+        //   ...displayNoneUnless(hideUI),
+        // },
+        style: hideUI.map<StyleOptions>(hide => ({
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          ...displayNoneUnless(hideUI),
-        },
+          display: hide ? 'none' : 'block',
+        }))
       }, {
         onclick: () => hideUI.set(false)
       }, [

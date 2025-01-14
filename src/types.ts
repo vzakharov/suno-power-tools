@@ -16,3 +16,7 @@ export type Functional<TArgs extends any[] = any[], TReturn = any> = (...args: T
 export type KeyWithValueOfType<TType, TRecord> = {
   [K in keyof TRecord]: TRecord[K] extends TType ? K : never;
 }[keyof TRecord];
+
+export function asPartial<T extends Record<string, any>>(obj: T): Partial<T> {
+  return obj;
+};

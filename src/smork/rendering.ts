@@ -33,12 +33,12 @@ export function createTags(tagNames: typeof SUPPORTED_TAGS) {
 
 type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
 
-export type StyleDefinition = Omit<CSSStyleDeclaration, 'length' | 'parentRule'>
+export type StyleOptions = Partial<Omit<CSSStyleDeclaration, 'length' | 'parentRule'>>
 
 export type Props<TElement extends SupportedElement> = {
   [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' | keyof Events<TElement>>]: TElement[K]
 } & {
-  style: StyleDefinition,
+  style: StyleOptions,
   class: string,
   for: TElement extends HTMLLabelElement ? TElement['htmlFor'] : never,
 };
@@ -93,7 +93,7 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
           runAndWatch(value, value => {
             key !== 'style'
               ? element[key] = value as any
-              : forEach(value as StyleDefinition, (value, key) =>
+              : forEach(value as StyleOptions, (value, key) =>
                 element.style[key] = value as any
               );
           });
@@ -187,16 +187,3 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
     };
   });
 };
-
-function getDisplayStyle(condition: Ref<boolean>, showIfTrue: boolean, displayOtherwise?: string) {
-  return { 
-    display: condition.compute(on => on === showIfTrue ? displayOtherwise : 'none') 
-  };
-};
-export function displayNoneUnless(condition: Ref<boolean>, displayOtherwise?: string) {
-  return getDisplayStyle(condition, true, displayOtherwise)
-};
-
-export function displayNoneIf(condition: Ref<boolean>, displayOtherwise?: string) {
-  return getDisplayStyle(condition, false, displayOtherwise)
-}
