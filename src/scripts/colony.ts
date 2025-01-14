@@ -8,6 +8,7 @@ import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
 import { renderTemplate, Template } from "../templating";
 import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
+import { render_compiled } from '../templates/colony/standalone_compiled.js';
 
 declare global {
   interface Window {
@@ -350,22 +351,21 @@ class Colony {
   };
 
   getHtml(mode?: '3d' | '3D') {
-    const in3D = mode?.toLowerCase() === '3d';
     console.log("Rendering your colony, give it a few seconds...");
 
-    return renderTemplate(window.templates.colony, {
-      data: JSON.stringify(this.graphData),
-      use3DGraph: String(in3D),
-      GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
-      graph_url_slug: in3D ? '3d-force-graph' : 'force-graph',
-    });
+    return `<script>window.colonyData=${JSON.stringify({
+      graphData: this.graphData,
+      in3D: modeToIn3D(mode)
+    })}</script><script>(${
+      render_compiled.toString()
+    })()</script>`
   };
 
   private renderedElement: HTMLElement | undefined = undefined;
 
   async render(...[mode]: Parameters<typeof this.getHtml>) {
     console.log("Rendering your colony, give it a few seconds...");
-    this.renderedElement = await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
+    this.renderedElement = await render(this.graphData, { in3D: modeToIn3D(mode) });
   };
 
   clear() {
@@ -401,6 +401,10 @@ colony.stateLoaded.promise.then(() => {
     return colony.render();
   }
 });
+
+function modeToIn3D(mode: string | undefined): boolean | undefined {
+  return mode?.toLowerCase() === '3d';
+}
 
 function isV2AudioFilename(id: string) {
   return id.match(/_\d+$/);

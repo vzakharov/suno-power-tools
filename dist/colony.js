@@ -1,4 +1,3 @@
-window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n    }\n\n    #sidebar {\n      position: fixed;\n      padding: 10px;\n      top: 0;\n      left: 0;\n      bottom: 0;\n      width: 200px;\n      background-color: #333;\n      color: #eee;\n      display: flex;\n      flex-direction: column;\n      justify-content: space-between;\n    }\n\n    .f-row {\n      display: flex;\n      flex-direction: row;\n    }\n\n    .f-col {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .smol {\n      font-size: 0.8em;\n      color: #aaa;\n    }\n\n    .relative {\n      position: relative;\n    }\n\n    .absolute {\n      position: absolute;\n    }\n\n    .topleft {\n      top: 0;\n      left: 0;\n    }\n\n    .p-1 {\n      padding: 1rem;\n    };\n\n    .p-2 {\n      padding: 2rem;\n    }\n\n    .w-100 {\n      width: 100%;\n    }\n    \n    .h-100 {\n      height: 100%;\n    }\n\n    .j-between {\n      justify-content: space-between;\n    }\n\n    .settings > div {\n      margin-top: 5px;\n    }\n\n  </style>\n  <script src=\"https://unpkg.com/___graph_url_slug___\"></script>\n</head>\n\n<body>\n  <div id=\"graph\">\n  </div>\n  <div id=\"sidebar\">\n    <div class=\"settings f-col\">\n      <h3>Settings</h3>\n      <!-- Use next links -->\n      <div>\n        <input type=\"checkbox\" id=\"useNextLinks\" data-type=\"linkToggle\" data-kind=\"next\" checked>\n        <label for=\"useNextLinks\">Attract based on time</label>\n      </div>\n      <!-- Show next links -->\n      <div id=\"showNextLinksContainer\">\n        <input type=\"checkbox\" id=\"showNextLinks\" data-type=\"linkToggle\" data-kind=\"descendant\">\n        <label for=\"showNextLinks\">Show time-based links</label>\n      </div>\n      <!-- Use descendant links -->\n      <div>\n        <input type=\"checkbox\" id=\"useDescendantLinks\" data-type=\"linkToggle\" data-kind=\"descendant\" checked>\n        <label for=\"useDescendantLinks\">Attract to root clip</label>\n      </div>\n      <!-- Filter -->\n      <div>\n        <input type=\"text\" id=\"filter\" placeholder=\"Filter by name, style or ID\">\n        <p class=\"smol\">\n          Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)\n        </p>\n      </div>\n    </div>\n    <div id=\"audioContainer\" class=\"w-100\" style=\"display: none;\">\n      <div class=\"relative\">\n        <a id=\"audioLink\" target=\"_blank\">\n          <img id=\"audioImage\" style=\"opacity: 0.5\" class=\"w-100\">\n        </a>\n        <div class=\"absolute topleft\" style=\"width: 190px; padding: 5px;\">\n          <div id=\"audioName\"></div>\n          <div class=\"smol\" id=\"audioTags\"></div>\n        </div>\n      </div>\n      <audio controls id=\"audio\" class=\"w-100\"></audio>\n    </div>\n  </div>    \n  <div id=\"data\" style=\"display: none;\">\n    ___data___\n  </div>\n  <script>\n\n    const use3DGraph = ___use3DGraph___;\n    const data = JSON.parse(document.getElementById('data').innerText);\n    let graph = renderGraph(data);\n    Object.assign(window, { data, graph });\n\n    function visibilityChecker(link) {\n      return !{\n        descendant: true,\n        next: !document.getElementById('showNextLinks').checked\n      }[link.kind];\n    };\n\n    function renderGraph(data) {\n      const graph = new ___GraphRenderer___()\n        (document.getElementById('graph'))\n        .graphData(data)\n        .backgroundColor('#001')\n        .linkAutoColorBy('kind')\n        .nodeAutoColorBy('rootId')\n        .linkLabel('kind')\n        .linkVisibility(visibilityChecker)\n        .linkDirectionalParticles(1)\n        .nodeLabel(({ id, name, tags, image_url }) => `\n          <div class=\"relative\" style=\"width: 200px;\">\n            <img src=\"${image_url}\" style=\"opacity: 0.5; width: 200px\">\n            <div class=\"absolute topleft\" style=\"width: 190px; padding: 5px;\">\n              <div>${name || '[Untitled]'}</div>\n              <div class=\"smol\">${tags || '(no style)'}</div>\n            </div>\n          </div>\n          <div class=\"smol\">\n            Click to play, right-click to open in Suno\n          </div>\n        `)\n        .onNodeClick(({ id, name, tags, image_url, audio_url }) => {\n          document.getElementById('audioContainer').style.display = 'block';\n          document.getElementById('audioLink').href = `https://suno.com/song/${id}`;\n          document.getElementById('audioImage').src = image_url;\n          document.getElementById('audioName').innerText = name || '[Untitled]';\n          document.getElementById('audioTags').innerText = tags || '(no style)';\n          const audio = document.getElementById('audio');\n          audio.src = audio_url;\n          audio.play();\n        })\n        .onNodeRightClick(({ id }) => {\n          window.open(`https://suno.com/song/${id}`);\n        });\n      if ( use3DGraph ) {\n        graph.linkOpacity(l => l.isMain ? 1 : 0.2)\n      } else {\n        graph.linkLineDash(l => l.isMain ? undefined : [1, 2])\n      }\n      return graph;\n    };\n\n    document.querySelectorAll('[data-type=\"linkToggle\"]').forEach(checkbox => {\n      checkbox.addEventListener('change', () => {\n        const kind = checkbox.getAttribute('data-kind');\n        applyLinkFilter(checkbox);\n        if ( kind === 'next' ) {\n          document.getElementById('showNextLinksContainer').style.display = useLinks ? 'block' : 'none';\n        };\n      });\n    });\n\n    function applyLinkFilter(checkbox) {\n      const kind = checkbox.getAttribute('data-kind');\n      const useLinks = checkbox.checked;\n      let { nodes, links } = graph.graphData();\n      if ( !useLinks ) {\n        links = links.filter(l => l.kind !== kind);\n      } else {\n        links.push(...data.links.filter(l => l.kind === kind));\n      }\n      graph.graphData({ nodes, links });\n    };\n\n    document.getElementById('showNextLinks').addEventListener('change', () => {\n      graph.linkVisibility(visibilityChecker);\n    });\n    \n    // Filter (on Enter key)\n    document.getElementById('filter').addEventListener('keyup', e => {\n      if (e.keyCode === 13) {\n        const filter = e.target.value.toLowerCase();\n        const matchingNodes = filter \n          ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))\n          : data.nodes;\n        // const sameRootNodes = data.nodes.filter(node => matchingNodes.some(n => n.id !== node.id && n.rootId === node.rootId));\n        // const relevantNodes = [...matchingNodes, ...sameRootNodes];\n        const existing = graph.graphData();\n        const nodes = [\n          ...matchingNodes.map(node => existing.nodes.find(n => n.id === node.id) ?? node),\n          ...filter \n            ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))\n            : []\n        ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);\n        const links = data.links\n          .filter(link => nodes.some(n => n.id === link.source.id) && nodes.some(n => n.id === link.target.id))\n          .map(({ source: { id: source }, target: { id: target }, ...rest }) => ({ source, target, ...rest }))\n          .map(link => existing.links.find(l => l.source.id === link.source.id && l.target.id === link.target.id) ?? link);\n        graph.graphData({ nodes, links });\n        if ( filter )\n          graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);\n        else\n          graph.nodeVal('val');\n        document.querySelectorAll('[data-type=\"linkToggle\"]').forEach(applyLinkFilter);\n      };\n    });\n\n  </script>\n</body>"};
 (() => {
   // src/lodashish.ts
   function find(arr, filter) {
@@ -814,12 +813,327 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
     return container;
   }
 
-  // src/templating.ts
-  function renderTemplate(template, values) {
-    return Object.keys(values).reduce((acc, key) => {
-      return acc.replace(`___${key}___`, values[key]);
-    }, template);
-  }
+  // src/templates/colony/standalone_compiled.js
+  var render_compiled = () => (() => {
+    var Te = 0;
+    function $(t = "") {
+      return `${t}${++Te}`;
+    }
+    function G(t, e) {
+      return Object.fromEntries(Object.entries(t).map(([n, r]) => [n, e(r, n)]));
+    }
+    function O(t, e) {
+      return G(t, e);
+    }
+    function V(t, e) {
+      return Object.fromEntries(Object.entries(t).map(([n, r]) => [e(n, r), r]));
+    }
+    function A(t) {
+      return typeof t == "function";
+    }
+    var M = class extends Error {
+      constructor(e) {
+        super(`smork: ${e}`);
+      }
+    };
+    function x(t, e) {
+      return A(t) ? B(t, e) : new b(t);
+    }
+    var S = class {
+      constructor(e) {
+        this._value = e;
+      }
+      watchers = /* @__PURE__ */ new Set();
+      activeWatchers = /* @__PURE__ */ new WeakSet();
+      get() {
+        return K?.(this), this._value;
+      }
+      _set(e) {
+        let { _value: n } = this;
+        if (e !== this._value) {
+          this._value = e;
+          try {
+            for (let r of this.watchers) {
+              if (this.activeWatchers.has(r)) {
+                console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
+                return;
+              }
+              this.activeWatchers.add(r), r(e, n);
+            }
+          } finally {
+            this.activeWatchers = /* @__PURE__ */ new WeakSet();
+          }
+        }
+      }
+      runAndWatch(e) {
+        e(this._value, this._value), this.watch(e);
+      }
+      watchImmediate = this.runAndWatch;
+      watch(e) {
+        this.watchers.add(e);
+      }
+      onChange = this.watch;
+      unwatch(e) {
+        this.watchers.delete(e);
+      }
+      get value() {
+        return this.get();
+      }
+      map(e) {
+        return new w(() => e(this.value));
+      }
+      compute = this.map;
+      merge(e) {
+        return e ? B(() => ({ ...this.value, ...fe(e) })) : this;
+      }
+    }, b = class extends S {
+      set(e) {
+        this._set(e);
+      }
+      set value(e) {
+        this.set(e);
+      }
+      get value() {
+        return this.get();
+      }
+      bridge(e, n) {
+        return new P(() => e(this.value), (r) => this.set(n(r)));
+      }
+    };
+    var K, w = class extends b {
+      constructor(n) {
+        super(void 0);
+        this.getter = n;
+        this.track();
+      }
+      dependencies = /* @__PURE__ */ new Set();
+      track = () => {
+        if (K) throw new M("Tried to compute a ref while another one is already being computed \u2014 did you nest a computed ref in another ref's getter function?");
+        this.dependencies.forEach((n) => n.unwatch(this.track)), this.dependencies = /* @__PURE__ */ new Set();
+        try {
+          K = (n) => {
+            n.watch(this.track), this.dependencies.add(n);
+          }, this._set(this.getter());
+        } finally {
+          K = void 0;
+        }
+      };
+    }, P = class extends b {
+      constructor(n, r, s = false) {
+        let u = new w(n);
+        super(u.value);
+        this.setter = r;
+        this.allowMismatch = s;
+        u.watch((p2) => this._set(p2));
+      }
+      set(n) {
+        if (this.setter(n), !this.allowMismatch && this.value !== n) throw new M("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.");
+      }
+    };
+    function B(t, e) {
+      return e ? new P(t, e) : new w(t);
+    }
+    function z(t) {
+      return (e, n, r) => t instanceof S ? e(t) : A(t) ? n(t) : r(t);
+    }
+    function fe(t) {
+      return z(t)((e) => e.value, (e) => e(), (e) => e);
+    }
+    function q(t, e) {
+      z(t)((n) => n.watchImmediate(e), (n) => x(n).watchImmediate(e), e);
+    }
+    function J(t) {
+      return t ? new Date(t).getTime() : 0;
+    }
+    function Q(t, e = (n) => n.created_at) {
+      return t.sort((n, r) => J(e(n)) - J(e(r)));
+    }
+    function X(t, e) {
+      return V(t, (n) => e[n] ?? n);
+    }
+    var ye = ["html", "head", "style", "script", "body", "div", "h3", "p", "a", "img", "audio", "input", "label", "button"], me = xe(ye), { html: De, head: Fe, style: Y, script: Oe, body: Ae, div: c, h3: Z, p: ee, a: te, img: ne, audio: oe, input: He, label: he, button: C } = me;
+    function xe(t) {
+      return t.reduce((e, n) => Object.assign(e, { [n]: re(n) }), {});
+    }
+    function re(t) {
+      function e(r, s, u) {
+        let [p2, y, h] = Array.isArray(r) ? [void 0, void 0, r] : Array.isArray(s) ? [r, void 0, s] : [r, s, u];
+        return n(p2, y, h);
+      }
+      return e;
+      function n(r, s, u) {
+        let p2 = document.createElement(t);
+        return s && Object.assign(p2, s), r && O(X(r, { class: "className", for: "htmlFor" }), (y, h) => {
+          q(y, (g) => {
+            h !== "style" ? p2[h] = g : O(g, (E, R) => p2.style[R] = E);
+          });
+        }), u && u.forEach((y) => {
+          typeof y == "string" ? p2.appendChild(document.createTextNode(y)) : p2.appendChild(y);
+        }), p2;
+      }
+    }
+    var L = ie("input", "checked", { type: "checkbox" }, (t) => ({ onchange: () => t.set(!t.value) })), ae = ie("input", "value", { type: "text" }, (t) => ({ onkeyup: ({ key: e, target: n }) => {
+      e === "Enter" && n instanceof HTMLInputElement && t.set(n.value);
+    } }));
+    function ie(t, e, n, r) {
+      return (s, u) => re(t)({ ...n, ...u, [e]: s }, r(s));
+    }
+    function U(t, e) {
+      e.id ||= $("smork-input-");
+      let n = [he({ for: e.id }, [t]), e];
+      return e.type === "checkbox" && n.reverse(), n;
+    }
+    async function se(t, e, n) {
+      let r = t.document.createElement("script");
+      return r.type = "text/javascript", r.src = n, t.document.head.appendChild(r), new Promise((s) => {
+        r.onload = () => {
+          s(t[e]);
+        };
+      });
+    }
+    var le = `
+.colony { 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.colony button {
+  background-color: #444;
+  color: #eee
+}
+
+.colony #sidebar {
+  position: fixed;
+  padding: 10px;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 200px;
+  background-color: #333;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.colony .f-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.colony .f-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.colony .smol {
+  font-size: 0.8em;
+  color: #aaa;
+}
+
+.colony .relative {
+  position: relative;
+}
+
+.colony .absolute {
+  position: absolute;
+}
+
+.colony .topleft {
+  top: 0;
+  left: 0;
+}
+
+.colony .p-1 {
+  padding: 1rem;
+};
+
+.colony .p-2 {
+  padding: 2rem;
+}
+
+.colony .w-100 {
+  width: 100%;
+}
+
+.colony .h-100 {
+  height: 100%;
+}
+
+.colony .j-between {
+  justify-content: space-between;
+}
+
+.colony .settings > div {
+  margin-top: 5px;
+}
+`;
+    async function H(t, { in3D: e = false }) {
+      let n = x(false), r, s = x(true), u = x(false), p2 = x(true), y = x(""), h, g, E, R, W, N, de = await se(window, "ForceGraph", `https://unpkg.com/${e ? "3d-" : ""}force-graph`);
+      window.document.head.appendChild(Y([le]));
+      let I = c({ class: "colony", style: { position: "fixed", top: "0px", left: "0px", zIndex: "100" } }, [c({ style: n.map((o) => ({ flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000", display: o ? "none" : "flex" })) }, [r = c(), c({ id: "sidebar" }, [c({ class: "settings f-col" }, [C({ style: { marginBottom: "5px" } }, { onclick: () => n.set(true) }, ["Close Colony"]), Z(["Settings"]), c(U("Attract based on time", L(s))), c({ style: s.map((o) => ({ display: o ? "block" : "none" })) }, U("Show time-based links", L(u))), c(U("Attract to root clip", L(p2))), c([ae(y, { placeholder: "Filter by name, style or ID" }), ee({ class: "smol" }, ["Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"])]), C({}, { onclick: pe }, ["Redraw"])]), h = c({ class: "w-100", style: { display: "none" } }, [c({ class: "relative" }, [g = te({ target: "_blank" }, [E = ne({ style: "opacity: 0.5", class: "w-100" })]), c({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [R = c(), W = c({ class: "smol" })])]), N = oe({ controls: true, class: "w-100" })])])]), C({ style: n.map((o) => ({ position: "fixed", top: "0px", left: "0px", padding: "5px", zIndex: "100", display: o ? "block" : "none" })) }, { onclick: () => n.set(false) }, ["Reopen Colony"])]);
+      document.body.appendChild(I);
+      let m = ce();
+      function ce() {
+        let o = new de(r).graphData(t).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(_).linkDirectionalParticles(1).nodeLabel(({ id: i, name: T, tags: d, image_url: l }) => `
+        <div class="relative" style="width: 200px;">
+          <img src="${l}" style="opacity: 0.5; width: 200px">
+          <div class="absolute topleft" style="width: 190px; padding: 5px;">
+            <div>${T || "[Untitled]"}</div>
+            <div class="smol">${d || "(no style)"}</div>
+          </div>
+        </div>
+        <div class="smol">
+          Click to play, right-click to open in Suno
+        </div>
+      `).onNodeClick(({ id: i, name: T, tags: d, image_url: l, audio_url: a2 }) => {
+          h.style.display = "block", g.href = `https://suno.com/song/${i}`, E.src = l, R.innerText = T || "[Untitled]", W.innerText = d || "(no style)", N.src = a2, N.play();
+        }).onNodeRightClick(({ id: i }) => {
+          window.open(`https://suno.com/song/${i}`);
+        });
+        return e ? o.linkOpacity((i) => i.isMain ? 1 : 0.2) : o.linkLineDash((i) => i.isMain ? null : [1, 2]), o;
+      }
+      async function pe() {
+        new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(m, ""), m._destructor(), I.remove(), await H(t, { in3D: e });
+      }
+      let v = m.graphData();
+      function _(o) {
+        return !{ descendant: true, next: !u.value }[o.kind];
+      }
+      function j(o, i) {
+        let { nodes: T, links: d } = m.graphData();
+        if (i ? d.push(...v.links.filter((l) => l.kind === o)) : d = d.filter((l) => l.kind !== o), o === "next" && (d = d.filter((l) => l.kind !== "next"), i)) {
+          Q(T);
+          for (let l = 1; l < T.length; l++) {
+            let a2 = T[l - 1], f = T[l];
+            d.push({ source: a2.id, target: f.id, kind: "next", color: "#006", isMain: false });
+          }
+        }
+        m.graphData({ nodes: T, links: d });
+      }
+      s.watchImmediate((o) => j("next", o)), p2.watchImmediate((o) => j("descendant", o)), u.watchImmediate(() => {
+        m.linkVisibility(_);
+      });
+      function k(o) {
+        return typeof o == "string" ? o : o.id;
+      }
+      function D(o, i) {
+        return k(o) === k(i);
+      }
+      function F(o) {
+        return (i) => D(o, i);
+      }
+      y.watchImmediate((o) => {
+        o = o?.toLowerCase();
+        let i = o ? v.nodes.filter((a2) => `${a2.id} ${a2.name} ${a2.tags} ${a2.created_at}`.toLowerCase().includes(o)) : v.nodes, T = m.graphData(), d = [...i.map((a2) => T.nodes.find(F(a2)) ?? a2), ...o ? v.nodes.filter((a2) => i.some((f) => f.rootId === a2.rootId && f.id !== a2.id)) : []].map((a2) => T.nodes.find((f) => f.id === a2.id) ?? a2), l = v.links.filter((a2) => d.some(F(a2.source)) && d.some(F(a2.target))).map(({ source: a2, target: f, ...ue }) => ({ source: k(a2), target: k(f), ...ue })).map((a2) => T.links.find((f) => D(a2.source, f.source) && D(a2.target, f.target)) ?? a2);
+        m.graphData({ nodes: d, links: l }), o ? m.nodeVal((a2) => i.some((f) => f.id === a2.id) ? 3 : a2.val) : m.nodeVal("val");
+      }), setTimeout(() => {
+        s.set(false), p2.set(false);
+      }, 2e3);
+      return I;
+    }
+    var { graphData: ge, in3D: ve } = window.colonyData;
+    H(ge, { in3D: ve });
+  })();
 
   // src/scripts/colony.ts
   var SYNTHETIC_LINK_KINDS = ["next", "descendant"];
@@ -1069,19 +1383,16 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return result;
     }
     getHtml(mode) {
-      const in3D = mode?.toLowerCase() === "3d";
       console.log("Rendering your colony, give it a few seconds...");
-      return renderTemplate(window.templates.colony, {
-        data: JSON.stringify(this.graphData),
-        use3DGraph: String(in3D),
-        GraphRenderer: in3D ? "ForceGraph3D" : "ForceGraph",
-        graph_url_slug: in3D ? "3d-force-graph" : "force-graph"
-      });
+      return `<script>window.colonyData=${JSON.stringify({
+        graphData: this.graphData,
+        in3D: modeToIn3D(mode)
+      })}<\/script><script>(${render_compiled.toString()})()<\/script>`;
     }
     renderedElement = void 0;
     async render(...[mode]) {
       console.log("Rendering your colony, give it a few seconds...");
-      this.renderedElement = await render(this.graphData, { in3D: mode?.toLowerCase() === "3d" });
+      this.renderedElement = await render(this.graphData, { in3D: modeToIn3D(mode) });
     }
     clear() {
       this.renderedElement?.remove();
@@ -1108,6 +1419,9 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return colony.render();
     }
   });
+  function modeToIn3D(mode) {
+    return mode?.toLowerCase() === "3d";
+  }
   function isV2AudioFilename(id) {
     return id.match(/_\d+$/);
   }

@@ -4,17 +4,75 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
+function resolvable() {
+  let resolve, reject
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject }
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const scriptsPath = path.join(__dirname, 'src', 'scripts');
 const outputPath = path.join(__dirname, 'dist');
 const minifiedPath = path.join(outputPath, 'minified');
+const templatesPath = path.join(__dirname, 'src', 'templates');
 
 fs.rmSync(outputPath, { recursive: true, force: true });
 fs.mkdirSync(outputPath);
+const prebuilt = resolvable();
 
+fs.readdir(templatesPath, (err, files) => {
+  if (err) {
+    console.error('Failed to read templates directory:', err);
+    return;
+  }
+
+  Promise.all(files.filter(file => fs.statSync(path.join(templatesPath, file)).isDirectory()).map(
+    async folder => {
+      try {
+
+        const tsFile = path.join(templatesPath, folder, `standalone.ts`);
+        console.log('Pre-building template', folder, 'from', tsFile);
+        if (!fs.existsSync(tsFile)) {
+          console.warn(`No script found for template ${folder}, skipping...`);
+          return;
+        };
+
+        const outfile = path.join(templatesPath, folder, 'standalone_compiled.js');
+        // Delete the file if it exists
+        if (fs.existsSync(outfile)) {
+          fs.rmSync(outfile);
+        };
+
+        await esbuild.build({
+          entryPoints: [tsFile],
+          outfile,
+          bundle: true,
+          platform: 'browser',
+          format: 'iife',
+          minify: true,
+          legalComments: 'none',
+          banner: {
+            js: 'export const render_compiled = () => '
+          }
+        });
+
+        fs.chmodSync(outfile, '444');
+
+      } catch (err) {
+        console.error('Pre-build failed:', err);
+        process.exit(1);
+      }
+    }
+  )).then(prebuilt.resolve);
+});
+await prebuilt.promise;
 fs.readdir(scriptsPath, (err, files) => {
+
   if (err) {
     console.error('Failed to read scripts directory:', err);
     return;
@@ -51,9 +109,9 @@ fs.readdir(scriptsPath, (err, files) => {
             format: 'iife',
             legalComments: minify ? 'none' : 'inline',
             minify,
-            banner: Object.keys(templates).length === 0 ? undefined : {
-              js: `window.templates = ${JSON.stringify(templates)};`
-            }
+            // banner: Object.keys(templates).length === 0 ? undefined : {
+            //   js: `window.templates = ${JSON.stringify(templates)};`
+            // }
           })
 
           fs.chmodSync(outfile, '444');
