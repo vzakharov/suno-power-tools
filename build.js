@@ -62,6 +62,13 @@ fs.readdir(templatesPath, (err, files) => {
 
         fs.chmodSync(outfile, '444');
 
+        const cssFile = path.join(templatesPath, folder, 'style.css');
+        const css = fs.readFileSync(cssFile, 'utf8').replace(/\n\s*/g, '');
+        fs.writeFileSync(
+          path.join(templatesPath, folder, 'css.js'),
+          `export const ${folder}Css = ${JSON.stringify(css)};`
+        );
+
       } catch (err) {
         console.error('Pre-build failed:', err);
         process.exit(1);
