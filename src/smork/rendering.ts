@@ -158,8 +158,7 @@ export function modelElement<
       ...initProps,
       ...props,
       [modelKey]: model,
-      ...eventFactory(model)
-    })
+    }, eventFactory(model))
   };
 }
 

@@ -107,13 +107,9 @@ export async function render(rawData: ColonyGraphData, {
         ])
       ]),
       button({ 
-        // style: { 
-        //   position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-        //   ...displayNoneUnless(hideUI),
-        // },
         style: hideUI.map<StyleOptions>(hide => ({
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          display: hide ? 'none' : 'block',
+          display: hide ? 'block' : 'none',
         }))
       }, {
         onclick: () => hideUI.set(false)

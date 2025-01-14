@@ -466,9 +466,8 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
       return createTag(tag)({
         ...initProps,
         ...props,
-        [modelKey]: model,
-        ...eventFactory(model)
-      });
+        [modelKey]: model
+      }, eventFactory(model));
     };
   }
   function labeled(labelText, element) {
@@ -679,17 +678,13 @@ window.templates = {"colony":"<head>\n  <style>\n    body { \n      margin: 0;\n
           ])
         ]),
         button({
-          // style: { 
-          //   position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          //   ...displayNoneUnless(hideUI),
-          // },
           style: hideUI.map((hide) => ({
             position: "fixed",
             top: "0px",
             left: "0px",
             padding: "5px",
             zIndex: "100",
-            display: hide ? "none" : "block"
+            display: hide ? "block" : "none"
           }))
         }, {
           onclick: () => hideUI.set(false)
