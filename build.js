@@ -18,7 +18,6 @@ const __dirname = dirname(__filename);
 
 const scriptsPath = path.join(__dirname, 'src', 'scripts');
 const outputPath = path.join(__dirname, 'dist');
-const minifiedPath = path.join(outputPath, 'minified');
 const templatesPath = path.join(__dirname, 'src', 'templates');
 
 fs.rmSync(outputPath, { recursive: true, force: true });
@@ -97,8 +96,8 @@ fs.readdir(scriptsPath, (err, files) => {
         for (const minify of [false, true]) {
 
           const outfile = path.join(
-            minify ? minifiedPath : outputPath,
-            file.replace('.ts', '.js')
+            outputPath,
+            file.replace('.ts', minify ? '.min.js' : '.js')
           );
 
           await esbuild.build({
