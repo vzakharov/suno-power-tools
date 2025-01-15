@@ -279,10 +279,7 @@
       })) : this;
     }
     #use(usable, key) {
-      const computedRef = usable(this);
-      Object.assign(this, {
-        [key]: computedRef
-      });
+      this[key] = usable(this);
     }
     uses(usables) {
       forEach(usables, (usable, key) => {

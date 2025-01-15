@@ -102,10 +102,7 @@ export class ReadonlyRef<T> {
     TTargetRef extends ReadonlyRef<any>,
     TKey extends string
   >(usable: (ref: this) => TTargetRef, key: TKey) {
-    const computedRef = usable(this);
-    Object.assign(this, {
-      [key]: computedRef
-    });
+    this[key as any] = usable(this);
   };
 
   uses<
