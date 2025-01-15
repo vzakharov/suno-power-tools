@@ -281,8 +281,8 @@
         ...unref(mergee)
       })) : this;
     }
-    uses(usables) {
-      return assign(this, mapValues(usables, (usable) => usable(this)));
+    uses(methods) {
+      return assign(this, mapValues(methods, this.map));
     }
   };
   var Ref = class extends ReadonlyRef {
