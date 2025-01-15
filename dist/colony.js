@@ -278,13 +278,8 @@
         ...unref(mergee)
       })) : this;
     }
-    #use(usable, key) {
-      this[key] = usable(this);
-    }
     uses(usables) {
-      forEach(usables, (usable, key) => {
-        this.#use(usable, key);
-      });
+      mutate(this, mapValues(usables, (usable) => usable(this)));
       return this;
     }
   };

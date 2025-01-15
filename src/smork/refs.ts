@@ -98,19 +98,10 @@ export class ReadonlyRef<T> {
       : this;
   };
 
-  #use<
-    TTargetRef extends ReadonlyRef<any>,
-    TKey extends string
-  >(usable: (ref: this) => TTargetRef, key: TKey) {
-    this[key as any] = usable(this);
-  };
-
   uses<
     U extends Record<string, (ref: this) => ReadonlyRef<any>>
   >(usables: U) {
-    forEach(usables, (usable, key) => {
-      this.#use(usable, key);
-    })
+    mutate(this, mapValues(usables, usable => usable(this)));
     return this as this & {
       [K in keyof U]: ReturnType<U[K]>
     };

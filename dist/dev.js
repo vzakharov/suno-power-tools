@@ -6,11 +6,13 @@
       Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
     );
   }
-  function forEach(obj, callback) {
-    return mapValues(obj, callback);
-  }
   function isFunction(value) {
     return typeof value === "function";
+  }
+
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
   }
 
   // src/smork/refs.ts
@@ -85,13 +87,8 @@
         ...unref(mergee)
       })) : this;
     }
-    #use(usable, key) {
-      this[key] = usable(this);
-    }
     uses(usables) {
-      forEach(usables, (usable, key) => {
-        this.#use(usable, key);
-      });
+      mutate(this, mapValues(usables, (usable) => usable(this)));
       return this;
     }
   };
@@ -175,11 +172,6 @@
       (fn) => fn(),
       (value) => value
     );
-  }
-
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts
