@@ -1,4 +1,4 @@
-import { getSuno } from "../manager";
+import { api } from "../api";
 import { $throw, mutate } from "../utils";
 
 type HistoryItem = {
@@ -11,7 +11,7 @@ type HistoryItem = {
 async function getHistory(id: string) {
   const result: HistoryItem[] = [];
   while ( true ) {
-    const { metadata } = await getSuno().root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
+    const { metadata } = await api.getClip(id) ?? $throw(`Clip with id ${id} not found`);
     if (!( 'concat_history' in metadata )) {
       return result;
     };

@@ -2,11 +2,11 @@ import { type GraphData } from 'force-graph';
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
 import { find } from "../lodashish";
-import { getSuno } from "../manager";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
 import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
+import { api } from '../api';
 
 declare global {
   interface Window {
@@ -134,14 +134,7 @@ export class Colony {
     console.log('Fetching liked clips...');
     while (true) {
       await atLeast(1000); //! (to avoid rate limiting)
-      const { data: { clips } } = await getSuno().root.apiClient.GET('/api/feed/v2', {
-        params: {
-          query: {
-            is_liked: true,
-            page: this.state.lastProcessedPage + 1,
-          }
-        }
-      });
+      const { clips } = await api.getClips(this.state.lastProcessedPage + 1);
       if (!clips.length) {
         this.state.allPagesProcessed = true;
         break;
@@ -157,7 +150,7 @@ export class Colony {
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
     console.log(`Clip ${id} not found in cache, loading...`);
-    const clip = await getSuno().root.clips.loadClipById(id) ?? missingClip(id);
+    const clip = await api.getClip(id) ?? missingClip(id);
     this.state.rawClips.push(clip);
     return clip;
   };

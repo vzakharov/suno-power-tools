@@ -1,5 +1,31 @@
 (vovas = { main() {
 (() => {
+  // src/api.ts
+  var BASE_URL = "https://studio-api.prod.suno.com/api/";
+  function fetcher(pathFactory, ignore404) {
+    return async (...args) => {
+      const path = pathFactory(...args);
+      const response = await fetch(BASE_URL + path, {
+        headers: {
+          authorization: `Bearer ${await window.Clerk.session.getToken()}`
+        }
+      });
+      if (response.status === 404 && ignore404) {
+        console.warn(`Could not find resource at ${path}, returning undefined`);
+        return;
+      }
+      ;
+      return await response.json();
+    };
+  }
+  var api = {
+    getClips: fetcher((page) => "feed/v2?is_liked=true&page=" + page),
+    getClip: fetcher(
+      (id) => "clip/" + id,
+      true
+    )
+  };
+
   // src/utils.ts
   function mutate(obj, partial) {
     Object.assign(obj, partial);
@@ -8,16 +34,11 @@
     throw new Error(message);
   }
 
-  // src/manager.ts
-  function getSuno() {
-    return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
-  }
-
   // src/scripts/history.ts
   async function getHistory(id) {
     const result = [];
     while (true) {
-      const { metadata } = await getSuno().root.clips.loadClipById(id) ?? $throw(`Clip with id ${id} not found`);
+      const { metadata } = await api.getClip(id) ?? $throw(`Clip with id ${id} not found`);
       if (!("concat_history" in metadata)) {
         return result;
       }

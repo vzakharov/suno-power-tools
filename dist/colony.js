@@ -147,11 +147,6 @@
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
   }
 
-  // src/manager.ts
-  function getSuno() {
-    return window.suno ?? $throw("`suno` object not found in `window`. Have you followed the setup instructions?");
-  }
-
   // src/resolvable.ts
   var Resolvable = class {
     resolve;
@@ -747,6 +742,32 @@
     //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
   }
 
+  // src/api.ts
+  var BASE_URL = "https://studio-api.prod.suno.com/api/";
+  function fetcher(pathFactory, ignore404) {
+    return async (...args) => {
+      const path = pathFactory(...args);
+      const response = await fetch(BASE_URL + path, {
+        headers: {
+          authorization: `Bearer ${await window.Clerk.session.getToken()}`
+        }
+      });
+      if (response.status === 404 && ignore404) {
+        console.warn(`Could not find resource at ${path}, returning undefined`);
+        return;
+      }
+      ;
+      return await response.json();
+    };
+  }
+  var api = {
+    getClips: fetcher((page) => "feed/v2?is_liked=true&page=" + page),
+    getClip: fetcher(
+      (id) => "clip/" + id,
+      true
+    )
+  };
+
   // src/scripts/colony.ts
   var SYNTHETIC_LINK_KINDS = ["next", "descendant"];
   var DEFAULT_STATE = {
@@ -815,14 +836,7 @@
       while (true) {
         await atLeast(1e3);
         //! (to avoid rate limiting)
-        const { data: { clips } } = await getSuno().root.apiClient.GET("/api/feed/v2", {
-          params: {
-            query: {
-              is_liked: true,
-              page: this.state.lastProcessedPage + 1
-            }
-          }
-        });
+        const { clips } = await api.getClips(this.state.lastProcessedPage + 1);
         if (!clips.length) {
           this.state.allPagesProcessed = true;
           break;
@@ -838,7 +852,7 @@
       await atLeast(1e3);
       //! (to avoid rate limiting)
       console.log(`Clip ${id} not found in cache, loading...`);
-      const clip = await getSuno().root.clips.loadClipById(id) ?? missingClip(id);
+      const clip = await api.getClip(id) ?? missingClip(id);
       this.state.rawClips.push(clip);
       return clip;
     }
