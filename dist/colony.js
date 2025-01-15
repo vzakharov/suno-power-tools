@@ -278,6 +278,18 @@
         ...unref(mergee)
       })) : this;
     }
+    #use(usable, key) {
+      const computedRef = usable(this);
+      Object.assign(this, {
+        [key]: computedRef
+      });
+    }
+    uses(usables) {
+      forEach(usables, (usable, key) => {
+        this.#use(usable, key);
+      });
+      return this;
+    }
   };
   var Ref = class extends ReadonlyRef {
     set(value) {

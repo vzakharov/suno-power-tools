@@ -1,6 +1,14 @@
 (vovas = { main() {
 (() => {
   // src/lodashish.ts
+  function mapValues(obj, mapper) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, mapper(value, key)])
+    );
+  }
+  function forEach(obj, callback) {
+    return mapValues(obj, callback);
+  }
   function isFunction(value) {
     return typeof value === "function";
   }
@@ -76,6 +84,18 @@
         ...this.value,
         ...unref(mergee)
       })) : this;
+    }
+    #use(usable, key) {
+      const computedRef = usable(this);
+      Object.assign(this, {
+        [key]: computedRef
+      });
+    }
+    uses(usables) {
+      forEach(usables, (usable, key) => {
+        this.#use(usable, key);
+      });
+      return this;
     }
   };
   var Ref = class extends ReadonlyRef {

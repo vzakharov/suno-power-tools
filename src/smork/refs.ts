@@ -1,6 +1,8 @@
 //! Smork, the smol framework
-import { isFunction, mapValues } from "../lodashish";
+import assert from "assert";
+import { forEach, isFunction, mapValues } from "../lodashish";
 import { Functional } from "../types";
+import { mutate } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -95,8 +97,47 @@ export class ReadonlyRef<T> {
       }))
       : this;
   };
+
+  #use<
+    TTargetRef extends ReadonlyRef<any>,
+    TKey extends string
+  >(usable: (ref: this) => TTargetRef, key: TKey) {
+    const computedRef = usable(this);
+    Object.assign(this, {
+      [key]: computedRef
+    });
+  };
+
+  uses<
+    U extends Record<string, (ref: this) => ReadonlyRef<any>>
+  >(usables: U) {
+    forEach(usables, (usable, key) => {
+      this.#use(usable, key);
+    })
+    return this as this & {
+      [K in keyof U]: ReturnType<U[K]>
+    };
+  };
+
 };
 
+// usables example
+
+// const flag = ref(false);
+
+// // a simple "usable" (a function that takes a ref and returns a ref)
+// function lastUpdated(ref: ReadonlyRef<any>) {
+//   return ref.map(Date.now) // to trigger an update on any ref change
+// };
+
+// // we can use it _on_ the flag ref
+// const flagLastUpdated = lastUpdated(flag); // const flagLastUpdated: ComputedRef<number>
+
+// // or, we can add it to a ref as we're creating it, and use it as a property
+// const flag2 = ref(false).uses({
+//   lastUpdated
+// });
+// flag2.lastUpdated; // ComputedRef<number>
 
 export class Ref<T> extends ReadonlyRef<T> {
   
