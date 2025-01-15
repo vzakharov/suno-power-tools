@@ -58,3 +58,7 @@ export function isFunction(value: any): value is Functional {
 export function identity<T>(value: T) {
   return value;
 };
+
+export function assign<T extends {}, U extends {}>(obj: T, partial: U) {
+  return Object.assign(obj, partial) as T & U;
+}

@@ -1,6 +1,6 @@
 //! Smork, the smol framework
 import assert from "assert";
-import { forEach, isFunction, mapValues } from "../lodashish";
+import { assign, forEach, isFunction, mapValues } from "../lodashish";
 import { Functional } from "../types";
 import { mutate } from "../utils";
 
@@ -101,8 +101,7 @@ export class ReadonlyRef<T> {
   uses<
     U extends Record<string, (ref: this) => ReadonlyRef<any>>
   >(usables: U) {
-    mutate(this, mapValues(usables, usable => usable(this)));
-    return this as this & {
+    return assign(this, mapValues(usables, usable => usable(this))) as this & {
       [K in keyof U]: ReturnType<U[K]>
     };
   };

@@ -29,6 +29,9 @@
   function isFunction(value) {
     return typeof value === "function";
   }
+  function assign(obj, partial) {
+    return Object.assign(obj, partial);
+  }
 
   // src/utils.ts
   function Undefined() {
@@ -279,8 +282,7 @@
       })) : this;
     }
     uses(usables) {
-      mutate(this, mapValues(usables, (usable) => usable(this)));
-      return this;
+      return assign(this, mapValues(usables, (usable) => usable(this)));
     }
   };
   var Ref = class extends ReadonlyRef {

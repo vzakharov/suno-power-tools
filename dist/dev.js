@@ -9,10 +9,8 @@
   function isFunction(value) {
     return typeof value === "function";
   }
-
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
+  function assign(obj, partial) {
+    return Object.assign(obj, partial);
   }
 
   // src/smork/refs.ts
@@ -88,8 +86,7 @@
       })) : this;
     }
     uses(usables) {
-      mutate(this, mapValues(usables, (usable) => usable(this)));
-      return this;
+      return assign(this, mapValues(usables, (usable) => usable(this)));
     }
   };
   var Ref = class extends ReadonlyRef {
@@ -172,6 +169,11 @@
       (fn) => fn(),
       (value) => value
     );
+  }
+
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts
