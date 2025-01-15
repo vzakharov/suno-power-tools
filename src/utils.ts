@@ -1,3 +1,6 @@
+import { mapKeys } from "./lodashish";
+import { StringKey } from "./types";
+
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
     throw new Error('Value is null or undefined');
@@ -8,6 +11,18 @@ export function ensure<T>(value: T | null | undefined): T {
 
 export function Null<T>() {
   return null as T | null;
+};
+
+export function Nullable<T>(value?: T) {
+  return value ?? null;
+}
+
+export function Undefined<T>() {
+  return undefined as T | undefined;
+};
+
+export function Undefinable<T>(value?: T) {
+  return value;
 };
 
 export function EmptyArray<T>() {
@@ -73,4 +88,18 @@ export function sortByDate<T, TDateAccessor extends (item: T) => string | null>(
 
 export function sortByDate(items: any[], dateAccessor = (item: any) => item.created_at) {
   return items.sort((a, b) => isoStringToTimestamp(dateAccessor(a)) - isoStringToTimestamp(dateAccessor(b)));
+};
+
+export type RenameKeys<
+  TRecord extends Record<string, any>,
+  TMap extends Partial<Record<StringKey<TRecord>, string>>,
+> = {
+  [K in StringKey<TRecord>]: K extends keyof TMap ? TMap[K] : K;
+};
+
+export function renameKeys<
+  TRecord extends Record<string, any>,
+  TMap extends Readonly<Partial<Record<StringKey<TRecord>, string>>>,
+>(record: TRecord, keyMap: TMap) {
+  return mapKeys(record, (key) => keyMap[key as keyof TMap] ?? key) as unknown as RenameKeys<TRecord, TMap>;
 };

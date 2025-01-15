@@ -1,18 +1,17 @@
+import { type GraphData } from 'force-graph';
 import { RawClip } from "../baseTypes";
 import { findCropBaseClipId } from "../cropping";
-import { filter, find } from "../lodashish";
-import { getSuno } from "../manager";
+import { find } from "../lodashish";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
-import { renderTemplate, Template } from "../templating";
-import { $throw, $with, atLeast, EmptyArray, isoStringToTimestamp, jsonClone, mutate, sortByDate, uploadTextFile } from "../utils";
-import { type GraphData }  from 'force-graph';
+import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
+import { api } from '../api';
 
 declare global {
   interface Window {
-    templates: {
-      colony: Template<'data' | 'use3DGraph' | 'GraphRenderer' | 'graph_url_slug'>,
+    vovas: {
+      main: () => void,
     },
   }
 }
@@ -68,7 +67,7 @@ const DEFAULT_STATE = {
 
 type ColonyState = typeof DEFAULT_STATE;
 
-class Colony {
+export class Colony {
 
   constructor(
     public state: ColonyState = DEFAULT_STATE,
@@ -135,14 +134,7 @@ class Colony {
     console.log('Fetching liked clips...');
     while (true) {
       await atLeast(1000); //! (to avoid rate limiting)
-      const { data: { clips } } = await getSuno().root.apiClient.GET('/api/feed/v2', {
-        params: {
-          query: {
-            is_liked: true,
-            page: this.state.lastProcessedPage + 1,
-          }
-        }
-      });
+      const { clips } = await api.getClips(this.state.lastProcessedPage + 1);
       if (!clips.length) {
         this.state.allPagesProcessed = true;
         break;
@@ -158,7 +150,7 @@ class Colony {
   private async loadClip(id: string) {
     await atLeast(1000); //! (to avoid rate limiting)
     console.log(`Clip ${id} not found in cache, loading...`);
-    const clip = await getSuno().root.clips.loadClipById(id) ?? missingClip(id);
+    const clip = await api.getClip(id) ?? missingClip(id);
     this.state.rawClips.push(clip);
     return clip;
   };
@@ -312,8 +304,9 @@ class Colony {
     );
   };
 
+  private _graphData = Undefined<ColonyGraphData>();
 
-  get graphData() {
+  getGraphData() {
 
     const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
       id,
@@ -349,28 +342,27 @@ class Colony {
     return result;
   };
 
+  get graphData() {
+    return this._graphData ??= this.getGraphData();
+  };
+
   getHtml(mode?: '3d' | '3D') {
-    const in3D = mode?.toLowerCase() === '3d';
     console.log("Rendering your colony, give it a few seconds...");
 
-    return renderTemplate(window.templates.colony, {
-      data: JSON.stringify(this.graphData),
-      use3DGraph: String(in3D),
-      GraphRenderer: in3D ? 'ForceGraph3D' : 'ForceGraph',
-      graph_url_slug: in3D ? '3d-force-graph' : 'force-graph',
-    });
+    return `<script>(vovas = {${
+      window.vovas.main.toString()
+    }}).main();vovas.colony.render(...${
+      JSON.stringify([ mode, this.graphData ])
+    })</script>`;
   };
 
-  private renderedElements: HTMLElement[] = [];
-
-  async render(...[mode]: Parameters<typeof this.getHtml>) {
+  async render(
+    mode?: '3d' | '3D',
+    data?: ColonyGraphData,
+  ) {
     console.log("Rendering your colony, give it a few seconds...");
-    this.renderedElements = await render(this.graphData, { in3D: mode?.toLowerCase() === '3d' });
-  };
-
-  clear() {
-    this.renderedElements.forEach(element => element.remove());
-    this.renderedElements = [];
+    this._graphData ??= data;
+    await render(this, this.graphData, { mode });
   };
 
   renderToFile(...params: Parameters<typeof this.getHtml>) {
@@ -386,7 +378,7 @@ class Colony {
 
 };
 
-export type ColonyGraphData = typeof Colony.prototype.graphData;
+export type ColonyGraphData = ReturnType<typeof Colony.prototype.getGraphData>;
 export type ColonyNode = ColonyGraphData['nodes'][number];
 export type ColonyLink = ColonyGraphData['links'][number];
 
@@ -398,7 +390,8 @@ colony.stateLoaded.promise.then(() => {
   if ( !allPagesProcessed || !allLinksBuilt ) {
     console.log('Run `await vovas.colony.build()` to start or continue building your colony!');
   } else {
-    console.log('Your colony is built, run `await vovas.colony.render()` to view it!');
+    console.log('Your colony is built, rendering!');
+    return colony.render();
   }
 });
 
@@ -419,4 +412,4 @@ function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window, { vovas: { Colony, colony }});
+mutate(window.vovas, { Colony, colony });
