@@ -32,95 +32,6 @@ export async function render(
 
   const GraphRenderer: typeof ForceGraph = await importScript(window, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
   window.document.head.appendChild(style([colonyCss]));
-  
-  const container = div(
-    {
-      class: 'colony',
-      style: {
-        position: 'fixed',
-        top: '0px',
-        left: '0px',
-        zIndex: '100',
-      }
-    }, [
-      renderIf(showUI,
-        div({
-          style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', },
-        }, [
-          graphContainer = div(),
-          div({ 
-            id: 'sidebar',
-          }, [  
-            div({
-              class: 'settings f-col'
-            }, [
-              button({ 
-                style: { marginBottom: '5px'},
-              // }, {
-                onclick: () => hideUI.set(true)
-              }, [
-                'Close Colony'
-              ]),
-              h3(['Settings']),
-              div(
-                Labeled('Attract based on time',
-                  Checkbox(useNextLinks)
-                )
-              ),
-              div({
-                // style: displayNoneUnless(useNextLinks),
-                style: useNextLinks.map<StyleOptions>(useLinks => ({
-                  display: useLinks ? 'block' : 'none'
-                }))
-              },
-                Labeled('Show time-based links',
-                  Checkbox(showNextLinks)
-                )
-              ),
-              div(
-                Labeled('Attract to root clip',
-                  Checkbox(useDescendantLinks)
-                )
-              ),
-              div([
-                TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
-                p({ class: 'smol' }, [
-                  'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
-                ])
-              ]),
-              button({/*}, {*/ onclick: redrawGraph }, [
-                'Redraw'
-              ]),
-              button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
-                'Download'
-              ])
-            ]),
-            audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
-              div({ class: 'relative' }, [
-                audioLink = a({ target: '_blank' }, [
-                  audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
-                ]),
-                div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-                  audioName = div(),
-                  audioTags = div({ class: 'smol' })
-                ])
-              ]),
-              audioElement = audio({ controls: true, class: 'w-100' })
-            ])
-          ])
-        ]),
-        button({ 
-          style: { position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100', },
-        // }, {
-          onclick: () => hideUI.set(false)
-        }, [
-          'Reopen Colony'
-        ])
-      )
-    ]
-  );
-
-  document.body.appendChild(container);
 
   type ProcessedLink = Omit<ColonyLink, 'source' | 'target'> & {
     source: string | ColonyNode;
@@ -267,4 +178,93 @@ export async function render(
     useDescendantLinks.set(false);
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
+  
+  const container = document.body.appendChild(div(
+    {
+      class: 'colony',
+      style: {
+        position: 'fixed',
+        top: '0px',
+        left: '0px',
+        zIndex: '100',
+      }
+    }, [
+      renderIf(showUI,
+        div({
+          style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', },
+        }, [
+          graphContainer = div(),
+          div({ 
+            id: 'sidebar',
+          }, [  
+            div({
+              class: 'settings f-col'
+            }, [
+              button({ 
+                style: { marginBottom: '5px'},
+              // }, {
+                onclick: () => hideUI.set(true)
+              }, [
+                'Close Colony'
+              ]),
+              h3(['Settings']),
+              div(
+                Labeled('Attract based on time',
+                  Checkbox(useNextLinks)
+                )
+              ),
+              div({
+                // style: displayNoneUnless(useNextLinks),
+                style: useNextLinks.map<StyleOptions>(useLinks => ({
+                  display: useLinks ? 'block' : 'none'
+                }))
+              },
+                Labeled('Show time-based links',
+                  Checkbox(showNextLinks)
+                )
+              ),
+              div(
+                Labeled('Attract to root clip',
+                  Checkbox(useDescendantLinks)
+                )
+              ),
+              div([
+                TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
+                p({ class: 'smol' }, [
+                  'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
+                ])
+              ]),
+              button({/*}, {*/ onclick: redrawGraph }, [
+                'Redraw'
+              ]),
+              button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
+                'Download'
+              ])
+            ]),
+            audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
+              div({ class: 'relative' }, [
+                audioLink = a({ target: '_blank' }, [
+                  audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+                ]),
+                div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
+                  audioName = div(),
+                  audioTags = div({ class: 'smol' })
+                ])
+              ]),
+              audioElement = audio({ controls: true, class: 'w-100' })
+            ])
+          ])
+        ]),
+        button({ 
+          style: { position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100', },
+        // }, {
+          onclick: () => hideUI.set(false)
+        }, [
+          'Reopen Colony'
+        ])
+      )
+    ]
+  ));
+
+
 };
