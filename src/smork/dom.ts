@@ -40,6 +40,7 @@ export type Props<TElement extends SupportedElement> = {
   [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' /*| keyof Events<TElement>*/>]: TElement[K]
 } & {
   style: StyleOptions,
+  // TODO: Implement string-based styles
   class: string,
   for: TElement extends HTMLLabelElement ? TElement['htmlFor'] : never,
 };
