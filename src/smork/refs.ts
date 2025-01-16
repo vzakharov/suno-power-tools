@@ -96,17 +96,16 @@ export class ReadonlyRef<T> {
     return mapped;
   };
 
-  if<U, V>(ifTruthy: (value: T) => U, ifFalsy: (value: T) => V): MappedRef<T, U | V>;
   if<U, V>(compareTo: T, ifEquals: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
   if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: (value: G) => U, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
   if<U, V>(predicate: (value: T) => boolean, ifHolds: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
-  if<U, V>(first: T | ((value: T) => U) | ((value: T) => boolean), second: ((value: T) => V) | ((value: T) => U), third?: Func) {
-    const [ predicate, ifTruthy, ifFalsy ] = third
-      ? isFunction(first)
-        ? [ first,          second,         third   ]
-        : [ isEqual(first), second,         third   ]
-      :   [ identity,       first as Func,  second  ];
-    return this.map(value => predicate(value) ? ifTruthy(value) : ifFalsy(value));
+  if<U, V>(comparator: T | ((value: T) => U) | ((value: T) => boolean), ifYes: ((value: T) => V) | ((value: T) => U), ifNot: Func) {
+    return this.map(value => 
+      (
+        isFunction(comparator) ? comparator : isEqual(comparator)
+      )(value) 
+        ? ifYes(value) 
+        : ifNot(value));
   };
 
   merge<U>(mergee: Refable<U> | undefined) {

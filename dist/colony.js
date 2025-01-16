@@ -29,9 +29,6 @@
   function isFunction(value) {
     return typeof value === "function";
   }
-  function identity(value) {
-    return value;
-  }
   function assign(obj, partial) {
     return Object.assign(obj, partial);
   }
@@ -289,9 +286,8 @@
       ;
       return mapped;
     }
-    if(first, second, third) {
-      const [predicate, ifTruthy, ifFalsy] = third ? isFunction(first) ? [first, second, third] : [isEqual(first), second, third] : [identity, first, second];
-      return this.map((value) => predicate(value) ? ifTruthy(value) : ifFalsy(value));
+    if(comparator, ifYes, ifNot) {
+      return this.map((value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? ifYes(value) : ifNot(value));
     }
     merge(mergee) {
       return mergee ? computed(() => ({
