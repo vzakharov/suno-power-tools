@@ -1,7 +1,7 @@
 //! Smork, the smol framework
 import assert from "assert";
 import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
-import { Functional } from "../types";
+import { Func } from "../types";
 import { mutate } from "../utils";
 
 export class SmorkError extends Error {
@@ -10,7 +10,7 @@ export class SmorkError extends Error {
   };
 };
 
-export function ref<T>(value: Exclude<T, Functional>): Ref<T>;
+export function ref<T>(value: Exclude<T, Func>): Ref<T>;
 export function ref<T>(): Ref<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
@@ -83,8 +83,17 @@ export class ReadonlyRef<T> {
     return this.get();
   };
 
-  map<U>(getter: (value: T) => U) {
-    return new MappedRef(this, getter);
+  map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, MappedRef<T, U>>;
+  map<U>(getter: Func<[T], U>): MappedRef<T, U>;
+  map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
+    const mapped = new MappedRef(this, nestableGetter);
+    if ( isFunction(mapped.value) ) {
+      this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
+      return (...args: TArgs) => new MappedRef(this, 
+        value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
+      );
+    };
+    return mapped;
   };
 
   merge<U>(mergee: Refable<U> | undefined) {
@@ -100,7 +109,10 @@ export class ReadonlyRef<T> {
     U extends Record<string, (value: T) => any>
   >(methods: U) {
     return assign(this, mapValues(methods, this.map)) as this & {
-      [K in keyof U]: ComputedRef<ReturnType<U[K]>>
+      [K in keyof U]:
+        ReturnType<U[K]> extends Func<infer TArgs, infer TReturn>
+          ? Func<TArgs, MappedRef<T, TReturn>>
+          : MappedRef<T, ReturnType<U[K]>>
     };
   };
 
@@ -110,12 +122,16 @@ export class ReadonlyRef<T> {
 export class MappedRef<T, U> extends ReadonlyRef<U> {
   
   constructor(
-    public readonly parent: ReadonlyRef<T>,
-    mapper: (value: T) => U
+    public readonly dependency: ReadonlyRef<T> | undefined,
+    private mapper: (value: T) => U
   ) {
-    super(mapper(parent.value));
-    parent.watch(value => this._set(mapper(value)));
+    if ( dependency ) {
+      super(mapper(dependency.value));
+      dependency.watch(this.update);
+    };
   };
+
+  update = (value: T) => this._set(this.mapper(value));
 
 };
 
@@ -249,7 +265,7 @@ export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
 
 export function torefs<T extends Record<string, any>>(values: T) {
   return mapValues(values, toref) as {
-    [K in keyof T]: T[K] extends Functional ? T[K] : Ref<T[K]>
+    [K in keyof T]: T[K] extends Func ? T[K] : Ref<T[K]>
   }
 };
 

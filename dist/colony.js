@@ -271,8 +271,17 @@
     get value() {
       return this.get();
     }
-    map(getter) {
-      return new MappedRef(this, getter);
+    map(nestableGetter) {
+      const mapped = new MappedRef(this, nestableGetter);
+      if (isFunction(mapped.value)) {
+        this.unwatch(mapped.update);
+        return (...args) => new MappedRef(
+          this,
+          (value) => nestableGetter(value)(...args)
+        );
+      }
+      ;
+      return mapped;
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -285,11 +294,20 @@
     }
   };
   var MappedRef = class extends ReadonlyRef {
-    constructor(parent, mapper) {
-      super(mapper(parent.value));
-      this.parent = parent;
-      parent.watch((value) => this._set(mapper(value)));
+    constructor(dependency, mapper) {
+      var __super = (...args) => {
+        super(...args);
+        this.dependency = dependency;
+        this.mapper = mapper;
+        return this;
+      };
+      if (dependency) {
+        __super(mapper(dependency.value));
+        dependency.watch(this.update);
+      }
+      ;
     }
+    update = (value) => this._set(this.mapper(value));
   };
   var Ref = class extends ReadonlyRef {
     set(value) {
