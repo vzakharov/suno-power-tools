@@ -34,6 +34,9 @@
   }
 
   // src/utils.ts
+  function Null() {
+    return null;
+  }
   function Undefined() {
     return void 0;
   }
@@ -407,7 +410,7 @@
     );
   }
 
-  // src/smork/rendering.ts
+  // src/smork/dom.ts
   var SUPPORTED_TAGS = [
     "html",
     "head",
@@ -538,6 +541,9 @@
       };
     });
   }
+  function renderIf(condition, ifYes, ifNo = Null()) {
+    return condition.if(true, ifYes, ifNo);
+  }
 
   // src/templates/colony/css.js
   var colonyCss = '.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > * {margin-top: 5px;}';
@@ -548,6 +554,7 @@
   }) {
     const in3D = mode?.toLowerCase() === "3d";
     const hideUI = ref(false);
+    const showUI = hideUI.map((hide) => !hide);
     let graphContainer;
     const useNextLinks = ref(true);
     const showNextLinks = ref(false);
@@ -572,8 +579,8 @@
         }
       },
       [
-        hideUI.if(
-          false,
+        renderIf(
+          showUI,
           div({
             style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" }
           }, [

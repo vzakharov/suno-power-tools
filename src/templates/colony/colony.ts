@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput } from '../../smork/rendering';
+import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput, renderIf } from '../../smork/dom';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
@@ -14,6 +14,7 @@ export async function render(
 
   const in3D = mode?.toLowerCase() === '3d';
   const hideUI = ref(false);
+  const showUI = hideUI.map(hide => !hide);
 
   let graphContainer: HTMLDivElement;
 
@@ -42,7 +43,7 @@ export async function render(
         zIndex: '100',
       }
     }, [
-      hideUI.if<SmorkNode>(false,
+      renderIf(showUI,
         div({
           style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', },
         }, [
