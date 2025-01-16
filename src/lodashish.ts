@@ -1,4 +1,4 @@
-import { Functional, StringKey } from "./types";
+import { Func, StringKey } from "./types";
 
 export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
   return arr.find(createPredicate(filter));
@@ -51,7 +51,7 @@ export function mapKeys<
   };
 };
 
-export function isFunction(value: any): value is Functional {
+export function isFunction(value: any): value is Func {
   return typeof value === 'function';
 };
 

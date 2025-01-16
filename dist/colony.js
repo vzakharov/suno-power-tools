@@ -91,6 +91,9 @@
   function renameKeys(record, keyMap) {
     return mapKeys(record, (key) => keyMap[key] ?? key);
   }
+  function isEqual(compareTo) {
+    return (value) => value === compareTo;
+  }
 
   // src/cropping.ts
   //! Background info: For some unknown reason, Suno doesn't keep the data bout the original clip when you crop it.
@@ -217,9 +220,9 @@
     }
   };
   function ref(valueOrGetter, setter) {
-    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new WritableRef(valueOrGetter);
   }
-  var ReadonlyRef = class {
+  var Ref = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -271,22 +274,20 @@
     get value() {
       return this.get();
     }
-    /**
-     * ### Note
-     * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
-     */
-    map(getter) {
-      return this.#createComputedRef(getter, true);
+    map(nestableGetter) {
+      const mapped = new MappedRef(this, nestableGetter);
+      if (isFunction(mapped.value)) {
+        this.unwatch(mapped.update);
+        return (...args) => new MappedRef(
+          this,
+          (value) => nestableGetter(value)(...args)
+        );
+      }
+      ;
+      return mapped;
     }
-    /**
-     * ### Note
-     * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
-     */
-    compute(getter) {
-      return this.#createComputedRef(getter);
-    }
-    #createComputedRef(getter, onlyThis) {
-      return new ComputedRef(() => getter(this.value), onlyThis && [this]);
+    if(comparator, ifYes, ifNot) {
+      return this.map((value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? ifYes(value) : ifNot(value));
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -298,7 +299,23 @@
       return assign(this, mapValues(methods, this.map));
     }
   };
-  var Ref = class extends ReadonlyRef {
+  var MappedRef = class extends Ref {
+    constructor(dependency, mapper) {
+      var __super = (...args) => {
+        super(...args);
+        this.dependency = dependency;
+        this.mapper = mapper;
+        return this;
+      };
+      if (dependency) {
+        __super(mapper(dependency.value));
+        dependency.watch(this.update);
+      }
+      ;
+    }
+    update = (value) => this._set(this.mapper(value));
+  };
+  var WritableRef = class extends Ref {
     set(value) {
       this._set(value);
     }
@@ -316,17 +333,11 @@
     }
   };
   var currentComputedTracker = void 0;
-  var ComputedRef = class extends Ref {
-    constructor(getter, dependencies = Undefined()) {
+  var ComputedRef = class extends WritableRef {
+    constructor(getter) {
       super(void 0);
       this.getter = getter;
-      if (dependencies) {
-        this.dependencies = new Set(dependencies);
-        this.dependencies.forEach((ref2) => ref2.watch(this.#updateValue));
-      } else {
-        this.track();
-      }
-      ;
+      this.track();
     }
     dependencies = /* @__PURE__ */ new Set();
     track = () => {
@@ -343,14 +354,13 @@
           ref2.watch(this.track);
           this.dependencies.add(ref2);
         };
-        this.#updateValue();
+        this._set(this.getter());
       } finally {
         currentComputedTracker = void 0;
       }
     };
-    #updateValue = () => this._set(this.getter());
   };
-  var WritableComputedRef = class extends Ref {
+  var WritableComputedRef = class extends WritableRef {
     constructor(getter, setter, allowMismatch = false) {
       const computedRef = new ComputedRef(getter);
       super(computedRef.value);
@@ -370,21 +380,21 @@
     return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
   }
   function refResolver(arg) {
-    return (ifRef, ifFunction, ifValue) => {
-      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    return (ifRef, ifValue) => {
+      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
     };
   }
   function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
-      (fn) => fn(),
+      // fn => fn(),
       (value) => value
     );
   }
   function runAndWatch(refable, callback) {
     refResolver(refable)(
       (ref2) => ref2.watchImmediate(callback),
-      (getter) => ref(getter).watchImmediate(callback),
+      // getter => ref(getter).watchImmediate(callback),
       callback
     );
   }
@@ -431,14 +441,13 @@
     }, {});
   }
   function createTag(tagName) {
-    function elementFactory(propsOrChildren, eventsOrChildren, childrenOrNone) {
-      const [props, events, children] = Array.isArray(propsOrChildren) ? [void 0, void 0, propsOrChildren] : Array.isArray(eventsOrChildren) ? [propsOrChildren, void 0, eventsOrChildren] : [propsOrChildren, eventsOrChildren, childrenOrNone];
-      return verboseElementFactory(props, events, children);
+    function elementFactory(propsOrChildren, childrenOrNone) {
+      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
+      return verboseElementFactory(props, children);
     }
     return elementFactory;
-    function verboseElementFactory(props, events, children) {
+    function verboseElementFactory(props, children) {
       const element = document.createElement(tagName);
-      events && Object.assign(element, events);
       props && forEach(
         renameKeys(props, {
           class: "className",
@@ -467,7 +476,7 @@
       return element;
     }
   }
-  var checkbox = modelElement(
+  var Checkbox = modelElement(
     "input",
     "checked",
     { type: "checkbox" },
@@ -475,7 +484,7 @@
       onchange: () => model.set(!model.value)
     })
   );
-  var textInput = modelElement(
+  var TextInput = modelElement(
     "input",
     "value",
     { type: "text" },
@@ -490,11 +499,13 @@
       return createTag(tag)({
         ...initProps,
         ...props,
-        [modelKey]: model
-      }, eventFactory(model));
+        [modelKey]: model,
+        // }, eventFactory(model))
+        ...eventFactory(model)
+      });
     };
   }
-  function labeled(labelText, element) {
+  function Labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
     const output = [
       label({ for: element.id }, [labelText]),
@@ -567,22 +578,18 @@
             div({
               class: "settings f-col"
             }, [
-              button(
-                {
-                  style: { marginBottom: "5px" }
-                },
-                {
-                  onclick: () => hideUI.set(true)
-                },
-                [
-                  "Close Colony"
-                ]
-              ),
+              button({
+                style: { marginBottom: "5px" },
+                // }, {
+                onclick: () => hideUI.set(true)
+              }, [
+                "Close Colony"
+              ]),
               h3(["Settings"]),
               div(
-                labeled(
+                Labeled(
                   "Attract based on time",
-                  checkbox(useNextLinks)
+                  Checkbox(useNextLinks)
                 )
               ),
               div(
@@ -592,27 +599,33 @@
                     display: useLinks ? "block" : "none"
                   }))
                 },
-                labeled(
+                Labeled(
                   "Show time-based links",
-                  checkbox(showNextLinks)
+                  Checkbox(showNextLinks)
                 )
               ),
               div(
-                labeled(
+                Labeled(
                   "Attract to root clip",
-                  checkbox(useDescendantLinks)
+                  Checkbox(useDescendantLinks)
                 )
               ),
               div([
-                textInput(filterString, { placeholder: "Filter by name, style or ID" }),
+                TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
                 p({ class: "smol" }, [
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
               ]),
-              button({}, { onclick: redrawGraph }, [
+              button({
+                /*}, {*/
+                onclick: redrawGraph
+              }, [
                 "Redraw"
               ]),
-              button({}, { onclick: () => ctx.renderToFile(mode) }, [
+              button({
+                /*}, {*/
+                onclick: () => ctx.renderToFile(mode)
+              }, [
                 "Download"
               ])
             ]),
@@ -638,8 +651,8 @@
             padding: "5px",
             zIndex: "100",
             display: hide ? "block" : "none"
-          }))
-        }, {
+          })),
+          // }, {
           onclick: () => hideUI.set(false)
         }, [
           "Reopen Colony"
@@ -689,7 +702,7 @@
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
       graph._destructor();
       container.remove();
-      await render.call(this, rawData, { in3D });
+      await render(this, rawData, { mode });
     }
     ;
     const data = graph.graphData();

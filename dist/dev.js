@@ -14,11 +14,11 @@
   }
 
   // src/utils.ts
-  function Undefined() {
-    return void 0;
-  }
   function mutate(obj, partial) {
     Object.assign(obj, partial);
+  }
+  function isEqual(compareTo) {
+    return (value) => value === compareTo;
   }
 
   // src/smork/refs.ts
@@ -29,9 +29,9 @@
     }
   };
   function ref(valueOrGetter, setter) {
-    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new WritableRef(valueOrGetter);
   }
-  var ReadonlyRef = class {
+  var Ref = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -83,22 +83,20 @@
     get value() {
       return this.get();
     }
-    /**
-     * ### Note
-     * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
-     */
-    map(getter) {
-      return this.#createComputedRef(getter, true);
+    map(nestableGetter) {
+      const mapped = new MappedRef(this, nestableGetter);
+      if (isFunction(mapped.value)) {
+        this.unwatch(mapped.update);
+        return (...args) => new MappedRef(
+          this,
+          (value) => nestableGetter(value)(...args)
+        );
+      }
+      ;
+      return mapped;
     }
-    /**
-     * ### Note
-     * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
-     */
-    compute(getter) {
-      return this.#createComputedRef(getter);
-    }
-    #createComputedRef(getter, onlyThis) {
-      return new ComputedRef(() => getter(this.value), onlyThis && [this]);
+    if(comparator, ifYes, ifNot) {
+      return this.map((value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? ifYes(value) : ifNot(value));
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -110,7 +108,23 @@
       return assign(this, mapValues(methods, this.map));
     }
   };
-  var Ref = class extends ReadonlyRef {
+  var MappedRef = class extends Ref {
+    constructor(dependency, mapper) {
+      var __super = (...args) => {
+        super(...args);
+        this.dependency = dependency;
+        this.mapper = mapper;
+        return this;
+      };
+      if (dependency) {
+        __super(mapper(dependency.value));
+        dependency.watch(this.update);
+      }
+      ;
+    }
+    update = (value) => this._set(this.mapper(value));
+  };
+  var WritableRef = class extends Ref {
     set(value) {
       this._set(value);
     }
@@ -128,17 +142,11 @@
     }
   };
   var currentComputedTracker = void 0;
-  var ComputedRef = class extends Ref {
-    constructor(getter, dependencies = Undefined()) {
+  var ComputedRef = class extends WritableRef {
+    constructor(getter) {
       super(void 0);
       this.getter = getter;
-      if (dependencies) {
-        this.dependencies = new Set(dependencies);
-        this.dependencies.forEach((ref2) => ref2.watch(this.#updateValue));
-      } else {
-        this.track();
-      }
-      ;
+      this.track();
     }
     dependencies = /* @__PURE__ */ new Set();
     track = () => {
@@ -155,14 +163,13 @@
           ref2.watch(this.track);
           this.dependencies.add(ref2);
         };
-        this.#updateValue();
+        this._set(this.getter());
       } finally {
         currentComputedTracker = void 0;
       }
     };
-    #updateValue = () => this._set(this.getter());
   };
-  var WritableComputedRef = class extends Ref {
+  var WritableComputedRef = class extends WritableRef {
     constructor(getter, setter, allowMismatch = false) {
       const computedRef = new ComputedRef(getter);
       super(computedRef.value);
@@ -187,19 +194,19 @@
     });
   }
   function refResolver(arg) {
-    return (ifRef, ifFunction, ifValue) => {
-      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    return (ifRef, ifValue) => {
+      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
     };
   }
   function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
-      (fn) => fn(),
+      // fn => fn(),
       (value) => value
     );
   }
 
   // src/scripts/dev.ts
-  mutate(window, { ref, computed, useNot, BaseRef: ReadonlyRef, Ref, ComputedRef, WritableComputedRef });
+  mutate(window, { ref, computed, useNot, Ref, WritableRef, ComputedRef, WritableComputedRef });
 })();
 }}).main();

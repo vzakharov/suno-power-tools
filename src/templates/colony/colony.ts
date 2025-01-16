@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, StyleOptions, textInput } from '../../smork/rendering';
+import { a, audio, button, Checkbox, div, h3, img, importScript, Labeled, p, style, StyleOptions, TextInput } from '../../smork/rendering';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
@@ -59,16 +59,16 @@ export async function render(
             class: 'settings f-col'
           }, [
             button({ 
-              style: { marginBottom: '5px'}},
-            {
+              style: { marginBottom: '5px'},
+            // }, {
               onclick: () => hideUI.set(true)
             }, [
               'Close Colony'
             ]),
             h3(['Settings']),
             div(
-              labeled('Attract based on time',
-                checkbox(useNextLinks)
+              Labeled('Attract based on time',
+                Checkbox(useNextLinks)
               )
             ),
             div({
@@ -77,25 +77,25 @@ export async function render(
                 display: useLinks ? 'block' : 'none'
               }))
             },
-              labeled('Show time-based links',
-                checkbox(showNextLinks)
+              Labeled('Show time-based links',
+                Checkbox(showNextLinks)
               )
             ),
             div(
-              labeled('Attract to root clip',
-                checkbox(useDescendantLinks)
+              Labeled('Attract to root clip',
+                Checkbox(useDescendantLinks)
               )
             ),
             div([
-              textInput(filterString, { placeholder: 'Filter by name, style or ID' }),
+              TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
               p({ class: 'smol' }, [
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])
             ]),
-            button({}, { onclick: redrawGraph }, [
+            button({/*}, {*/ onclick: redrawGraph }, [
               'Redraw'
             ]),
-            button({}, { onclick: () => ctx.renderToFile(mode) }, [
+            button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
               'Download'
             ])
           ]),
@@ -117,8 +117,8 @@ export async function render(
         style: hideUI.map<StyleOptions>(hide => ({
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
           display: hide ? 'block' : 'none',
-        }))
-      }, {
+        })),
+      // }, {
         onclick: () => hideUI.set(false)
       }, [
         'Reopen Colony'
@@ -184,7 +184,7 @@ export async function render(
     new FinalizationRegistry(() => console.log('Previous graph destroyed, container removed from memory')).register(graph, '');
     graph._destructor();
     container.remove();
-    await render.call(this, rawData, { in3D });
+    await render(this, rawData, { mode });
   };
 
   const data = graph.graphData();

@@ -1,8 +1,8 @@
 //! Smork, the smol framework
 import assert from "assert";
 import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
-import { Functional } from "../types";
-import { mutate, Undefined } from "../utils";
+import { Func } from "../types";
+import { isEqual, mutate } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -10,20 +10,20 @@ export class SmorkError extends Error {
   };
 };
 
-export function ref<T>(value: Exclude<T, Functional>): Ref<T>;
-export function ref<T>(): Ref<T | undefined>;
+export function ref<T>(value: Exclude<T, Func>): WritableRef<T>;
+export function ref<T>(): WritableRef<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 
 export function ref<T>(valueOrGetter?: T | (() => T), setter?: (value: T) => void) {
   return isFunction(valueOrGetter) 
     ? computed(valueOrGetter, setter)
-    : new Ref(valueOrGetter);
+    : new WritableRef(valueOrGetter);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
 
-export class ReadonlyRef<T> {
+export class Ref<T> {
 
   protected watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
@@ -83,25 +83,30 @@ export class ReadonlyRef<T> {
     return this.get();
   };
 
-  /**
-   * ### Note
-   * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
-   */
-  map<U>(getter: (value: T) => U): ComputedRef<U> {
-    return this.#createComputedRef(getter, true)
+  map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, MappedRef<T, U>>;
+  map<U>(getter: Func<[T], U>): MappedRef<T, U>;
+  map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
+    const mapped = new MappedRef(this, nestableGetter);
+    if ( isFunction(mapped.value) ) {
+      this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
+      return (...args: TArgs) => new MappedRef(this, 
+        value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
+      );
+    };
+    return mapped;
   };
 
-  /**
-   * ### Note
-   * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
-   */
-  compute<U>(getter: (value: T) => U): ComputedRef<U> {
-    return this.#createComputedRef(getter)
-  }
-
-  #createComputedRef<U>(getter: (value: T) => U, onlyThis?: true) {
-    return new ComputedRef(() => getter(this.value), onlyThis && [this]);
-  }
+  if<U, V>(compareTo: T, ifEquals: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
+  if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: (value: G) => U, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+  if<U, V>(predicate: (value: T) => boolean, ifHolds: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
+  if<U, V>(comparator: T | ((value: T) => U) | ((value: T) => boolean), ifYes: ((value: T) => V) | ((value: T) => U), ifNot: Func) {
+    return this.map(value => 
+      (
+        isFunction(comparator) ? comparator : isEqual(comparator)
+      )(value) 
+        ? ifYes(value) 
+        : ifNot(value));
+  };
 
   merge<U>(mergee: Refable<U> | undefined) {
     return mergee
@@ -116,27 +121,32 @@ export class ReadonlyRef<T> {
     U extends Record<string, (value: T) => any>
   >(methods: U) {
     return assign(this, mapValues(methods, this.map)) as this & {
-      [K in keyof U]: ComputedRef<ReturnType<U[K]>>
+      [K in keyof U]:
+        ReturnType<U[K]> extends Func<infer TArgs, infer TReturn>
+          ? Func<TArgs, MappedRef<T, TReturn>>
+          : MappedRef<T, ReturnType<U[K]>>
     };
   };
 
+};
+
+export class MappedRef<T, U> extends Ref<U> {
+  
+  constructor(
+    public readonly dependency: Ref<T> | undefined,
+    private mapper: (value: T) => U
+  ) {
+    if ( dependency ) {
+      super(mapper(dependency.value));
+      dependency.watch(this.update);
+    };
+  };
+
+  update = (value: T) => this._set(this.mapper(value));
 
 };
 
-// // usables example
-// const num = ref(0).uses({ 
-//   String,
-//   lastUpdated: Date.now,
-//   sqrt: Math.sqrt,
-//   aintZero: Boolean
-// });
-// num.String      // ComputedRef<string>
-// num.lastUpdated // ComputedRef<number>
-// num.sqrt        // ComputedRef<number>
-// num.aintZero    // ComputedRef<boolean>
-
-
-export class Ref<T> extends ReadonlyRef<T> {
+export class WritableRef<T> extends Ref<T> {
   
   set(value: T) {
     this._set(value);
@@ -159,34 +169,19 @@ export class Ref<T> extends ReadonlyRef<T> {
 
 };
 
-export function assignTo<T>(ref: Ref<T>) {
+export function assignTo<T>(ref: WritableRef<T>) {
   return (value: T) => {
     ref.set(value);
   };
 };
 
-let currentComputedTracker: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
+let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
-export class ComputedRef<T> extends Ref<T> {
+export class ComputedRef<T> extends WritableRef<T> {
 
-  dependencies = new Set<ReadonlyRef<any>>();
+  private dependencies = new Set<Ref<any>>();
 
-  constructor(
-    private getter: () => T,
-    dependencies = Undefined<ReadonlyRef<any>[]>()
-  ) {
-    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
-    if ( dependencies ) {
-      // No need to track if the dependencies are predefined
-      this.dependencies = new Set(dependencies);
-      this.dependencies.forEach(ref => ref.watch(this.#updateValue));
-    } else {
-      this.track();
-    };
-  };
-
-
-  private track = () => {
+  track = () => {
     if ( currentComputedTracker ) {
       throw new SmorkError(
         "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
@@ -199,16 +194,22 @@ export class ComputedRef<T> extends Ref<T> {
         ref.watch(this.track);
         this.dependencies.add(ref);
       };
-      this.#updateValue();
+      this._set(this.getter());
     } finally {
       currentComputedTracker = undefined;
     }
   };
 
-  #updateValue = () => this._set(this.getter());
+  constructor(
+    private getter: () => T
+  ) {
+    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
+    this.track();
+  };
+
 };
 
-export class WritableComputedRef<T> extends Ref<T> {
+export class WritableComputedRef<T> extends WritableRef<T> {
 
   constructor(
     getter: () => T,
@@ -239,15 +240,15 @@ export function computed<T>(getter: () => T, setter?: (value: T) => void) {
 };
 
 
-export function useNot(ref: ReadonlyRef<any>) {
+export function useNot(ref: Ref<any>) {
   return computed(() => {
     return !ref.value
   });
 };
 
-export type Refable<T> = T | (() => T) | ReadonlyRef<T>;
+export type Refable<T> = T | Ref<T> //| (() => T) ;
 export type Unref<TRefable> = 
-  TRefable extends ReadonlyRef<infer T> 
+  TRefable extends Ref<infer T> 
     ? T 
   : TRefable extends () => infer T
     ? T
@@ -275,23 +276,23 @@ export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
 
 export function torefs<T extends Record<string, any>>(values: T) {
   return mapValues(values, toref) as {
-    [K in keyof T]: T[K] extends Functional ? T[K] : Ref<T[K]>
+    [K in keyof T]: T[K] extends Func ? T[K] : WritableRef<T[K]>
   }
 };
 
 export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
 export function isRefOrGetter<T>(value: Refable<T>) {
-  return isFunction(value) || value instanceof ReadonlyRef;
+  return isFunction(value) || value instanceof Ref;
 };
 
 export function refResolver<T>(arg: Refable<T>) {
-  return <U>(ifRef: (ref: ReadonlyRef<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
+  return <U>(ifRef: (ref: Ref<T>) => U, /*ifFunction: (fn: () => T) => U, */ifValue: (value: T) => U) => {
     return (
-      arg instanceof ReadonlyRef
+      arg instanceof Ref
         ? ifRef(arg)
-      : isFunction(arg)
-        ? ifFunction(arg)
+      // : isFunction(arg)
+      //   ? ifFunction(arg)
       : ifValue(arg)
     );
   };
@@ -300,7 +301,7 @@ export function refResolver<T>(arg: Refable<T>) {
 export function unref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref.value,
-    fn => fn(),
+    // fn => fn(),
     value => value
   )
 };
@@ -313,8 +314,8 @@ export function unref<T>(arg: Refable<T>) {
 export function toref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref,
-    fn => computed(fn),
-    value => new ReadonlyRef(value)
+    // fn => computed(fn),
+    value => new Ref(value)
   )
 };
 
@@ -327,7 +328,7 @@ export function toref<T>(arg: Refable<T>) {
 export function runAndWatch<T>(refable: Refable<T>, callback: (value: T) => void) {
   refResolver(refable)(
     ref => ref.watchImmediate(callback),
-    getter => ref(getter).watchImmediate(callback),
+    // getter => ref(getter).watchImmediate(callback),
     callback
   )
 };
