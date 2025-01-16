@@ -29,6 +29,9 @@
   function isFunction(value) {
     return typeof value === "function";
   }
+  function identity(value) {
+    return value;
+  }
   function assign(obj, partial) {
     return Object.assign(obj, partial);
   }
@@ -90,6 +93,9 @@
   }
   function renameKeys(record, keyMap) {
     return mapKeys(record, (key) => keyMap[key] ?? key);
+  }
+  function isEqual(compareTo) {
+    return (value) => value === compareTo;
   }
 
   // src/cropping.ts
@@ -282,6 +288,10 @@
       }
       ;
       return mapped;
+    }
+    if(first, second, third) {
+      const [predicate, ifTruthy, ifFalsy] = third ? isFunction(first) ? [first, second, third] : [isEqual(first), second, third] : [identity, first, second];
+      return this.map((value) => predicate(value) ? ifTruthy(value) : ifFalsy(value));
     }
     merge(mergee) {
       return mergee ? computed(() => ({

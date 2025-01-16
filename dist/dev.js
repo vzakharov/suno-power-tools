@@ -9,8 +9,19 @@
   function isFunction(value) {
     return typeof value === "function";
   }
+  function identity(value) {
+    return value;
+  }
   function assign(obj, partial) {
     return Object.assign(obj, partial);
+  }
+
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
+  }
+  function isEqual(compareTo) {
+    return (value) => value === compareTo;
   }
 
   // src/smork/refs.ts
@@ -86,6 +97,10 @@
       }
       ;
       return mapped;
+    }
+    if(first, second, third) {
+      const [predicate, ifTruthy, ifFalsy] = third ? isFunction(first) ? [first, second, third] : [isEqual(first), second, third] : [identity, first, second];
+      return this.map((value) => predicate(value) ? ifTruthy(value) : ifFalsy(value));
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -193,11 +208,6 @@
       (fn) => fn(),
       (value) => value
     );
-  }
-
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts
