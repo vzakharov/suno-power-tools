@@ -1,3 +1,5 @@
+import { isFunction } from "./lodashish";
+
 const BRAND = Symbol('brand');
 
 export type Branded<Brand, T> = T & { [BRAND]: Brand };
@@ -19,4 +21,12 @@ export type KeyWithValueOfType<TType, TRecord> = {
 
 export function asPartial<T extends Record<string, any>>(obj: T): Partial<T> {
   return obj;
+};
+
+export type Inferable<TResult, TArg = void> = TResult | ((value: TArg) => TResult);
+
+export function infer<TResult>(inferable: Inferable<TResult, void>): TResult;
+export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value: TArg): TResult;
+export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value?: TArg) {
+  return isFunction(inferable) ? inferable(value as any) : inferable;
 };

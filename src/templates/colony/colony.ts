@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, Checkbox, div, h3, img, importScript, Labeled, p, style, StyleOptions, TextInput } from '../../smork/rendering';
+import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput } from '../../smork/rendering';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
@@ -42,87 +42,80 @@ export async function render(
         zIndex: '100',
       }
     }, [
-      div({
-        style: hideUI.map<StyleOptions>(hide => ({
-          flexDirection: 'column',
-          height: '100vh',
-          width: '100vh',
-          backgroundColor: '#000',
-          display: hide ? 'none' : 'flex',
-        })),
-      }, [
-        graphContainer = div(),
-        div({ 
-          id: 'sidebar',
-        }, [  
-          div({
-            class: 'settings f-col'
-          }, [
-            button({ 
-              style: { marginBottom: '5px'},
-            // }, {
-              onclick: () => hideUI.set(true)
-            }, [
-              'Close Colony'
-            ]),
-            h3(['Settings']),
-            div(
-              Labeled('Attract based on time',
-                Checkbox(useNextLinks)
-              )
-            ),
+      hideUI.if<SmorkNode>(false,
+        div({
+          style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', },
+        }, [
+          graphContainer = div(),
+          div({ 
+            id: 'sidebar',
+          }, [  
             div({
-              // style: displayNoneUnless(useNextLinks),
-              style: useNextLinks.map<StyleOptions>(useLinks => ({
-                display: useLinks ? 'block' : 'none'
-              }))
-            },
-              Labeled('Show time-based links',
-                Checkbox(showNextLinks)
-              )
-            ),
-            div(
-              Labeled('Attract to root clip',
-                Checkbox(useDescendantLinks)
-              )
-            ),
-            div([
-              TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
-              p({ class: 'smol' }, [
-                'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
-              ])
-            ]),
-            button({/*}, {*/ onclick: redrawGraph }, [
-              'Redraw'
-            ]),
-            button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
-              'Download'
-            ])
-          ]),
-          audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
-            div({ class: 'relative' }, [
-              audioLink = a({ target: '_blank' }, [
-                audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+              class: 'settings f-col'
+            }, [
+              button({ 
+                style: { marginBottom: '5px'},
+              // }, {
+                onclick: () => hideUI.set(true)
+              }, [
+                'Close Colony'
               ]),
-              div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-                audioName = div(),
-                audioTags = div({ class: 'smol' })
+              h3(['Settings']),
+              div(
+                Labeled('Attract based on time',
+                  Checkbox(useNextLinks)
+                )
+              ),
+              div({
+                // style: displayNoneUnless(useNextLinks),
+                style: useNextLinks.map<StyleOptions>(useLinks => ({
+                  display: useLinks ? 'block' : 'none'
+                }))
+              },
+                Labeled('Show time-based links',
+                  Checkbox(showNextLinks)
+                )
+              ),
+              div(
+                Labeled('Attract to root clip',
+                  Checkbox(useDescendantLinks)
+                )
+              ),
+              div([
+                TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
+                p({ class: 'smol' }, [
+                  'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
+                ])
+              ]),
+              button({/*}, {*/ onclick: redrawGraph }, [
+                'Redraw'
+              ]),
+              button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
+                'Download'
               ])
             ]),
-            audioElement = audio({ controls: true, class: 'w-100' })
+            audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
+              div({ class: 'relative' }, [
+                audioLink = a({ target: '_blank' }, [
+                  audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+                ]),
+                div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
+                  audioName = div(),
+                  audioTags = div({ class: 'smol' })
+                ])
+              ]),
+              audioElement = audio({ controls: true, class: 'w-100' })
+            ])
           ])
+        ]),
+        button({ 
+          style: { position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100', },
+        // }, {
+          onclick: () => hideUI.set(false)
+        }, [
+          'Reopen Colony'
         ])
-      ]),
-      button({ 
-        style: hideUI.map<StyleOptions>(hide => ({
-          position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
-          display: hide ? 'block' : 'none',
-        })),
-      // }, {
-        onclick: () => hideUI.set(false)
-      }, [
-        'Reopen Colony'
-      ])
+      )
     ]
   );
 

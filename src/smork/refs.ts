@@ -1,7 +1,7 @@
 //! Smork, the smol framework
 import assert from "assert";
 import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
-import { Func } from "../types";
+import { Func, infer, Inferable } from "../types";
 import { isEqual, mutate } from "../utils";
 
 export class SmorkError extends Error {
@@ -96,16 +96,17 @@ export class Ref<T> {
     return mapped;
   };
 
-  if<U, V>(compareTo: T, ifEquals: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
-  if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: (value: G) => U, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
-  if<U, V>(predicate: (value: T) => boolean, ifHolds: (value: T) => U, ifNot: (value: T) => V): MappedRef<T, U | V>;
-  if<U, V>(comparator: T | ((value: T) => U) | ((value: T) => boolean), ifYes: ((value: T) => V) | ((value: T) => U), ifNot: Func) {
+  if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
+  if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+  if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
+  if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
     return this.map(value => 
       (
         isFunction(comparator) ? comparator : isEqual(comparator)
       )(value) 
-        ? ifYes(value) 
-        : ifNot(value));
+        ? infer(ifYes, value) 
+        : infer(ifNot, value)
+    );
   };
 
   merge<U>(mergee: Refable<U> | undefined) {

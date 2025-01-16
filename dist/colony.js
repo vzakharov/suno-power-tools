@@ -212,6 +212,12 @@
     }
   };
 
+  // src/types.ts
+  var BRAND = Symbol("brand");
+  function infer(inferable, value) {
+    return isFunction(inferable) ? inferable(value) : inferable;
+  }
+
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -287,7 +293,9 @@
       return mapped;
     }
     if(comparator, ifYes, ifNot) {
-      return this.map((value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? ifYes(value) : ifNot(value));
+      return this.map(
+        (value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? infer(ifYes, value) : infer(ifNot, value)
+      );
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -464,12 +472,14 @@
       );
       if (children) {
         children.forEach((child) => {
-          if (typeof child === "string") {
-            element.appendChild(document.createTextNode(child));
-          } else {
-            element.appendChild(child);
-          }
-          ;
+          let currentNode = Undefined();
+          const place = (node) => {
+            debugger;
+            const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
+            currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
+            currentNode = rawNode;
+          };
+          child instanceof Ref ? child.watchImmediate(place) : place(child);
         });
       }
       ;
@@ -562,101 +572,91 @@
         }
       },
       [
-        div({
-          style: hideUI.map((hide) => ({
-            flexDirection: "column",
-            height: "100vh",
-            width: "100vh",
-            backgroundColor: "#000",
-            display: hide ? "none" : "flex"
-          }))
-        }, [
-          graphContainer = div(),
+        hideUI.if(
+          false,
           div({
-            id: "sidebar"
+            style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" }
           }, [
+            graphContainer = div(),
             div({
-              class: "settings f-col"
+              id: "sidebar"
             }, [
-              button({
-                style: { marginBottom: "5px" },
-                // }, {
-                onclick: () => hideUI.set(true)
+              div({
+                class: "settings f-col"
               }, [
-                "Close Colony"
-              ]),
-              h3(["Settings"]),
-              div(
-                Labeled(
-                  "Attract based on time",
-                  Checkbox(useNextLinks)
-                )
-              ),
-              div(
-                {
-                  // style: displayNoneUnless(useNextLinks),
-                  style: useNextLinks.map((useLinks) => ({
-                    display: useLinks ? "block" : "none"
-                  }))
-                },
-                Labeled(
-                  "Show time-based links",
-                  Checkbox(showNextLinks)
-                )
-              ),
-              div(
-                Labeled(
-                  "Attract to root clip",
-                  Checkbox(useDescendantLinks)
-                )
-              ),
-              div([
-                TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
-                p({ class: "smol" }, [
-                  "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
-                ])
-              ]),
-              button({
-                /*}, {*/
-                onclick: redrawGraph
-              }, [
-                "Redraw"
-              ]),
-              button({
-                /*}, {*/
-                onclick: () => ctx.renderToFile(mode)
-              }, [
-                "Download"
-              ])
-            ]),
-            audioContainer = div({ class: "w-100", style: { display: "none" } }, [
-              div({ class: "relative" }, [
-                audioLink = a({ target: "_blank" }, [
-                  audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+                button({
+                  style: { marginBottom: "5px" },
+                  // }, {
+                  onclick: () => hideUI.set(true)
+                }, [
+                  "Close Colony"
                 ]),
-                div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
-                  audioName = div(),
-                  audioTags = div({ class: "smol" })
+                h3(["Settings"]),
+                div(
+                  Labeled(
+                    "Attract based on time",
+                    Checkbox(useNextLinks)
+                  )
+                ),
+                div(
+                  {
+                    // style: displayNoneUnless(useNextLinks),
+                    style: useNextLinks.map((useLinks) => ({
+                      display: useLinks ? "block" : "none"
+                    }))
+                  },
+                  Labeled(
+                    "Show time-based links",
+                    Checkbox(showNextLinks)
+                  )
+                ),
+                div(
+                  Labeled(
+                    "Attract to root clip",
+                    Checkbox(useDescendantLinks)
+                  )
+                ),
+                div([
+                  TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
+                  p({ class: "smol" }, [
+                    "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+                  ])
+                ]),
+                button({
+                  /*}, {*/
+                  onclick: redrawGraph
+                }, [
+                  "Redraw"
+                ]),
+                button({
+                  /*}, {*/
+                  onclick: () => ctx.renderToFile(mode)
+                }, [
+                  "Download"
                 ])
               ]),
-              audioElement = audio({ controls: true, class: "w-100" })
+              audioContainer = div({ class: "w-100", style: { display: "none" } }, [
+                div({ class: "relative" }, [
+                  audioLink = a({ target: "_blank" }, [
+                    audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+                  ]),
+                  div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
+                    audioName = div(),
+                    audioTags = div({ class: "smol" })
+                  ])
+                ]),
+                audioElement = audio({ controls: true, class: "w-100" })
+              ])
             ])
+          ]),
+          button({
+            style: { position: "fixed", top: "0px", left: "0px", padding: "5px", zIndex: "100" },
+            // }, {
+            onclick: () => hideUI.set(false)
+          }, [
+            "Reopen Colony"
           ])
-        ]),
-        button({
-          style: hideUI.map((hide) => ({
-            position: "fixed",
-            top: "0px",
-            left: "0px",
-            padding: "5px",
-            zIndex: "100",
-            display: hide ? "block" : "none"
-          })),
-          // }, {
-          onclick: () => hideUI.set(false)
-        }, [
-          "Reopen Colony"
-        ])
+        )
       ]
     );
     document.body.appendChild(container);

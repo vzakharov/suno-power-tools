@@ -1,6 +1,6 @@
 import { forEach, uniqueId } from "../lodashish";
-import { renameKeys } from "../utils";
-import { Refables, runAndWatch, Unref, WritableRef } from "./refs";
+import { renameKeys, Undefined } from "../utils";
+import { isRefOrGetter, Ref, Refable, Refables, runAndWatch, Unref, WritableRef } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -51,7 +51,8 @@ export type Events<TElement extends SupportedElement> = {
   ]?: TElement[K]
 };
 
-type HTMLNode = SupportedElement | string;
+export type SmorkNode = SupportedElement | string | null;
+type RefableSmorkNode = Refable<SmorkNode>;
 
 function createTag<TTag extends SupportedTag>(tagName: TTag) {
 
@@ -59,12 +60,12 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
   type TProps = Partial<Refables<Props<TElement>>>;
 
   // function elementFactory(props: TProps, events?: Events<TElement>, children?: HTMLNode[]): TElement;
-  function elementFactory(props: TProps, children?: HTMLNode[]): TElement;
-  function elementFactory(children?: HTMLNode[]): TElement;
+  function elementFactory(props: TProps, children?: RefableSmorkNode[]): TElement;
+  function elementFactory(children?: RefableSmorkNode[]): TElement;
   function elementFactory(
-    propsOrChildren?: TProps | HTMLNode[],
+    propsOrChildren?: TProps | RefableSmorkNode[],
     // eventsOrChildren?: Events<TElement> | HTMLNode[],
-    childrenOrNone?: HTMLNode[]
+    childrenOrNone?: RefableSmorkNode[]
   ) {
     // const [ props, events, children ] = 
     //   Array.isArray(propsOrChildren) 
@@ -85,7 +86,7 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
   function verboseElementFactory(
     props: TProps | undefined,
     // events: Events<TElement> | undefined,
-    children: HTMLNode[] | undefined
+    children: RefableSmorkNode[] | undefined
   ) {
     const element = document.createElement(tagName) as TElement;
     // events && Object.assign(element, events);
@@ -106,11 +107,20 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
       );
     if (children) {
       children.forEach(child => {
-        if (typeof child === 'string') {
-          element.appendChild(document.createTextNode(child));
-        } else {
-          element.appendChild(child);
+        let currentNode = Undefined<ChildNode>();
+        const place = (node: Unref<RefableSmorkNode>) => {
+          debugger;
+          const rawNode = typeof node === 'string'
+            ? document.createTextNode(node)
+          : node instanceof HTMLElement
+            ? node
+          : document.createComment('');
+          currentNode 
+            ? currentNode.replaceWith(rawNode)
+            : element.appendChild(rawNode);
+          currentNode = rawNode;
         };
+        child instanceof Ref ? child.watchImmediate(place) : place(child);
       });
     };
     return element;

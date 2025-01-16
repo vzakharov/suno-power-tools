@@ -13,6 +13,12 @@
     return Object.assign(obj, partial);
   }
 
+  // src/types.ts
+  var BRAND = Symbol("brand");
+  function infer(inferable, value) {
+    return isFunction(inferable) ? inferable(value) : inferable;
+  }
+
   // src/utils.ts
   function mutate(obj, partial) {
     Object.assign(obj, partial);
@@ -96,7 +102,9 @@
       return mapped;
     }
     if(comparator, ifYes, ifNot) {
-      return this.map((value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? ifYes(value) : ifNot(value));
+      return this.map(
+        (value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? infer(ifYes, value) : infer(ifNot, value)
+      );
     }
     merge(mergee) {
       return mergee ? computed(() => ({
