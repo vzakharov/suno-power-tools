@@ -96,6 +96,16 @@ export class ReadonlyRef<T> {
     return mapped;
   };
 
+  check<G extends T, U, V>(typeguard: (value: T) => value is G, ifTruthy: (value: G) => U, ifFalsy: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+  check<U, V>(predicate: (value: T) => boolean, ifTruthy: (value: T) => U, ifFalsy: (value: T) => V): MappedRef<T, U | V>;
+  check<U, V>(ifTruthy: (value: T) => U, ifFalsy: (value: T) => V): MappedRef<T, U | V>;
+  check<U, V>(first: ((value: T) => U) | ((value: T) => boolean), second: ((value: T) => V) | ((value: T) => U), third?: Func) {
+    const [ predicate, ifTruthy, ifFalsy ] = third
+      ? [ first,    second, third   ]
+      : [ identity, first,  second  ];
+    return this.map(value => predicate(value) ? ifTruthy(value) : ifFalsy(value));
+  };
+
   merge<U>(mergee: Refable<U> | undefined) {
     return mergee
       ? computed(() => ({
@@ -115,7 +125,6 @@ export class ReadonlyRef<T> {
           : MappedRef<T, ReturnType<U[K]>>
     };
   };
-
 
 };
 
