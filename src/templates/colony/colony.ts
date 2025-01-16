@@ -1,7 +1,7 @@
 import { type default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { ref } from '../../smork/refs';
-import { a, audio, button, checkbox, div, h3, img, importScript, labeled, p, style, StyleOptions, textInput } from '../../smork/rendering';
+import { a, audio, button, Checkbox, div, h3, img, importScript, Labeled, p, style, StyleOptions, TextInput } from '../../smork/rendering';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
@@ -67,8 +67,8 @@ export async function render(
             ]),
             h3(['Settings']),
             div(
-              labeled('Attract based on time',
-                checkbox(useNextLinks)
+              Labeled('Attract based on time',
+                Checkbox(useNextLinks)
               )
             ),
             div({
@@ -77,17 +77,17 @@ export async function render(
                 display: useLinks ? 'block' : 'none'
               }))
             },
-              labeled('Show time-based links',
-                checkbox(showNextLinks)
+              Labeled('Show time-based links',
+                Checkbox(showNextLinks)
               )
             ),
             div(
-              labeled('Attract to root clip',
-                checkbox(useDescendantLinks)
+              Labeled('Attract to root clip',
+                Checkbox(useDescendantLinks)
               )
             ),
             div([
-              textInput(filterString, { placeholder: 'Filter by name, style or ID' }),
+              TextInput(filterString, { placeholder: 'Filter by name, style or ID' }),
               p({ class: 'smol' }, [
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])

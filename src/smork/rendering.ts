@@ -113,14 +113,14 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
 
 };
 
-export const checkbox = modelElement('input', 'checked', 
+export const Checkbox = modelElement('input', 'checked', 
   { type: 'checkbox' }, 
   model => ({
     onchange: () => model.set(!model.value)
   })
 );
 
-export const textInput = modelElement('input', 'value',
+export const TextInput = modelElement('input', 'value',
   { type: 'text' },
   model => ({
     onkeyup: ({ key, target }: KeyboardEvent ) => {
@@ -163,7 +163,7 @@ export function modelElement<
 }
 
 
-export function labeled(labelText: string, element: HTMLInputElement) {
+export function Labeled(labelText: string, element: HTMLInputElement) {
   element.id ||= uniqueId('smork-input-');
   const output = [
     label({ for: element.id }, [labelText]),

@@ -85,19 +85,11 @@ export class ReadonlyRef<T> {
 
   /**
    * ### Note
-   * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
+   * This method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
    */
   map<U>(getter: (value: T) => U): ComputedRef<U> {
     return this.#createComputedRef(getter, true)
   };
-
-  /**
-   * ### Note
-   * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
-   */
-  compute<U>(getter: (value: T) => U): ComputedRef<U> {
-    return this.#createComputedRef(getter)
-  }
 
   #createComputedRef<U>(getter: (value: T) => U, onlyThis?: true) {
     return new ComputedRef(() => getter(this.value), onlyThis && [this]);

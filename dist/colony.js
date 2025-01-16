@@ -273,17 +273,10 @@
     }
     /**
      * ### Note
-     * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
+     * This method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
      */
     map(getter) {
       return this.#createComputedRef(getter, true);
-    }
-    /**
-     * ### Note
-     * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
-     */
-    compute(getter) {
-      return this.#createComputedRef(getter);
     }
     #createComputedRef(getter, onlyThis) {
       return new ComputedRef(() => getter(this.value), onlyThis && [this]);
@@ -467,7 +460,7 @@
       return element;
     }
   }
-  var checkbox = modelElement(
+  var Checkbox = modelElement(
     "input",
     "checked",
     { type: "checkbox" },
@@ -475,7 +468,7 @@
       onchange: () => model.set(!model.value)
     })
   );
-  var textInput = modelElement(
+  var TextInput = modelElement(
     "input",
     "value",
     { type: "text" },
@@ -494,7 +487,7 @@
       }, eventFactory(model));
     };
   }
-  function labeled(labelText, element) {
+  function Labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
     const output = [
       label({ for: element.id }, [labelText]),
@@ -580,9 +573,9 @@
               ),
               h3(["Settings"]),
               div(
-                labeled(
+                Labeled(
                   "Attract based on time",
-                  checkbox(useNextLinks)
+                  Checkbox(useNextLinks)
                 )
               ),
               div(
@@ -592,19 +585,19 @@
                     display: useLinks ? "block" : "none"
                   }))
                 },
-                labeled(
+                Labeled(
                   "Show time-based links",
-                  checkbox(showNextLinks)
+                  Checkbox(showNextLinks)
                 )
               ),
               div(
-                labeled(
+                Labeled(
                   "Attract to root clip",
-                  checkbox(useDescendantLinks)
+                  Checkbox(useDescendantLinks)
                 )
               ),
               div([
-                textInput(filterString, { placeholder: "Filter by name, style or ID" }),
+                TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
                 p({ class: "smol" }, [
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
