@@ -10,20 +10,20 @@ export class SmorkError extends Error {
   };
 };
 
-export function ref<T>(value: Exclude<T, Func>): Ref<T>;
-export function ref<T>(): Ref<T | undefined>;
+export function ref<T>(value: Exclude<T, Func>): WritableRef<T>;
+export function ref<T>(): WritableRef<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 
 export function ref<T>(valueOrGetter?: T | (() => T), setter?: (value: T) => void) {
   return isFunction(valueOrGetter) 
     ? computed(valueOrGetter, setter)
-    : new Ref(valueOrGetter);
+    : new WritableRef(valueOrGetter);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
 
-export class ReadonlyRef<T> {
+export class Ref<T> {
 
   protected watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
@@ -130,10 +130,10 @@ export class ReadonlyRef<T> {
 
 };
 
-export class MappedRef<T, U> extends ReadonlyRef<U> {
+export class MappedRef<T, U> extends Ref<U> {
   
   constructor(
-    public readonly dependency: ReadonlyRef<T> | undefined,
+    public readonly dependency: Ref<T> | undefined,
     private mapper: (value: T) => U
   ) {
     if ( dependency ) {
@@ -146,7 +146,7 @@ export class MappedRef<T, U> extends ReadonlyRef<U> {
 
 };
 
-export class Ref<T> extends ReadonlyRef<T> {
+export class WritableRef<T> extends Ref<T> {
   
   set(value: T) {
     this._set(value);
@@ -169,17 +169,17 @@ export class Ref<T> extends ReadonlyRef<T> {
 
 };
 
-export function assignTo<T>(ref: Ref<T>) {
+export function assignTo<T>(ref: WritableRef<T>) {
   return (value: T) => {
     ref.set(value);
   };
 };
 
-let currentComputedTracker: ((ref: ReadonlyRef<any>) => void) | undefined = undefined;
+let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
-export class ComputedRef<T> extends Ref<T> {
+export class ComputedRef<T> extends WritableRef<T> {
 
-  private dependencies = new Set<ReadonlyRef<any>>();
+  private dependencies = new Set<Ref<any>>();
 
   track = () => {
     if ( currentComputedTracker ) {
@@ -209,7 +209,7 @@ export class ComputedRef<T> extends Ref<T> {
 
 };
 
-export class WritableComputedRef<T> extends Ref<T> {
+export class WritableComputedRef<T> extends WritableRef<T> {
 
   constructor(
     getter: () => T,
@@ -240,15 +240,15 @@ export function computed<T>(getter: () => T, setter?: (value: T) => void) {
 };
 
 
-export function useNot(ref: ReadonlyRef<any>) {
+export function useNot(ref: Ref<any>) {
   return computed(() => {
     return !ref.value
   });
 };
 
-export type Refable<T> = T | (() => T) | ReadonlyRef<T>;
+export type Refable<T> = T | (() => T) | Ref<T>;
 export type Unref<TRefable> = 
-  TRefable extends ReadonlyRef<infer T> 
+  TRefable extends Ref<infer T> 
     ? T 
   : TRefable extends () => infer T
     ? T
@@ -276,20 +276,20 @@ export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
 
 export function torefs<T extends Record<string, any>>(values: T) {
   return mapValues(values, toref) as {
-    [K in keyof T]: T[K] extends Func ? T[K] : Ref<T[K]>
+    [K in keyof T]: T[K] extends Func ? T[K] : WritableRef<T[K]>
   }
 };
 
 export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
 export function isRefOrGetter<T>(value: Refable<T>) {
-  return isFunction(value) || value instanceof ReadonlyRef;
+  return isFunction(value) || value instanceof Ref;
 };
 
 export function refResolver<T>(arg: Refable<T>) {
-  return <U>(ifRef: (ref: ReadonlyRef<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
+  return <U>(ifRef: (ref: Ref<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
     return (
-      arg instanceof ReadonlyRef
+      arg instanceof Ref
         ? ifRef(arg)
       : isFunction(arg)
         ? ifFunction(arg)
@@ -315,7 +315,7 @@ export function toref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref,
     fn => computed(fn),
-    value => new ReadonlyRef(value)
+    value => new Ref(value)
   )
 };
 

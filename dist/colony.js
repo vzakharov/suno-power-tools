@@ -220,9 +220,9 @@
     }
   };
   function ref(valueOrGetter, setter) {
-    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new Ref(valueOrGetter);
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new WritableRef(valueOrGetter);
   }
-  var ReadonlyRef = class {
+  var Ref = class {
     constructor(_value) {
       this._value = _value;
     }
@@ -299,7 +299,7 @@
       return assign(this, mapValues(methods, this.map));
     }
   };
-  var MappedRef = class extends ReadonlyRef {
+  var MappedRef = class extends Ref {
     constructor(dependency, mapper) {
       var __super = (...args) => {
         super(...args);
@@ -315,7 +315,7 @@
     }
     update = (value) => this._set(this.mapper(value));
   };
-  var Ref = class extends ReadonlyRef {
+  var WritableRef = class extends Ref {
     set(value) {
       this._set(value);
     }
@@ -333,7 +333,7 @@
     }
   };
   var currentComputedTracker = void 0;
-  var ComputedRef = class extends Ref {
+  var ComputedRef = class extends WritableRef {
     constructor(getter) {
       super(void 0);
       this.getter = getter;
@@ -360,7 +360,7 @@
       }
     };
   };
-  var WritableComputedRef = class extends Ref {
+  var WritableComputedRef = class extends WritableRef {
     constructor(getter, setter, allowMismatch = false) {
       const computedRef = new ComputedRef(getter);
       super(computedRef.value);
@@ -381,7 +381,7 @@
   }
   function refResolver(arg) {
     return (ifRef, ifFunction, ifValue) => {
-      return arg instanceof ReadonlyRef ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+      return arg instanceof Ref ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
     };
   }
   function unref(arg) {
