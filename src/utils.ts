@@ -103,3 +103,7 @@ export function renameKeys<
 >(record: TRecord, keyMap: TMap) {
   return mapKeys(record, (key) => keyMap[key as keyof TMap] ?? key) as unknown as RenameKeys<TRecord, TMap>;
 };
+
+export function isEqual<T>(compareTo: T) {
+  return (value: T) => value === compareTo;
+};
