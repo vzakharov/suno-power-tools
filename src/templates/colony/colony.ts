@@ -251,7 +251,6 @@ export async function render(
         ]),
         button({ 
           style: { position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100', },
-        // }, {
           onclick: () => hideUI.set(false)
         }, [
           'Reopen Colony'
