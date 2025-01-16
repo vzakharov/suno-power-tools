@@ -179,27 +179,14 @@ export async function render(
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
   
-  const container = document.body.appendChild(div(
-    {
-      class: 'colony',
-      style: {
-        position: 'fixed',
-        top: '0px',
-        left: '0px',
-        zIndex: '100',
-      }
+  const container = document.body.appendChild(div({ 
+      class: 'colony', style: { position: 'fixed', top: '0px', left: '0px', zIndex: '100',} 
     }, [
       renderIf(showUI,
-        div({
-          style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', },
-        }, [
+        div({ style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', } }, [
           graphContainer = div(),
-          div({ 
-            id: 'sidebar',
-          }, [  
-            div({
-              class: 'settings f-col'
-            }, [
+          div({ id: 'sidebar' }, [  
+            div({ class: 'settings f-col' }, [
               button({ 
                 style: { marginBottom: '5px'},
                 onclick: () => hideUI.set(true)
