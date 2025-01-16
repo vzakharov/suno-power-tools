@@ -380,21 +380,21 @@
     return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
   }
   function refResolver(arg) {
-    return (ifRef, ifFunction, ifValue) => {
-      return arg instanceof Ref ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    return (ifRef, ifValue) => {
+      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
     };
   }
   function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
-      (fn) => fn(),
+      // fn => fn(),
       (value) => value
     );
   }
   function runAndWatch(refable, callback) {
     refResolver(refable)(
       (ref2) => ref2.watchImmediate(callback),
-      (getter) => ref(getter).watchImmediate(callback),
+      // getter => ref(getter).watchImmediate(callback),
       callback
     );
   }
@@ -441,14 +441,13 @@
     }, {});
   }
   function createTag(tagName) {
-    function elementFactory(propsOrChildren, eventsOrChildren, childrenOrNone) {
-      const [props, events, children] = Array.isArray(propsOrChildren) ? [void 0, void 0, propsOrChildren] : Array.isArray(eventsOrChildren) ? [propsOrChildren, void 0, eventsOrChildren] : [propsOrChildren, eventsOrChildren, childrenOrNone];
-      return verboseElementFactory(props, events, children);
+    function elementFactory(propsOrChildren, childrenOrNone) {
+      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
+      return verboseElementFactory(props, children);
     }
     return elementFactory;
-    function verboseElementFactory(props, events, children) {
+    function verboseElementFactory(props, children) {
       const element = document.createElement(tagName);
-      events && Object.assign(element, events);
       props && forEach(
         renameKeys(props, {
           class: "className",
@@ -500,8 +499,10 @@
       return createTag(tag)({
         ...initProps,
         ...props,
-        [modelKey]: model
-      }, eventFactory(model));
+        [modelKey]: model,
+        // }, eventFactory(model))
+        ...eventFactory(model)
+      });
     };
   }
   function Labeled(labelText, element) {
@@ -577,17 +578,13 @@
             div({
               class: "settings f-col"
             }, [
-              button(
-                {
-                  style: { marginBottom: "5px" }
-                },
-                {
-                  onclick: () => hideUI.set(true)
-                },
-                [
-                  "Close Colony"
-                ]
-              ),
+              button({
+                style: { marginBottom: "5px" },
+                // }, {
+                onclick: () => hideUI.set(true)
+              }, [
+                "Close Colony"
+              ]),
               h3(["Settings"]),
               div(
                 Labeled(
@@ -619,10 +616,16 @@
                   "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                 ])
               ]),
-              button({}, { onclick: redrawGraph }, [
+              button({
+                /*}, {*/
+                onclick: redrawGraph
+              }, [
                 "Redraw"
               ]),
-              button({}, { onclick: () => ctx.renderToFile(mode) }, [
+              button({
+                /*}, {*/
+                onclick: () => ctx.renderToFile(mode)
+              }, [
                 "Download"
               ])
             ]),
@@ -648,8 +651,8 @@
             padding: "5px",
             zIndex: "100",
             display: hide ? "block" : "none"
-          }))
-        }, {
+          })),
+          // }, {
           onclick: () => hideUI.set(false)
         }, [
           "Reopen Colony"
@@ -699,7 +702,7 @@
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
       graph._destructor();
       container.remove();
-      await render.call(this, rawData, { in3D });
+      await render(this, rawData, { mode });
     }
     ;
     const data = graph.graphData();

@@ -36,7 +36,7 @@ type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
 export type StyleOptions = Partial<Omit<CSSStyleDeclaration, 'length' | 'parentRule'>>
 
 export type Props<TElement extends SupportedElement> = {
-  [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' | keyof Events<TElement>>]: TElement[K]
+  [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' /*| keyof Events<TElement>*/>]: TElement[K]
 } & {
   style: StyleOptions,
   class: string,
@@ -58,32 +58,37 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
   type TElement = TagElementMap[TTag];
   type TProps = Partial<Refables<Props<TElement>>>;
 
-  function elementFactory(props: TProps, events?: Events<TElement>, children?: HTMLNode[]): TElement;
+  // function elementFactory(props: TProps, events?: Events<TElement>, children?: HTMLNode[]): TElement;
   function elementFactory(props: TProps, children?: HTMLNode[]): TElement;
   function elementFactory(children?: HTMLNode[]): TElement;
   function elementFactory(
     propsOrChildren?: TProps | HTMLNode[],
-    eventsOrChildren?: Events<TElement> | HTMLNode[],
+    // eventsOrChildren?: Events<TElement> | HTMLNode[],
     childrenOrNone?: HTMLNode[]
   ) {
-    const [ props, events, children ] = 
-      Array.isArray(propsOrChildren) 
-        ?   [ undefined,        undefined,          propsOrChildren ] 
-        : Array.isArray(eventsOrChildren)
-          ? [ propsOrChildren,  undefined,          eventsOrChildren ]
-          : [ propsOrChildren,  eventsOrChildren,   childrenOrNone ];
-    return verboseElementFactory(props, events, children);
+    // const [ props, events, children ] = 
+    //   Array.isArray(propsOrChildren) 
+    //     ?   [ undefined,        undefined,          propsOrChildren ] 
+    //     : Array.isArray(eventsOrChildren)
+    //       ? [ propsOrChildren,  undefined,          eventsOrChildren ]
+    //       : [ propsOrChildren,  eventsOrChildren,   childrenOrNone ];
+    // return verboseElementFactory(props, events, children);
+    const [ props, children ] =
+      Array.isArray(propsOrChildren)
+        ? [ undefined, propsOrChildren ]
+        : [ propsOrChildren, childrenOrNone ];
+    return verboseElementFactory(props, children);
   }
 
   return elementFactory;
 
   function verboseElementFactory(
     props: TProps | undefined,
-    events: Events<TElement> | undefined,
+    // events: Events<TElement> | undefined,
     children: HTMLNode[] | undefined
   ) {
     const element = document.createElement(tagName) as TElement;
-    events && Object.assign(element, events);
+    // events && Object.assign(element, events);
     props && forEach(
         renameKeys(props, {
           class: 'className',
@@ -158,7 +163,9 @@ export function modelElement<
       ...initProps,
       ...props,
       [modelKey]: model,
-    }, eventFactory(model))
+    // }, eventFactory(model))
+      ...eventFactory(model)
+    });
   };
 }
 

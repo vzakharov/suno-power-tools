@@ -59,8 +59,8 @@ export async function render(
             class: 'settings f-col'
           }, [
             button({ 
-              style: { marginBottom: '5px'}},
-            {
+              style: { marginBottom: '5px'},
+            // }, {
               onclick: () => hideUI.set(true)
             }, [
               'Close Colony'
@@ -92,10 +92,10 @@ export async function render(
                 'Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)'
               ])
             ]),
-            button({}, { onclick: redrawGraph }, [
+            button({/*}, {*/ onclick: redrawGraph }, [
               'Redraw'
             ]),
-            button({}, { onclick: () => ctx.renderToFile(mode) }, [
+            button({/*}, {*/ onclick: () => ctx.renderToFile(mode) }, [
               'Download'
             ])
           ]),
@@ -117,8 +117,8 @@ export async function render(
         style: hideUI.map<StyleOptions>(hide => ({
           position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100',
           display: hide ? 'block' : 'none',
-        }))
-      }, {
+        })),
+      // }, {
         onclick: () => hideUI.set(false)
       }, [
         'Reopen Colony'
@@ -184,7 +184,7 @@ export async function render(
     new FinalizationRegistry(() => console.log('Previous graph destroyed, container removed from memory')).register(graph, '');
     graph._destructor();
     container.remove();
-    await render.call(this, rawData, { in3D });
+    await render(this, rawData, { mode });
   };
 
   const data = graph.graphData();

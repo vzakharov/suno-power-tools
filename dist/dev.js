@@ -194,14 +194,14 @@
     });
   }
   function refResolver(arg) {
-    return (ifRef, ifFunction, ifValue) => {
-      return arg instanceof Ref ? ifRef(arg) : isFunction(arg) ? ifFunction(arg) : ifValue(arg);
+    return (ifRef, ifValue) => {
+      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
     };
   }
   function unref(arg) {
     return refResolver(arg)(
       (ref2) => ref2.value,
-      (fn) => fn(),
+      // fn => fn(),
       (value) => value
     );
   }

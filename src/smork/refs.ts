@@ -246,7 +246,7 @@ export function useNot(ref: Ref<any>) {
   });
 };
 
-export type Refable<T> = T | (() => T) | Ref<T>;
+export type Refable<T> = T | Ref<T> //| (() => T) ;
 export type Unref<TRefable> = 
   TRefable extends Ref<infer T> 
     ? T 
@@ -287,12 +287,12 @@ export function isRefOrGetter<T>(value: Refable<T>) {
 };
 
 export function refResolver<T>(arg: Refable<T>) {
-  return <U>(ifRef: (ref: Ref<T>) => U, ifFunction: (fn: () => T) => U, ifValue: (value: T) => U) => {
+  return <U>(ifRef: (ref: Ref<T>) => U, /*ifFunction: (fn: () => T) => U, */ifValue: (value: T) => U) => {
     return (
       arg instanceof Ref
         ? ifRef(arg)
-      : isFunction(arg)
-        ? ifFunction(arg)
+      // : isFunction(arg)
+      //   ? ifFunction(arg)
       : ifValue(arg)
     );
   };
@@ -301,7 +301,7 @@ export function refResolver<T>(arg: Refable<T>) {
 export function unref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref.value,
-    fn => fn(),
+    // fn => fn(),
     value => value
   )
 };
@@ -314,7 +314,7 @@ export function unref<T>(arg: Refable<T>) {
 export function toref<T>(arg: Refable<T>) {
   return refResolver(arg)(
     ref => ref,
-    fn => computed(fn),
+    // fn => computed(fn),
     value => new Ref(value)
   )
 };
@@ -328,7 +328,7 @@ export function toref<T>(arg: Refable<T>) {
 export function runAndWatch<T>(refable: Refable<T>, callback: (value: T) => void) {
   refResolver(refable)(
     ref => ref.watchImmediate(callback),
-    getter => ref(getter).watchImmediate(callback),
+    // getter => ref(getter).watchImmediate(callback),
     callback
   )
 };
