@@ -222,9 +222,9 @@ export async function render(
               return div({ class: 'w-100' }, [
                 div({ class: 'relative' }, [
                   a({ href: `https://suno.com/song/${id}`, target: '_blank' }, [
-                    img({ src: image_url, style: 'opacity: 0.5; width: 200px' }),
-                    div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-                      div(name || '[Untitled]'),
+                    img({ src: image_url, style: { opacity: '0.5', width: '200px' } }),
+                    div({ class: 'absolute topleft', style: { width: '190px', padding: '5px' } }, [
+                        div(name || '[Untitled]'),
                       div({ class: 'smol' }, [
                         tags || '(no style)' 
                       ])
