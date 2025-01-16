@@ -1,6 +1,6 @@
 import { forEach, uniqueId } from "../lodashish";
-import { mutate, renameKeys } from "../utils";
-import { assignAndWatch, Ref, Refable, Refables, runAndWatch, Unref } from "./refs";
+import { renameKeys } from "../utils";
+import { Refables, runAndWatch, Unref, WritableRef } from "./refs";
 
 export const SUPPORTED_TAGS = [
   'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
@@ -132,7 +132,7 @@ export const TextInput = modelElement('input', 'value',
 );
 
 export type ModelRef<TElement extends SupportedElement, TModelKey extends keyof Props<TElement>> 
-  = Ref<NonNullable<Unref<Props<TElement>[TModelKey]>>>;
+  = WritableRef<NonNullable<Unref<Props<TElement>[TModelKey]>>>;
 
 // exmample
 
