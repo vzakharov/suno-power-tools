@@ -712,7 +712,6 @@
               }, [
                 button({
                   style: { marginBottom: "5px" },
-                  // }, {
                   onclick: () => hideUI.set(true)
                 }, [
                   "Close Colony"
@@ -724,18 +723,12 @@
                     Checkbox(useNextLinks)
                   )
                 ),
-                div(
-                  {
-                    // style: displayNoneUnless(useNextLinks),
-                    style: useNextLinks.map((useLinks) => ({
-                      display: useLinks ? "block" : "none"
-                    }))
-                  },
+                renderIf(useNextLinks, div(
                   Labeled(
                     "Show time-based links",
                     Checkbox(showNextLinks)
                   )
-                ),
+                )),
                 div(
                   Labeled(
                     "Attract to root clip",
@@ -748,16 +741,10 @@
                     "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
                   ])
                 ]),
-                button({
-                  /*}, {*/
-                  onclick: redrawGraph
-                }, [
+                button({ onclick: redrawGraph }, [
                   "Redraw"
                 ]),
-                button({
-                  /*}, {*/
-                  onclick: () => ctx.renderToFile(mode)
-                }, [
+                button({ onclick: () => ctx.renderToFile(mode) }, [
                   "Download"
                 ])
               ]),
