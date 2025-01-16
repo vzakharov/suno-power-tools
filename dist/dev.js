@@ -13,14 +13,6 @@
     return Object.assign(obj, partial);
   }
 
-  // src/utils.ts
-  function Undefined() {
-    return void 0;
-  }
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
-  }
-
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -83,15 +75,8 @@
     get value() {
       return this.get();
     }
-    /**
-     * ### Note
-     * This method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
-     */
     map(getter) {
-      return this.#createComputedRef(getter, true);
-    }
-    #createComputedRef(getter, onlyThis) {
-      return new ComputedRef(() => getter(this.value), onlyThis && [this]);
+      return new MappedRef(this, getter);
     }
     merge(mergee) {
       return mergee ? computed(() => ({
@@ -101,6 +86,13 @@
     }
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
+    }
+  };
+  var MappedRef = class extends ReadonlyRef {
+    constructor(parent, mapper) {
+      super(mapper(parent.value));
+      this.parent = parent;
+      parent.watch((value) => this._set(mapper(value)));
     }
   };
   var Ref = class extends ReadonlyRef {
@@ -122,16 +114,10 @@
   };
   var currentComputedTracker = void 0;
   var ComputedRef = class extends Ref {
-    constructor(getter, dependencies = Undefined()) {
+    constructor(getter) {
       super(void 0);
       this.getter = getter;
-      if (dependencies) {
-        this.dependencies = new Set(dependencies);
-        this.dependencies.forEach((ref2) => ref2.watch(this.#updateValue));
-      } else {
-        this.track();
-      }
-      ;
+      this.track();
     }
     dependencies = /* @__PURE__ */ new Set();
     track = () => {
@@ -148,12 +134,11 @@
           ref2.watch(this.track);
           this.dependencies.add(ref2);
         };
-        this.#updateValue();
+        this._set(this.getter());
       } finally {
         currentComputedTracker = void 0;
       }
     };
-    #updateValue = () => this._set(this.getter());
   };
   var WritableComputedRef = class extends Ref {
     constructor(getter, setter, allowMismatch = false) {
@@ -190,6 +175,11 @@
       (fn) => fn(),
       (value) => value
     );
+  }
+
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts
