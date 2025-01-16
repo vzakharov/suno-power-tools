@@ -1,5 +1,5 @@
 import { forEach, uniqueId } from "../lodashish";
-import { Null, renameKeys, Undefined } from "../utils";
+import { renameKeys, Undefined } from "../utils";
 import { isRefOrGetter, Ref, Refable, Refables, runAndWatch, Unref, WritableRef } from "./refs";
 
 export const SUPPORTED_TAGS = [
@@ -202,10 +202,4 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
       resolve(win[windowKey] as T);
     };
   });
-};
-
-export function renderIf<T extends SmorkNode>(condition: Ref<boolean>, ifYes: T): T | null;
-export function renderIf<T extends SmorkNode, U extends SmorkNode>(condition: Ref<boolean>, ifYes: T, ifNo: U): T | U;
-export function renderIf(condition: Ref<boolean>, ifYes: SmorkNode, ifNo = Null<SmorkNode>()) {
-  return condition.if(true, ifYes, ifNo);
 };
