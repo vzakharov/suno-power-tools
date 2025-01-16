@@ -2,7 +2,7 @@
 import assert from "assert";
 import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
 import { Functional } from "../types";
-import { mutate } from "../utils";
+import { mutate, Undefined } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -83,11 +83,25 @@ export class ReadonlyRef<T> {
     return this.get();
   };
 
+  /**
+   * ### Note
+   * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
+   */
   map<U>(getter: (value: T) => U): ComputedRef<U> {
-    return new ComputedRef(() => getter(this.value));
+    return this.#createComputedRef(getter, true)
   };
 
-  compute = this.map;
+  /**
+   * ### Note
+   * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
+   */
+  compute<U>(getter: (value: T) => U): ComputedRef<U> {
+    return this.#createComputedRef(getter)
+  }
+
+  #createComputedRef<U>(getter: (value: T) => U, onlyThis?: true) {
+    return new ComputedRef(() => getter(this.value), onlyThis && [this]);
+  }
 
   merge<U>(mergee: Refable<U> | undefined) {
     return mergee
@@ -155,9 +169,24 @@ let currentComputedTracker: ((ref: ReadonlyRef<any>) => void) | undefined = unde
 
 export class ComputedRef<T> extends Ref<T> {
 
-  private dependencies = new Set<ReadonlyRef<any>>();
+  dependencies = new Set<ReadonlyRef<any>>();
 
-  track = () => {
+  constructor(
+    private getter: () => T,
+    dependencies = Undefined<ReadonlyRef<any>[]>()
+  ) {
+    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
+    if ( dependencies ) {
+      // No need to track if the dependencies are predefined
+      this.dependencies = new Set(dependencies);
+      this.dependencies.forEach(ref => ref.watch(this.#updateValue));
+    } else {
+      this.track();
+    };
+  };
+
+
+  private track = () => {
     if ( currentComputedTracker ) {
       throw new SmorkError(
         "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
@@ -170,19 +199,13 @@ export class ComputedRef<T> extends Ref<T> {
         ref.watch(this.track);
         this.dependencies.add(ref);
       };
-      this._set(this.getter());
+      this.#updateValue();
     } finally {
       currentComputedTracker = undefined;
     }
   };
 
-  constructor(
-    private getter: () => T
-  ) {
-    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
-    this.track();
-  };
-
+  #updateValue = () => this._set(this.getter());
 };
 
 export class WritableComputedRef<T> extends Ref<T> {

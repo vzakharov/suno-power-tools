@@ -13,6 +13,14 @@
     return Object.assign(obj, partial);
   }
 
+  // src/utils.ts
+  function Undefined() {
+    return void 0;
+  }
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
+  }
+
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -75,10 +83,23 @@
     get value() {
       return this.get();
     }
+    /**
+     * ### Note
+     * Unlike `compute`, this method only updates on `this` ref’s update, even if its getter function uses other refs’ values.
+     */
     map(getter) {
-      return new ComputedRef(() => getter(this.value));
+      return this.#createComputedRef(getter, true);
     }
-    compute = this.map;
+    /**
+     * ### Note
+     * Unlike `map`, this method updates on an update of any of the refs used in the getter function, not just `this` ref.
+     */
+    compute(getter) {
+      return this.#createComputedRef(getter);
+    }
+    #createComputedRef(getter, onlyThis) {
+      return new ComputedRef(() => getter(this.value), onlyThis && [this]);
+    }
     merge(mergee) {
       return mergee ? computed(() => ({
         ...this.value,
@@ -108,10 +129,16 @@
   };
   var currentComputedTracker = void 0;
   var ComputedRef = class extends Ref {
-    constructor(getter) {
+    constructor(getter, dependencies = Undefined()) {
       super(void 0);
       this.getter = getter;
-      this.track();
+      if (dependencies) {
+        this.dependencies = new Set(dependencies);
+        this.dependencies.forEach((ref2) => ref2.watch(this.#updateValue));
+      } else {
+        this.track();
+      }
+      ;
     }
     dependencies = /* @__PURE__ */ new Set();
     track = () => {
@@ -128,11 +155,12 @@
           ref2.watch(this.track);
           this.dependencies.add(ref2);
         };
-        this._set(this.getter());
+        this.#updateValue();
       } finally {
         currentComputedTracker = void 0;
       }
     };
+    #updateValue = () => this._set(this.getter());
   };
   var WritableComputedRef = class extends Ref {
     constructor(getter, setter, allowMismatch = false) {
@@ -169,11 +197,6 @@
       (fn) => fn(),
       (value) => value
     );
-  }
-
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts
