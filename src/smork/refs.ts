@@ -2,7 +2,7 @@
 import assert from "assert";
 import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
 import { Func, infer, Inferable } from "../types";
-import { isEqual, mutate } from "../utils";
+import { isEqual, mutate, truthy } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -127,6 +127,16 @@ export class Ref<T> {
           ? Func<TArgs, MappedRef<T, TReturn>>
           : MappedRef<T, ReturnType<U[K]>>
     };
+  };
+
+  onceSet(callback: (value: NonNullable<T>) => void) {
+    const wrapped = (value: T) => {
+      if ( value ) {
+        this.unwatch(wrapped);
+        callback(value);
+      };
+    };
+    this.watchImmediate(wrapped);
   };
 
 };

@@ -1,6 +1,6 @@
 import { forEach, uniqueId } from "../lodashish";
 import { Inferable } from "../types";
-import { Null, renameKeys, Undefined } from "../utils";
+import { Null, renameKeys, truthy, Undefined } from "../utils";
 import { isRefOrGetter, Ref, Refable, Refables, runAndWatch, Unref, WritableRef } from "./refs";
 
 export const SUPPORTED_TAGS = [
@@ -110,7 +110,6 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
       children.forEach(child => {
         let currentNode = Undefined<ChildNode>();
         const place = (node: Unref<RefableSmorkNode>) => {
-          debugger;
           const rawNode = typeof node === 'string'
             ? document.createTextNode(node)
           : node instanceof HTMLElement
@@ -205,8 +204,9 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function renderIf<T extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<T, boolean>): T | null;
-export function renderIf<T extends SmorkNode, U extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<T, boolean>, ifNo: Inferable<U, boolean>): T | U;
-export function renderIf(condition: Ref<boolean>, ifYes: Inferable<SmorkNode, boolean>, ifNo = Null<Inferable<SmorkNode, boolean>>()) {
-  return condition.if(true, ifYes, ifNo);
+export function renderIf<TValue, TNode extends SmorkNode>(condition: Ref<TValue | undefined>, ifYes: Inferable<TNode, TValue>): TNode | null
+export function renderIf<TNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>): TNode | null;
+export function renderIf<TNode extends SmorkNode, U extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>, ifNo: Inferable<U, boolean>): TNode | U;
+export function renderIf(condition: Ref<boolean>, ifYes: Inferable<SmorkNode, any>, ifNo = Null<Inferable<SmorkNode, any>>()) {
+  return condition.if(truthy, ifYes, ifNo);
 };

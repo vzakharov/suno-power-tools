@@ -97,6 +97,9 @@
   function isEqual(compareTo) {
     return (value) => value === compareTo;
   }
+  function truthy(value) {
+    return !!value;
+  }
 
   // src/cropping.ts
   //! Background info: For some unknown reason, Suno doesn't keep the data bout the original clip when you crop it.
@@ -309,6 +312,16 @@
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
     }
+    onceSet(callback) {
+      const wrapped = (value) => {
+        if (value) {
+          this.unwatch(wrapped);
+          callback(value);
+        }
+        ;
+      };
+      this.watchImmediate(wrapped);
+    }
   };
   var MappedRef = class extends Ref {
     constructor(dependency, mapper) {
@@ -343,6 +356,11 @@
       );
     }
   };
+  function assignTo(ref2) {
+    return (value) => {
+      ref2.set(value);
+    };
+  }
   var currentComputedTracker = void 0;
   var ComputedRef = class extends WritableRef {
     constructor(getter) {
@@ -477,7 +495,6 @@
         children.forEach((child) => {
           let currentNode = Undefined();
           const place = (node) => {
-            debugger;
             const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
             currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
             currentNode = rawNode;
@@ -542,7 +559,7 @@
     });
   }
   function renderIf(condition, ifYes, ifNo = Null()) {
-    return condition.if(true, ifYes, ifNo);
+    return condition.if(truthy, ifYes, ifNo);
   }
 
   // src/templates/colony/css.js
@@ -555,27 +572,28 @@
     const in3D = mode?.toLowerCase() === "3d";
     const hideUI = ref(false);
     const showUI = hideUI.map((hide) => !hide);
-    let graphContainer;
+    const graphContainer = ref();
+    graphContainer.onceSet(createGraph);
+    const graph = ref();
+    const data = graph.map((graph2) => graph2?.graphData());
     const useNextLinks = ref(true);
     const showNextLinks = ref(false);
     const useDescendantLinks = ref(true);
     const filterString = ref("");
-    let audioContainer;
-    let audioLink;
-    let audioImage;
-    let audioName;
-    let audioTags;
-    let audioElement;
+    const audioElement = ref();
+    const selectedClip = ref();
+    selectedClip.onChange(
+      () => setTimeout(() => {
+        audioElement.value?.play();
+      }, 0)
+    );
     const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     window.document.head.appendChild(style([colonyCss]));
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
     const graphData = jsonClone(rawData);
     //! again, because ForceGraph mutates the data
-    let graph = createGraph();
-    function createGraph() {
-      const graph2 = new GraphRenderer(
-        graphContainer
-      ).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags: tags2, image_url }) => `
+    function createGraph(graphContainer2) {
+      graph.value = new GraphRenderer(graphContainer2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags: tags2, image_url }) => `
         <div class="relative" style="width: 200px;">
           <img src="${image_url}" style="opacity: 0.5; width: 200px">
           <div class="absolute topleft" style="width: 190px; padding: 5px;">
@@ -586,34 +604,24 @@
         <div class="smol">
           Click to play, right-click to open in Suno
         </div>
-      `).onNodeClick(({ id: id2, name, tags: tags2, image_url, audio_url }) => {
-        audioContainer.style.display = "block";
-        audioLink.href = `https://suno.com/song/${id2}`;
-        audioImage.src = image_url;
-        audioName.innerText = name || "[Untitled]";
-        audioTags.innerText = tags2 || "(no style)";
-        audioElement.src = audio_url;
-        audioElement.play();
-      }).onNodeRightClick(({ id: id2 }) => {
+      `).onNodeClick(assignTo(selectedClip)).onNodeRightClick(({ id: id2 }) => {
         window.open(`https://suno.com/song/${id2}`);
       });
       if (in3D) {
-        graph2.linkOpacity((l) => l.isMain ? 1 : 0.2);
+        graph.value.linkOpacity((l) => l.isMain ? 1 : 0.2);
       } else {
-        graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
+        graph.value.linkLineDash((l) => l.isMain ? null : [1, 2]);
       }
       ;
-      return graph2;
     }
     ;
     async function redrawGraph() {
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
-      graph._destructor();
+      graph.value?._destructor();
       container.remove();
       await render(this, rawData, { mode });
     }
     ;
-    const data = graph.graphData();
     function visibilityChecker(link) {
       return !{
         descendant: true,
@@ -622,11 +630,13 @@
     }
     ;
     function applyLinkFilter(kind, useLinks) {
-      let { nodes, links } = graph.graphData();
+      if (!data.value || !graph.value)
+        return;
+      let { nodes, links } = data.value;
       if (!useLinks) {
         links = links.filter((l) => l.kind !== kind);
       } else {
-        links.push(...data.links.filter((l) => l.kind === kind));
+        links.push(...data.value.links.filter((l) => l.kind === kind));
       }
       if (kind === "next") {
         links = links.filter((l) => l.kind !== "next");
@@ -647,13 +657,13 @@
         }
       }
       ;
-      graph.graphData({ nodes, links });
+      graph.value.graphData({ nodes, links });
     }
     ;
     useNextLinks.watchImmediate((useLinks) => applyLinkFilter("next", useLinks));
     useDescendantLinks.watchImmediate((useLinks) => applyLinkFilter("descendant", useLinks));
     showNextLinks.watchImmediate(() => {
-      graph.linkVisibility(visibilityChecker);
+      graph.value?.linkVisibility(visibilityChecker);
     });
     function id(node) {
       return typeof node === "string" ? node : node.id;
@@ -668,19 +678,21 @@
     }
     ;
     filterString.watchImmediate((filter) => {
+      if (!data.value || !graph.value)
+        return;
       filter = filter?.toLowerCase();
-      const matchingNodes = filter ? data.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.nodes;
-      const existing = graph.graphData();
+      const matchingNodes = filter ? data.value.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.value.nodes;
+      const existing = graph.value.graphData();
       const nodes = [
         ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        ...filter ? data.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+        ...filter ? data.value.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
       ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
-      const links = data.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
-      graph.graphData({ nodes, links });
+      const links = data.value.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+      graph.value.graphData({ nodes, links });
       if (filter)
-        graph.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
+        graph.value.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
       else
-        graph.nodeVal("val");
+        graph.value.nodeVal("val");
     });
     setTimeout(() => {
       useNextLinks.set(false);
@@ -690,26 +702,15 @@
     const container = document.body.appendChild(div(
       {
         class: "colony",
-        style: {
-          position: "fixed",
-          top: "0px",
-          left: "0px",
-          zIndex: "100"
-        }
+        style: { position: "fixed", top: "0px", left: "0px", zIndex: "100" }
       },
       [
         renderIf(
           showUI,
-          div({
-            style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" }
-          }, [
-            graphContainer = div(),
-            div({
-              id: "sidebar"
-            }, [
-              div({
-                class: "settings f-col"
-              }, [
+          div({ style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" } }, [
+            graphContainer.value = div(),
+            div({ id: "sidebar" }, [
+              div({ class: "settings f-col" }, [
                 button({
                   style: { marginBottom: "5px" },
                   onclick: () => hideUI.set(true)
@@ -748,23 +749,26 @@
                   "Download"
                 ])
               ]),
-              audioContainer = div({ class: "w-100", style: { display: "none" } }, [
-                div({ class: "relative" }, [
-                  audioLink = a({ target: "_blank" }, [
-                    audioImage = img({ style: "opacity: 0.5", class: "w-100" })
+              renderIf(selectedClip, ({ id: id2, name, tags: tags2, image_url, audio_url }) => {
+                return div({ class: "w-100" }, [
+                  div({ class: "relative" }, [
+                    a({ href: `https://suno.com/song/${id2}`, target: "_blank" }, [
+                      img({ src: image_url, style: "opacity: 0.5; width: 200px" }),
+                      div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
+                        div(name || "[Untitled]"),
+                        div({ class: "smol" }, [
+                          tags2 || "(no style)"
+                        ])
+                      ])
+                    ])
                   ]),
-                  div({ class: "absolute topleft", style: "width: 190px; padding: 5px;" }, [
-                    audioName = div(),
-                    audioTags = div({ class: "smol" })
-                  ])
-                ]),
-                audioElement = audio({ controls: true, class: "w-100" })
-              ])
+                  audioElement.value = audio({ src: audio_url, controls: true, class: "w-100" })
+                ]);
+              })
             ])
           ]),
           button({
             style: { position: "fixed", top: "0px", left: "0px", padding: "5px", zIndex: "100" },
-            // }, {
             onclick: () => hideUI.set(false)
           }, [
             "Reopen Colony"
@@ -1065,14 +1069,14 @@
     }
   };
   var colony = new Colony();
-  colony.stateLoaded.promise.then(() => {
+  colony.stateLoaded.promise.then(async () => {
     console.log("Welcome to Vova\u2019s Suno Colony! This is a nifty tool to visualize your liked clips and the relationships between them, such as extensions, inpaints, covers, etc., in a graph format. It takes a bit of time and hacks to build, but hopefully it\u2019ll be worth it!");
     const { state: { allPagesProcessed, allLinksBuilt } } = colony;
     if (!allPagesProcessed || !allLinksBuilt) {
       console.log("Run `await vovas.colony.build()` to start or continue building your colony!");
     } else {
       console.log("Your colony is built, rendering!");
-      return colony.render();
+      await colony.render();
     }
   });
   function isV2AudioFilename(id) {

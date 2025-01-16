@@ -1,8 +1,8 @@
-import { type default as ForceGraph } from 'force-graph';
+import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { ref } from '../../smork/refs';
+import { assignTo, ref } from '../../smork/refs';
 import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput, renderIf } from '../../smork/dom';
-import { jsonClone, sortByDate, Undefined } from '../../utils';
+import { $throw, jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
 export async function render(
@@ -16,19 +16,24 @@ export async function render(
   const hideUI = ref(false);
   const showUI = hideUI.map(hide => !hide);
 
-  let graphContainer: HTMLDivElement;
+  const graphContainer = ref<HTMLDivElement>();
+  graphContainer.onceSet(createGraph);
+  const graph = ref<ForceGraph<ColonyNode, ProcessedLink>>();
+  const data = graph.map(graph => graph?.graphData());
 
   const useNextLinks = ref(true);
   const showNextLinks = ref(false);
   const useDescendantLinks = ref(true);
   const filterString = ref('');
 
-  let audioContainer: HTMLDivElement;
-  let audioLink: HTMLAnchorElement;
-  let audioImage: HTMLImageElement;
-  let audioName: HTMLDivElement;
-  let audioTags: HTMLDivElement;
-  let audioElement: HTMLAudioElement;
+  const audioElement = ref<HTMLAudioElement>();
+
+  const selectedClip = ref<ColonyNode>();
+  selectedClip.onChange(() => 
+    setTimeout(() => { // we want to make sure the element is updated before we try to play it
+      audioElement.value?.play();
+    }, 0)
+  );
 
   const GraphRenderer: typeof ForceGraph = await importScript(window, 'ForceGraph', `https://unpkg.com/${in3D ? '3d-' : ''}force-graph`);
   window.document.head.appendChild(style([colonyCss]));
@@ -39,11 +44,9 @@ export async function render(
   }; //! because ForceGraph mutates links by including source and target nodes instead of their IDs
 
   const graphData = jsonClone(rawData); //! again, because ForceGraph mutates the data
-  let graph = createGraph();
-  function createGraph(): ForceGraph<ColonyNode, ProcessedLink> {
-    const graph = new GraphRenderer<ColonyNode, ProcessedLink>(
-      graphContainer
-    )
+
+  function createGraph(graphContainer: HTMLDivElement) {
+    graph.value = new GraphRenderer<ColonyNode, ProcessedLink>(graphContainer)
       .graphData(graphData)
       .backgroundColor('#001')
       .linkAutoColorBy('kind')
@@ -63,36 +66,25 @@ export async function render(
           Click to play, right-click to open in Suno
         </div>
       `)
-      .onNodeClick(({ id, name, tags, image_url, audio_url }) => {
-        audioContainer.style.display = 'block';
-        audioLink.href = `https://suno.com/song/${id}`;
-        audioImage.src = image_url;
-        audioName.innerText = name || '[Untitled]';
-        audioTags.innerText = tags || '(no style)';
-        audioElement.src = audio_url;
-        audioElement.play();
-      })
+      .onNodeClick(assignTo(selectedClip))
       .onNodeRightClick(({ id }) => {
         window.open(`https://suno.com/song/${id}`);
       });
     if ( in3D ) {
       // @ts-expect-error
-      graph.linkOpacity(l => l.isMain ? 1 : 0.2)
+      graph.value.linkOpacity(l => l.isMain ? 1 : 0.2)
       // TODO: Implement type-safe access to 3D-specific methods
     } else {
-      graph.linkLineDash(l => l.isMain ? null : [1, 2])
+      graph.value.linkLineDash(l => l.isMain ? null : [1, 2])
     };
-    return graph;
   };
 
   async function redrawGraph() {
     new FinalizationRegistry(() => console.log('Previous graph destroyed, container removed from memory')).register(graph, '');
-    graph._destructor();
+    graph.value?._destructor();
     container.remove();
     await render(this, rawData, { mode });
   };
-
-  const data = graph.graphData();
 
   function visibilityChecker(link: ProcessedLink) {
     return !{
@@ -103,11 +95,13 @@ export async function render(
 
   // function applyLinkFilter(kind: LinkKind, checkbox: HTMLInputElement) {
   function applyLinkFilter(kind: LinkKind, useLinks: boolean | undefined) {
-    let { nodes, links } = graph.graphData();
+    if ( !data.value || ! graph.value)
+      return;
+    let { nodes, links } = data.value;
     if ( !useLinks ) {
       links = links.filter(l => l.kind !== kind);
     } else {
-      links.push(...data.links.filter(l => l.kind === kind));
+      links.push(...data.value.links.filter(l => l.kind === kind));
     }
     if ( kind === 'next' ) {
       // showNextLinksContainer.style.display = checkbox.checked ? 'block' : 'none';
@@ -129,14 +123,14 @@ export async function render(
         };
       }
     };
-    graph.graphData({ nodes, links });
+    graph.value.graphData({ nodes, links });
   };
 
   useNextLinks.watchImmediate(useLinks => applyLinkFilter('next', useLinks));
   useDescendantLinks.watchImmediate(useLinks => applyLinkFilter('descendant', useLinks));
 
   showNextLinks.watchImmediate(() => {
-    graph.linkVisibility(visibilityChecker);
+    graph.value?.linkVisibility(visibilityChecker);
   });
 
   type NodeOrId = string | ColonyNode;
@@ -151,26 +145,28 @@ export async function render(
   };
 
   filterString.watchImmediate(filter => {
+    if ( !data.value || !graph.value )
+      return;
     filter = filter?.toLowerCase();
     const matchingNodes = filter 
-      ? data.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
-      : data.nodes;
-    const existing = graph.graphData();
+      ? data.value.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
+      : data.value.nodes;
+    const existing = graph.value.graphData();
     const nodes = [
       ...matchingNodes.map(node => existing.nodes.find(sameIdAs(node)) ?? node),
       ...filter 
-        ? data.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))
+        ? data.value.nodes.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id))
         : []
     ].map(node => existing.nodes.find(n => n.id === node.id) ?? node);
-    const links = data.links
+    const links = data.value.links
       .filter(link => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target)))
       .map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest }))
       .map(link => existing.links.find(l => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
-    graph.graphData({ nodes, links });
+    graph.value.graphData({ nodes, links });
     if ( filter )
-      graph.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);
+      graph.value.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val);
     else
-      graph.nodeVal('val');
+      graph.value.nodeVal('val');
   });
 
   setTimeout(() => {
@@ -184,7 +180,7 @@ export async function render(
     }, [
       renderIf(showUI,
         div({ style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', } }, [
-          graphContainer = div(),
+          graphContainer.value = div(),
           div({ id: 'sidebar' }, [  
             div({ class: 'settings f-col' }, [
               button({ 
@@ -222,18 +218,22 @@ export async function render(
                 'Download'
               ])
             ]),
-            audioContainer = div({ class: 'w-100', style: { display: 'none' } }, [
-              div({ class: 'relative' }, [
-                audioLink = a({ target: '_blank' }, [
-                  audioImage = img({ style: 'opacity: 0.5', class: 'w-100' })
+            renderIf(selectedClip, ({ id, name, tags, image_url, audio_url }) => {
+              return div({ class: 'w-100' }, [
+                div({ class: 'relative' }, [
+                  a({ href: `https://suno.com/song/${id}`, target: '_blank' }, [
+                    img({ src: image_url, style: 'opacity: 0.5; width: 200px' }),
+                    div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
+                      div(name || '[Untitled]'),
+                      div({ class: 'smol' }, [
+                        tags || '(no style)' 
+                      ])
+                    ])
+                  ])
                 ]),
-                div({ class: 'absolute topleft', style: 'width: 190px; padding: 5px;' }, [
-                  audioName = div(),
-                  audioTags = div({ class: 'smol' })
-                ])
-              ]),
-              audioElement = audio({ controls: true, class: 'w-100' })
-            ])
+                audioElement.value = audio({ src: audio_url, controls: true, class: 'w-100' })
+              ])
+            })
           ])
         ]),
         button({ 

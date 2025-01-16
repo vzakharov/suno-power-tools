@@ -115,6 +115,16 @@
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
     }
+    onceSet(callback) {
+      const wrapped = (value) => {
+        if (value) {
+          this.unwatch(wrapped);
+          callback(value);
+        }
+        ;
+      };
+      this.watchImmediate(wrapped);
+    }
   };
   var MappedRef = class extends Ref {
     constructor(dependency, mapper) {

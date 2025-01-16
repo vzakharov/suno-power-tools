@@ -107,3 +107,7 @@ export function renameKeys<
 export function isEqual<T>(compareTo: T) {
   return (value: T) => value === compareTo;
 };
+
+export function truthy(value: any) {
+  return !!value;
+}

@@ -384,14 +384,14 @@ export type ColonyLink = ColonyGraphData['links'][number];
 
 const colony = new Colony();
 
-colony.stateLoaded.promise.then(() => {
+colony.stateLoaded.promise.then(async () => {
   console.log('Welcome to Vova’s Suno Colony! This is a nifty tool to visualize your liked clips and the relationships between them, such as extensions, inpaints, covers, etc., in a graph format. It takes a bit of time and hacks to build, but hopefully it’ll be worth it!');
   const { state: { allPagesProcessed, allLinksBuilt } } = colony;
   if ( !allPagesProcessed || !allLinksBuilt ) {
     console.log('Run `await vovas.colony.build()` to start or continue building your colony!');
   } else {
     console.log('Your colony is built, rendering!');
-    return colony.render();
+    await colony.render();
   }
 });
 
