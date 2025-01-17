@@ -55,18 +55,14 @@ export async function render(
       .linkLabel('kind')
       .linkVisibility(visibilityChecker)
       .linkDirectionalParticles(1)
-      .nodeLabel(({ id, name, tags, image_url }) => `
-        <div class="relative" style="width: 200px;">
-          <img src="${image_url}" style="opacity: 0.5; width: 200px">
-          <div class="absolute topleft" style="width: 190px; padding: 5px;">
-            <div>${name || '[Untitled]'}</div>
-            <div class="smol">${tags || '(no style)'}</div>
-          </div>
-        </div>
-        <div class="smol">
-          Click to play, right-click to open in Suno
-        </div>
-      `)
+      .nodeLabel(clip => 
+        div([
+          ClipCard(clip),
+          div({ class: 'smol' }, [
+            'Click to play, right-click to open in Suno'
+          ])
+        ]).outerHTML
+      )
       .onNodeClick(assignTo(selectedClip))
       .onNodeRightClick(({ id }) => {
         window.open(`https://suno.com/song/${id}`);
@@ -221,9 +217,7 @@ export async function render(
             ]),
             If(selectedClip, clip => {
               return div({ class: 'w-100' }, [
-                div({ class: 'relative' }, [
-                  ClipCard(clip)
-                ]),
+                ClipCard(clip),
                 audioElement.value = audio({ src: clip.audio_url, controls: true, class: 'w-100' })
               ])
             })

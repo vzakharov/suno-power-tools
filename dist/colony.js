@@ -556,12 +556,14 @@
 
   // src/templates/colony/ClipCard.ts
   function ClipCard({ id, image_url, name, tags: tags2 }) {
-    return a({ href: `https://suno.com/song/${id}`, target: "_blank" }, [
-      img({ src: image_url, style: { opacity: "0.5", width: "200px" } }),
-      div({ class: "absolute topleft", style: { width: "190px", padding: "5px" } }, [
-        div(name || "[Untitled]"),
-        div({ class: "smol" }, [
-          tags2 || "(no style)"
+    return div({ class: "relative" }, [
+      a({ href: `https://suno.com/song/${id}`, target: "_blank" }, [
+        img({ src: image_url, style: { opacity: "0.5", width: "200px" } }),
+        div({ class: "absolute topleft", style: { width: "190px", padding: "5px" } }, [
+          div(name || "[Untitled]"),
+          div({ class: "smol" }, [
+            tags2 || "(no style)"
+          ])
         ])
       ])
     ]);
@@ -598,18 +600,14 @@
     const graphData = jsonClone(rawData);
     //! again, because ForceGraph mutates the data
     function createGraph(graphContainer2) {
-      graph.value = new GraphRenderer(graphContainer2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(({ id: id2, name, tags: tags2, image_url }) => `
-        <div class="relative" style="width: 200px;">
-          <img src="${image_url}" style="opacity: 0.5; width: 200px">
-          <div class="absolute topleft" style="width: 190px; padding: 5px;">
-            <div>${name || "[Untitled]"}</div>
-            <div class="smol">${tags2 || "(no style)"}</div>
-          </div>
-        </div>
-        <div class="smol">
-          Click to play, right-click to open in Suno
-        </div>
-      `).onNodeClick(assignTo(selectedClip)).onNodeRightClick(({ id: id2 }) => {
+      graph.value = new GraphRenderer(graphContainer2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(
+        (clip) => div([
+          ClipCard(clip),
+          div({ class: "smol" }, [
+            "Click to play, right-click to open in Suno"
+          ])
+        ]).outerHTML
+      ).onNodeClick(assignTo(selectedClip)).onNodeRightClick(({ id: id2 }) => {
         window.open(`https://suno.com/song/${id2}`);
       });
       if (in3D) {
@@ -756,9 +754,7 @@
               ]),
               If(selectedClip, (clip) => {
                 return div({ class: "w-100" }, [
-                  div({ class: "relative" }, [
-                    ClipCard(clip)
-                  ]),
+                  ClipCard(clip),
                   audioElement.value = audio({ src: clip.audio_url, controls: true, class: "w-100" })
                 ]);
               })
