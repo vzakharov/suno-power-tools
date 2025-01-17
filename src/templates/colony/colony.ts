@@ -1,7 +1,7 @@
 import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { assignTo, ref } from '../../smork/refs';
-import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput, renderIf } from '../../smork/dom';
+import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput, If } from '../../smork/dom';
 import { $throw, jsonClone, sortByDate, Undefined } from '../../utils';
 import { colonyCss } from './css';
 
@@ -17,7 +17,7 @@ export async function render(
   const showUI = hideUI.map(hide => !hide);
 
   const graphContainer = ref<HTMLDivElement>();
-  graphContainer.onceSet(createGraph);
+  graphContainer.onceDefined(createGraph);
   const graph = ref<ForceGraph<ColonyNode, ProcessedLink>>();
   const data = graph.map(graph => graph?.graphData());
 
@@ -178,7 +178,7 @@ export async function render(
   const container = document.body.appendChild(div({ 
       class: 'colony', style: { position: 'fixed', top: '0px', left: '0px', zIndex: '100',} 
     }, [
-      renderIf(showUI,
+      If(showUI,
         div({ style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', } }, [
           graphContainer.value = div(),
           div({ id: 'sidebar' }, [  
@@ -195,7 +195,7 @@ export async function render(
                   Checkbox(useNextLinks)
                 )
               ),
-              renderIf(useNextLinks, div(
+              If(useNextLinks, div(
                 Labeled('Show time-based links',
                   Checkbox(showNextLinks)
                 )
@@ -218,7 +218,7 @@ export async function render(
                 'Download'
               ])
             ]),
-            renderIf(selectedClip, ({ id, name, tags, image_url, audio_url }) => {
+            If(selectedClip, ({ id, name, tags, image_url, audio_url }) => {
               return div({ class: 'w-100' }, [
                 div({ class: 'relative' }, [
                   a({ href: `https://suno.com/song/${id}`, target: '_blank' }, [

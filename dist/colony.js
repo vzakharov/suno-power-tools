@@ -34,9 +34,6 @@
   }
 
   // src/utils.ts
-  function Null() {
-    return null;
-  }
   function Undefined() {
     return void 0;
   }
@@ -93,12 +90,6 @@
   }
   function renameKeys(record, keyMap) {
     return mapKeys(record, (key) => keyMap[key] ?? key);
-  }
-  function isEqual(compareTo) {
-    return (value) => value === compareTo;
-  }
-  function truthy(value) {
-    return !!value;
   }
 
   // src/cropping.ts
@@ -218,12 +209,6 @@
     }
   };
 
-  // src/types.ts
-  var BRAND = Symbol("brand");
-  function infer(inferable, value) {
-    return isFunction(inferable) ? inferable(value) : inferable;
-  }
-
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -298,11 +283,18 @@
       ;
       return mapped;
     }
-    if(comparator, ifYes, ifNot) {
-      return this.map(
-        (value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? infer(ifYes, value) : infer(ifNot, value)
-      );
-    }
+    // if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
+    // if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+    // if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
+    // if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
+    //   return this.map(value => 
+    //     (
+    //       isFunction(comparator) ? comparator : isEqual(comparator)
+    //     )(value) 
+    //       ? infer(ifYes, value) 
+    //       : infer(ifNot, value)
+    //   );
+    // };
     merge(mergee) {
       return mergee ? computed(() => ({
         ...this.value,
@@ -312,7 +304,7 @@
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
     }
-    onceSet(callback) {
+    onceDefined(callback) {
       const wrapped = (value) => {
         if (value) {
           this.unwatch(wrapped);
@@ -558,8 +550,8 @@
       };
     });
   }
-  function renderIf(condition, ifYes, ifNo = Null()) {
-    return condition.if(truthy, ifYes, ifNo);
+  function If(condition, ifYes, ifNo = Undefined()) {
+    return condition.map((value) => value ? ifYes : ifNo);
   }
 
   // src/templates/colony/css.js
@@ -573,7 +565,7 @@
     const hideUI = ref(false);
     const showUI = hideUI.map((hide) => !hide);
     const graphContainer = ref();
-    graphContainer.onceSet(createGraph);
+    graphContainer.onceDefined(createGraph);
     const graph = ref();
     const data = graph.map((graph2) => graph2?.graphData());
     const useNextLinks = ref(true);
@@ -705,7 +697,7 @@
         style: { position: "fixed", top: "0px", left: "0px", zIndex: "100" }
       },
       [
-        renderIf(
+        If(
           showUI,
           div({ style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" } }, [
             graphContainer.value = div(),
@@ -724,7 +716,7 @@
                     Checkbox(useNextLinks)
                   )
                 ),
-                renderIf(useNextLinks, div(
+                If(useNextLinks, div(
                   Labeled(
                     "Show time-based links",
                     Checkbox(showNextLinks)
@@ -749,7 +741,7 @@
                   "Download"
                 ])
               ]),
-              renderIf(selectedClip, ({ id: id2, name, tags: tags2, image_url, audio_url }) => {
+              If(selectedClip, ({ id: id2, name, tags: tags2, image_url, audio_url }) => {
                 return div({ class: "w-100" }, [
                   div({ class: "relative" }, [
                     a({ href: `https://suno.com/song/${id2}`, target: "_blank" }, [

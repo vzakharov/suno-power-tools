@@ -13,20 +13,6 @@
     return Object.assign(obj, partial);
   }
 
-  // src/types.ts
-  var BRAND = Symbol("brand");
-  function infer(inferable, value) {
-    return isFunction(inferable) ? inferable(value) : inferable;
-  }
-
-  // src/utils.ts
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
-  }
-  function isEqual(compareTo) {
-    return (value) => value === compareTo;
-  }
-
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -101,11 +87,18 @@
       ;
       return mapped;
     }
-    if(comparator, ifYes, ifNot) {
-      return this.map(
-        (value) => (isFunction(comparator) ? comparator : isEqual(comparator))(value) ? infer(ifYes, value) : infer(ifNot, value)
-      );
-    }
+    // if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
+    // if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+    // if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
+    // if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
+    //   return this.map(value => 
+    //     (
+    //       isFunction(comparator) ? comparator : isEqual(comparator)
+    //     )(value) 
+    //       ? infer(ifYes, value) 
+    //       : infer(ifNot, value)
+    //   );
+    // };
     merge(mergee) {
       return mergee ? computed(() => ({
         ...this.value,
@@ -115,7 +108,7 @@
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
     }
-    onceSet(callback) {
+    onceDefined(callback) {
       const wrapped = (value) => {
         if (value) {
           this.unwatch(wrapped);
@@ -222,6 +215,11 @@
       // fn => fn(),
       (value) => value
     );
+  }
+
+  // src/utils.ts
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
   }
 
   // src/scripts/dev.ts

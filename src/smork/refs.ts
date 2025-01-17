@@ -96,18 +96,18 @@ export class Ref<T> {
     return mapped;
   };
 
-  if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
-  if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
-  if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
-  if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
-    return this.map(value => 
-      (
-        isFunction(comparator) ? comparator : isEqual(comparator)
-      )(value) 
-        ? infer(ifYes, value) 
-        : infer(ifNot, value)
-    );
-  };
+  // if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
+  // if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
+  // if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
+  // if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
+  //   return this.map(value => 
+  //     (
+  //       isFunction(comparator) ? comparator : isEqual(comparator)
+  //     )(value) 
+  //       ? infer(ifYes, value) 
+  //       : infer(ifNot, value)
+  //   );
+  // };
 
   merge<U>(mergee: Refable<U> | undefined) {
     return mergee
@@ -129,7 +129,7 @@ export class Ref<T> {
     };
   };
 
-  onceSet(callback: (value: NonNullable<T>) => void) {
+  onceDefined(callback: (value: NonNullable<T>) => void) {
     const wrapped = (value: T) => {
       if ( value ) {
         this.unwatch(wrapped);

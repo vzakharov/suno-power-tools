@@ -205,9 +205,13 @@ export async function importScript<T>(win: Window, windowKey: string, url: strin
   });
 };
 
-export function renderIf<TValue, TNode extends SmorkNode>(condition: Ref<TValue | undefined>, ifYes: Inferable<TNode, TValue>): TNode | null
-export function renderIf<TNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>): TNode | null;
-export function renderIf<TNode extends SmorkNode, U extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>, ifNo: Inferable<U, boolean>): TNode | U;
-export function renderIf(condition: Ref<boolean>, ifYes: Inferable<SmorkNode, any>, ifNo = Null<Inferable<SmorkNode, any>>()) {
-  return condition.if(truthy, ifYes, ifNo);
+export function If<TValue, TNode extends SmorkNode>(condition: Ref<TValue | undefined>, ifYes: Inferable<TNode, TValue>): TNode | null
+export function If<TNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>): TNode | null;
+export function If<TYesNode extends SmorkNode, TNoNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TYesNode, boolean>, ifNo: Inferable<TNoNode, boolean>): TYesNode | TNoNode;
+export function If<TValue, TYesNode extends SmorkNode, TNoNode extends SmorkNode>(
+  condition: Ref<TValue | undefined>,
+  ifYes: Inferable<TYesNode, NonNullable<TValue>>,
+  ifNo = Undefined<Inferable<TNoNode, NonNullable<TValue>>>()
+) {
+  return condition.map(value => value ? ifYes : ifNo);
 };
