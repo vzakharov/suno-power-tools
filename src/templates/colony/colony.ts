@@ -1,8 +1,9 @@
 import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
+import { audio, button, Checkbox, div, h3, If, importScript, Labeled, p, style, TextInput } from '../../smork/dom';
 import { assignTo, ref } from '../../smork/refs';
-import { a, audio, button, Checkbox, div, h3, SmorkNode, img, importScript, Labeled, p, style, StyleOptions, TextInput, If } from '../../smork/dom';
-import { $throw, jsonClone, sortByDate, Undefined } from '../../utils';
+import { jsonClone, sortByDate, Undefined } from '../../utils';
+import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
 
 export async function render(
@@ -218,20 +219,12 @@ export async function render(
                 'Download'
               ])
             ]),
-            If(selectedClip, ({ id, name, tags, image_url, audio_url }) => {
+            If(selectedClip, clip => {
               return div({ class: 'w-100' }, [
                 div({ class: 'relative' }, [
-                  a({ href: `https://suno.com/song/${id}`, target: '_blank' }, [
-                    img({ src: image_url, style: { opacity: '0.5', width: '200px' } }),
-                    div({ class: 'absolute topleft', style: { width: '190px', padding: '5px' } }, [
-                        div(name || '[Untitled]'),
-                      div({ class: 'smol' }, [
-                        tags || '(no style)' 
-                      ])
-                    ])
-                  ])
+                  ClipCard(clip)
                 ]),
-                audioElement.value = audio({ src: audio_url, controls: true, class: 'w-100' })
+                audioElement.value = audio({ src: clip.audio_url, controls: true, class: 'w-100' })
               ])
             })
           ])
@@ -248,3 +241,5 @@ export async function render(
 
 
 };
+
+

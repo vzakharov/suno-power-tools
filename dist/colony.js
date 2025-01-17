@@ -554,6 +554,19 @@
     return condition.map((value) => value ? ifYes : ifNo);
   }
 
+  // src/templates/colony/ClipCard.ts
+  function ClipCard({ id, image_url, name, tags: tags2 }) {
+    return a({ href: `https://suno.com/song/${id}`, target: "_blank" }, [
+      img({ src: image_url, style: { opacity: "0.5", width: "200px" } }),
+      div({ class: "absolute topleft", style: { width: "190px", padding: "5px" } }, [
+        div(name || "[Untitled]"),
+        div({ class: "smol" }, [
+          tags2 || "(no style)"
+        ])
+      ])
+    ]);
+  }
+
   // src/templates/colony/css.js
   var colonyCss = '.colony { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;}.colony button {background-color: #444;color: #eee}.colony #sidebar {position: fixed;padding: 10px;top: 0;left: 0;bottom: 0;width: 200px;background-color: #333;color: #eee;display: flex;flex-direction: column;justify-content: space-between;}.colony .f-row {display: flex;flex-direction: row;}.colony .f-col {display: flex;flex-direction: column;}.colony .smol {font-size: 0.8em;color: #aaa;}.colony .relative {position: relative;}.colony .absolute {position: absolute;}.colony .topleft {top: 0;left: 0;}.colony .p-1 {padding: 1rem;};.colony .p-2 {padding: 2rem;}.colony .w-100 {width: 100%;}.colony .h-100 {height: 100%;}.colony .j-between {justify-content: space-between;}.colony .settings > * {margin-top: 5px;}';
 
@@ -741,20 +754,12 @@
                   "Download"
                 ])
               ]),
-              If(selectedClip, ({ id: id2, name, tags: tags2, image_url, audio_url }) => {
+              If(selectedClip, (clip) => {
                 return div({ class: "w-100" }, [
                   div({ class: "relative" }, [
-                    a({ href: `https://suno.com/song/${id2}`, target: "_blank" }, [
-                      img({ src: image_url, style: { opacity: "0.5", width: "200px" } }),
-                      div({ class: "absolute topleft", style: { width: "190px", padding: "5px" } }, [
-                        div(name || "[Untitled]"),
-                        div({ class: "smol" }, [
-                          tags2 || "(no style)"
-                        ])
-                      ])
-                    ])
+                    ClipCard(clip)
                   ]),
-                  audioElement.value = audio({ src: audio_url, controls: true, class: "w-100" })
+                  audioElement.value = audio({ src: clip.audio_url, controls: true, class: "w-100" })
                 ]);
               })
             ])
