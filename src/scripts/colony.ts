@@ -7,6 +7,7 @@ import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
 import { $throw, $with, atLeast, debug, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
 import { api } from '../api';
+import { OptionalIfUndefinable } from '../types';
 
 declare global {
   interface Window {
@@ -379,8 +380,8 @@ export class Colony {
 };
 
 export type ColonyGraphData = ReturnType<typeof Colony.prototype.getGraphData>;
-export type ColonyNode = ColonyGraphData['nodes'][number];
-export type ColonyLink = ColonyGraphData['links'][number];
+export type ColonyNode = OptionalIfUndefinable<ColonyGraphData['nodes'][number]>;
+export type ColonyLink = OptionalIfUndefinable<ColonyGraphData['links'][number]>;
 
 const colony = new Colony();
 

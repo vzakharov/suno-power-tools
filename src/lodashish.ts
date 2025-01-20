@@ -94,3 +94,11 @@ export function assign<T extends {}, U extends {}>(obj: T, partial: U) {
 export function isBoolean(value: any): value is boolean {
   return typeof value === 'boolean';
 };
+
+export function compact<T>(arr: (T | null | undefined)[]) {
+  return arr.filter(Boolean) as T[];
+};
+
+export function isNil(value: any): value is null | undefined {
+  return value === null || value === undefined;
+};

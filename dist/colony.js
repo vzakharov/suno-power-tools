@@ -24,8 +24,14 @@
   function isFunction(value) {
     return typeof value === "function";
   }
+  function identity(value) {
+    return value;
+  }
   function assign(obj, partial) {
     return Object.assign(obj, partial);
+  }
+  function compact(arr) {
+    return arr.filter(Boolean);
   }
 
   // src/utils.ts
@@ -85,6 +91,10 @@
   }
   function debug() {
     debugger;
+  }
+  function doAndReturn(target, fn) {
+    fn(target);
+    return target;
   }
 
   // src/cropping.ts
@@ -278,18 +288,11 @@
       ;
       return mapped;
     }
+    mapDefined(callback) {
+      return this.map((value) => value !== void 0 ? callback(value) : void 0);
+    }
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
-    }
-    onceDefined(callback) {
-      const wrapped = (value) => {
-        if (value) {
-          this.unwatch(wrapped);
-          callback(value);
-        }
-        ;
-      };
-      this.watchImmediate(wrapped);
     }
     setter(setter = (value) => this._set(value)) {
       return new SetterRef(this, setter);
@@ -316,6 +319,15 @@
     }
     bridge(forward, backward) {
       return this.map(forward).setter((value) => this.set(backward(value)));
+    }
+    clone() {
+      return new CloneRef(this);
+    }
+  };
+  var CloneRef = class extends MappedRef {
+    constructor(source2) {
+      super(source2, identity);
+      this.source = source2;
     }
   };
   var SetterRef = class extends WritableRef {
@@ -380,6 +392,26 @@
   }
   function toref(refable) {
     return refable instanceof Ref ? refable : new Ref(refable);
+  }
+  function unrefs(refs2) {
+    return mapValues(refs2, unref);
+  }
+  function torefs(values) {
+    return mapValues(values, toref);
+  }
+  function refs(refables, includeRefs = false) {
+    const writableRef = new WritableRef(unrefs(refables));
+    const refs2 = torefs(refables);
+    forEach(refs2, (ref2, key) => {
+      if (key in writableRef)
+        throw new SmorkError(`Key "${key}" already exists in the joint ref. Please use a different key.`);
+      ref2.watch((value) => {
+        const { [key]: oldValue, ...rest } = writableRef.value;
+        writableRef.value = { ...rest, [key]: value };
+      });
+    });
+    const readonlyRef = writableRef.clone();
+    return includeRefs ? [readonlyRef, refs2] : readonlyRef;
   }
 
   // src/smork/types.ts
@@ -608,9 +640,6 @@
     const hideUI = ref(false);
     const showUI = hideUI.map((hide) => !hide);
     const graphContainer = ref();
-    graphContainer.onceDefined(createGraph);
-    const graph = ref();
-    const data2 = graph.map((graph2) => graph2?.graphData());
     const useNextLinks = ref(true);
     const useDescendantLinks = ref(true);
     const filterString = ref("");
@@ -622,13 +651,21 @@
         audioElement.value?.play();
       }, 0)
     );
+    const nodesById = /* @__PURE__ */ new Map();
+    function nodeById(id2) {
+      return nodesById.get(id2) ?? doAndReturn(
+        data2.value?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
+        (node) => nodesById.set(id2, node)
+      );
+    }
+    ;
     const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     window.document.head.appendChild(style([colonyCss]));
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
     const graphData = jsonClone(rawData);
     //! again, because ForceGraph mutates the data
-    function createGraph(graphContainer2) {
-      graph.value = new GraphRenderer(graphContainer2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkVisibility(visibilityChecker).linkDirectionalParticles(1).nodeLabel(
+    const graph = graphContainer.mapDefined((container2) => {
+      const graph2 = new GraphRenderer(container2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
         (clip) => div([
           ClipCard(clip),
           div({ class: "smol" }, [
@@ -639,13 +676,14 @@
         window.open(`https://suno.com/song/${id2}`);
       });
       if (in3D) {
-        graph.value.linkOpacity((l) => l.isMain ? 1 : 0.2);
+        graph2.linkOpacity((l) => l.isMain ? 1 : 0.2);
       } else {
-        graph.value.linkLineDash((l) => l.isMain ? null : [1, 2]);
+        graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
       }
       ;
-    }
-    ;
+      return graph2;
+    });
+    const data2 = graph.map((graph2) => graph2?.graphData());
     async function redrawGraph() {
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
       graph.value?._destructor();
@@ -653,48 +691,13 @@
       await render(this, rawData, { mode });
     }
     ;
-    function visibilityChecker(link2) {
-      return !{
-        descendant: true,
-        next: !showNextLinks.value
-      }[link2.kind];
-    }
-    ;
-    function applyLinkFilter(kind, useLinks) {
-      if (!data2.value || !graph.value)
-        return;
-      let { nodes, links } = data2.value;
-      if (!useLinks) {
-        links = links.filter((l) => l.kind !== kind);
-      } else {
-        links.push(...data2.value.links.filter((l) => l.kind === kind));
-      }
-      if (kind === "next") {
-        links = links.filter((l) => l.kind !== "next");
-        if (useLinks) {
-          sortByDate(nodes);
-          for (let i2 = 1; i2 < nodes.length; i2++) {
-            const source2 = nodes[i2 - 1];
-            const target = nodes[i2];
-            links.push({
-              source: source2.id,
-              target: target.id,
-              kind: "next",
-              color: "#006",
-              isMain: false
-            });
-          }
-          ;
-        }
-      }
-      ;
-      graph.value.graphData({ nodes, links });
-    }
-    ;
-    useNextLinks.watchImmediate((useLinks) => applyLinkFilter("next", useLinks));
-    useDescendantLinks.watchImmediate((useLinks) => applyLinkFilter("descendant", useLinks));
-    showNextLinks.watchImmediate(() => {
-      graph.value?.linkVisibility(visibilityChecker);
+    refs({ graph, showNextLinks }).map(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
+      graph2?.linkVisibility((link2) => {
+        return !{
+          descendant: true,
+          next: !showNextLinks2
+        }[link2.kind];
+      });
     });
     function id(node) {
       return typeof node === "string" ? node : node.id;
@@ -708,22 +711,66 @@
       return (candidate) => sameId(original, candidate);
     }
     ;
-    filterString.watchImmediate((rawFilter) => {
-      if (!data2.value || !graph.value)
-        return;
-      const filter = rawFilter?.toLowerCase();
-      const matchingNodes = filter ? data2.value.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data2.value.nodes;
-      const existing = graph.value.graphData();
-      const nodes = [
-        ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        ...filter ? data2.value.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
-      ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
-      const links = data2.value.links.filter((link2) => nodes.some(sameIdAs(link2.source)) && nodes.some(sameIdAs(link2.target))).map(({ source: source2, target, ...rest }) => ({ source: id(source2), target: id(target), ...rest })).map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2);
-      graph.value.graphData({ nodes, links });
-      if (filter)
-        graph.value.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
-      else
-        graph.value.nodeVal("val");
+    const reusableData = refs({ data: data2, graph }).map(({ data: data3, graph: graph2 }) => {
+      const existing = graph2?.graphData();
+      return existing ? data3 && {
+        nodes: data3.nodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+        links: data3.links.map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2)
+      } : data3;
+    });
+    const matchingNodes = refs({ reusableData, filterString, graph }).map(({ reusableData: { nodes: nodes2 } = {}, filterString: filter, graph: graph2 }) => {
+      if (!nodes2 || !graph2) return [];
+      if (!filter) return nodes2;
+      filter = filter.toLowerCase();
+      return nodes2.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
+    });
+    refs({ graph, matchingNodes }).map(
+      ({ graph: graph2, matchingNodes: matchingNodes2 }) => graph2?.nodeVal((node) => matchingNodes2.some((n) => n.id === node.id) ? 3 : node.val)
+    );
+    const nodes = refs({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes: nodes2 } = {} }) => {
+      return [
+        ...matchingNodes2,
+        ...nodes2?.filter((node) => matchingNodes2.some((n) => n.rootId === node.rootId && n.id !== node.id)) ?? []
+        // (^same root nodes)
+      ];
+    });
+    const nextLinks = refs({ nodes, useNextLinks }).map(({ nodes: nodes2, useNextLinks: useNextLinks2 }) => {
+      if (!nodes2 || !useNextLinks2)
+        return [];
+      sortByDate(nodes2);
+      return nodes2.slice(1).map((node, i2) => ({
+        source: nodes2[i2].id,
+        target: node.id,
+        kind: "next",
+        color: "#006",
+        isMain: false
+      }));
+    });
+    const descendantLinks = refs({ nodes, useDescendantLinks }).map(({ nodes: nodes2, useDescendantLinks: useDescendantLinks2 }) => {
+      if (!nodes2 || !useDescendantLinks2)
+        return [];
+      return compact(nodes2.map((node) => {
+        const root = nodeById(node.rootId ?? $throw(`Node ${node.id} has no root ID.`));
+        return root !== node ? {
+          source: root.id,
+          target: node.id,
+          kind: "descendant",
+          isMain: false
+        } : null;
+      }));
+    });
+    const links = refs({ reusableData, nodes, nextLinks, descendantLinks }).map(
+      ({ reusableData: { links: links2 } = {}, nodes: nodes2, nextLinks: nextLinks2, descendantLinks: descendantLinks2 }) => {
+        if (!links2 || !nodes2) return [];
+        return [
+          ...links2,
+          ...nextLinks2,
+          ...descendantLinks2
+        ];
+      }
+    );
+    refs({ graph, nodes, links }).map(({ graph: graph2, ...data3 }) => {
+      graph2?.graphData(data3);
     });
     setTimeout(() => {
       useNextLinks.set(false);

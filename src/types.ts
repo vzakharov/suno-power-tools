@@ -30,3 +30,17 @@ export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value:
 export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value?: TArg) {
   return isFunction(inferable) ? inferable(value as any) : inferable;
 };
+
+export type TypescriptErrorClarification<T extends string> = T & {
+  readonly __brand: unique symbol;
+};
+
+/**
+ * Constructs a type by making properties optional if their type includes `undefined`.
+ *
+ */
+export type OptionalIfUndefinable<T> = {
+  [K in keyof T as undefined extends T[K] ? never : K]: T[K];
+} & {
+  [K in keyof T as undefined extends T[K] ? K : never]?: T[K];
+};

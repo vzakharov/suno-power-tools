@@ -22,6 +22,9 @@
   function isFunction(value) {
     return typeof value === "function";
   }
+  function identity(value) {
+    return value;
+  }
   function assign(obj, partial) {
     return Object.assign(obj, partial);
   }
@@ -111,18 +114,11 @@
       ;
       return mapped;
     }
+    mapDefined(callback) {
+      return this.map((value) => value !== void 0 ? callback(value) : void 0);
+    }
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
-    }
-    onceDefined(callback) {
-      const wrapped = (value) => {
-        if (value) {
-          this.unwatch(wrapped);
-          callback(value);
-        }
-        ;
-      };
-      this.watchImmediate(wrapped);
     }
     setter(setter = (value) => this._set(value)) {
       return new SetterRef(this, setter);
@@ -149,6 +145,15 @@
     }
     bridge(forward, backward) {
       return this.map(forward).setter((value) => this.set(backward(value)));
+    }
+    clone() {
+      return new CloneRef(this);
+    }
+  };
+  var CloneRef = class extends MappedRef {
+    constructor(source2) {
+      super(source2, identity);
+      this.source = source2;
     }
   };
   var SetterRef = class extends WritableRef {

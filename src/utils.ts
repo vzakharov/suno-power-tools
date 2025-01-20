@@ -119,4 +119,12 @@ export function debug() {
 export function doAndReturn<T>(target: T, fn: (target: T) => void) {
   fn(target);
   return target;
-}
+};
+
+export function findInSet<T>(set: Set<T>, predicate: (value: T) => boolean) {
+  for ( const value of set ) {
+    if ( predicate(value) ) {
+      return value;
+    };
+  };
+};

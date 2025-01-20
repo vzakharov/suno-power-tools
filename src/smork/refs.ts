@@ -1,7 +1,7 @@
 //! Smork, the smol framework
-import { assign, isFunction, mapValues } from "../lodashish";
-import { Func } from "../types";
-import { $with } from "../utils";
+import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla } from "../lodashish";
+import { Func, TypescriptErrorClarification } from "../types";
+import { $with, mutate } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -24,11 +24,11 @@ export type Watcher<T> = (value: T, oldValue: T) => void;
 
 export class Ref<T> {
 
-  protected watchers = new Set<Watcher<T>>();
+  private watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
-
+  
   constructor(
-    protected _value: T
+    private _value: T
   ) { };
 
   get() {
@@ -82,8 +82,8 @@ export class Ref<T> {
     return this.get();
   };
 
-  map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, MappedRef<T, U>>;
-  map<U>(getter: Func<[T], U>): MappedRef<T, U>;
+  map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, Ref<U>>;
+  map<U>(getter: Func<[T], U>): Ref<U>;
   map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
     const mapped = new MappedRef(this, nestableGetter);
     if ( isFunction(mapped.value) ) {
@@ -92,7 +92,11 @@ export class Ref<T> {
         value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
       );
     };
-    return mapped;
+    return mapped as any;
+  };
+
+  mapDefined<U>(callback: (value: T & ({} | null)) => U) {
+    return this.map(value => value !== undefined ? callback(value) : undefined);
   };
 
   uses<
@@ -101,19 +105,9 @@ export class Ref<T> {
     return assign(this, mapValues(methods, this.map)) as this & {
       [K in keyof U]:
         ReturnType<U[K]> extends Func<infer TArgs, infer TReturn>
-          ? Func<TArgs, MappedRef<T, TReturn>>
-          : MappedRef<T, ReturnType<U[K]>>
+          ? Func<TArgs, MappedRef<TReturn, T>>
+          : MappedRef<ReturnType<U[K]>, T>
     };
-  };
-
-  onceDefined(callback: (value: NonNullable<T>) => void) {
-    const wrapped = (value: T) => {
-      if ( value ) {
-        this.unwatch(wrapped);
-        callback(value);
-      };
-    };
-    this.watchImmediate(wrapped);
   };
 
   setter(setter = (value: T) => this._set(value)) {
@@ -122,7 +116,7 @@ export class Ref<T> {
 
 };
 
-export class MappedRef<T, U> extends Ref<U> {
+export class MappedRef<U, T> extends Ref<U> {
   
   constructor(
     public readonly source: Ref<T>,
@@ -152,6 +146,23 @@ export class WritableRef<T> extends Ref<T> {
 
   bridge<U>(forward: (value: T) => U, backward: (value: U) => T) {
     return this.map(forward).setter(value => this.set(backward(value)));
+  };
+
+  clone() {
+    return new CloneRef(this) as Ref<T>;
+  };
+
+};
+
+/**
+ * A readonly ref that is synchronized with a writable ref. Useful if you don't want a ref to be modifiable downstream while still being able to update it in your own code.
+ */
+export class CloneRef<T> extends MappedRef<T, T> {
+  
+  constructor(
+    public source: WritableRef<T>
+  ) {
+    super(source, identity);
   };
 
 };
@@ -231,48 +242,18 @@ export function computed<T>(getter: () => T, setter?: (value: T) => void) {
   );
 };
 
+// Refables
 
-export type Refable<T> = T | Ref<T> //| (() => T) ;
-export type Unref<TRefable> = 
-  TRefable extends Ref<infer T> 
-    ? T 
-  // : TRefable extends () => infer T
-  //   ? T
-  : TRefable;
+export type Refable<T> = T | Ref<T>;
 
-export type Refables<T extends Record<string, any>> = {
-  [K in keyof T]: Refable<T[K]>
-};
-
-// test
-
-type Test = {
-  a: number,
-  b?: string,
-  c: boolean
-};
-
-type RefTest = Refables<Test>;
-
-export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
-  return mapValues(refs, unref) as {
-    [K in keyof T]: Unref<T[K]>
-  }
-};
-
-export function torefs<T extends Record<string, any>>(values: T) {
-  return mapValues(values, toref) as {
-    [K in keyof T]: T[K] extends Func ? T[K] : WritableRef<T[K]>
-  }
-};
-
-export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
 export function unref<T>(refable: Refable<T>): T;
-export function unref<T>(refable: T extends Ref<infer U> ? Ref<U> : T): T extends Ref<infer U> ? U : T;
+export function unref<TRefable>(refable: TRefable extends Ref<infer U> ? Ref<U> : TRefable): TRefable extends Ref<infer U> ? U : TRefable;
 export function unref<T>(refable: Refable<T>) {
   return refable instanceof Ref ? refable.value : refable;
 };
+
+export type Unref<TRefable> = ReturnType<typeof unref<TRefable>>;
 
 /**
  * ### Notes
@@ -287,4 +268,56 @@ export function toref<T>(refable: T extends Ref<infer U> ? Ref<U> : T):
   >
 export function toref<T>(refable: T) {
   return refable instanceof Ref ? refable : new Ref(refable);
+};
+
+export type Toref<T> = ReturnType<typeof toref<T>>;
+
+export type Refables<T> = {
+  [K in keyof T]: Refable<T[K]>
+};
+
+// test
+
+type Test = {
+  a: number,
+  b?: string,
+  c: boolean
+};
+
+type RefTest = Refables<Test>;
+
+export function unrefs<T>(refs: Refables<T>): T;
+export function unrefs<T extends Refables<any>>(refs: Refables<T>):{ [K in keyof T]: Unref<T[K]> };
+export function unrefs<T extends Refables<any>>(refs: Refables<T>) {
+  return mapValues(refs, unref);
+};
+
+export function torefs<T>(refables: Refables<T>): { [K in keyof T]: Ref<T[K]> };
+export function torefs<T extends Record<string, any>>(values: T): { [K in keyof T]: Toref<T[K]> };
+export function torefs<T extends Record<string, any>>(values: T) {
+  return mapValues(values, toref);
+};
+
+export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
+
+type NoOverlap<T, U> = 
+  keyof T & keyof U extends never 
+    ? T 
+    : TypescriptErrorClarification<`'${Extract<keyof T & keyof U, string>}' cannot be used as a key"`>;
+
+export function refs<T extends Record<string, any>>(refables: Refables<T>): Ref<T>;
+export function refs<T extends Record<string, any>>(refables: Refables<T>, includeRefs: true): [ jointRef: Ref<T>, refs: { [K in keyof T]: Ref<T[K]> } ];
+export function refs<T extends Record<string, any>>(refables: Refables<T>, includeRefs = false) {
+  const writableRef = new WritableRef(unrefs<T>(refables));
+  const refs = torefs<T>(refables);
+  forEach(refs, (ref, key) => {
+    if ( key in writableRef )
+      throw new SmorkError(`Key "${key}" already exists in the joint ref. Please use a different key.`);
+    ref.watch(value => {
+      const { [key]: oldValue, ...rest } = writableRef.value;
+      writableRef.value = { ...rest, [key]: value } as T;
+    });
+  });
+  const readonlyRef: Ref<T> = writableRef.clone();
+  return includeRefs ? [ readonlyRef, refs ] as const : readonlyRef;
 };
