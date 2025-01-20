@@ -519,8 +519,8 @@
     var: $var,
     video,
     wbr
-  } = TAGS.reduce((tags, tag2) => {
-    tags[tag2] = tag(tag2);
+  } = TAGS.reduce((tags, tagName) => {
+    tags[tagName] = tag(tagName);
     return tags;
   }, {});
 
