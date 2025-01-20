@@ -110,4 +110,8 @@ export function isEqual<T>(compareTo: T) {
 
 export function truthy(value: any) {
   return !!value;
-}
+};
+
+export function debug() {
+  debugger;
+};

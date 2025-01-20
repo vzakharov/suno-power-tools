@@ -1,113 +1,60 @@
 import { forEach, uniqueId } from "../lodashish";
 import { Inferable } from "../types";
-import { Null, renameKeys, truthy, Undefined } from "../utils";
-import { isRefOrGetter, Ref, Refable, Refables, runAndWatch, Unref, WritableRef } from "./refs";
-
-export const SUPPORTED_TAGS = [
-  'html', 'head', 'style', 'script', 'body', 'div', 'h3', 'p', 'a', 'img', 'audio', 'input', 'label', 'button'
-] as const;
-// TODO: Distinguish between void elements and non-void elements
-
-export type SupportedTag = typeof SUPPORTED_TAGS[number];
-
-export type TagElementMap = Pick<HTMLElementTagNameMap, SupportedTag>;
-
-export type TagName = keyof TagElementMap;
-export type SupportedElement = TagElementMap[SupportedTag];
-
-export const tags = createTags(SUPPORTED_TAGS);
-
-export const {
-  html, head, style, script, body, div, h3, p, a, img, audio, input, label, button
-} = tags;
-
-export function createTags(tagNames: typeof SUPPORTED_TAGS) {
-  return tagNames.reduce((acc, tagName) => {
-    return Object.assign(acc, {
-      [tagName]: createTag(tagName)
-    });
-  }, {} as {
-    [K in SupportedTag]: ReturnType<typeof createTag<K>>
-  });
-};
-
-
-type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
+import { $with, Undefined } from "../utils";
+import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
+import { label } from "./tags";
+import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag } from "./types";
 
 export type StyleOptions = Partial<Omit<CSSStyleDeclaration, 'length' | 'parentRule'>>
 
-export type Props<TElement extends SupportedElement> = {
-  [K in Exclude<keyof TElement, 'style' | 'className' | 'htmlFor' /*| keyof Events<TElement>*/>]: TElement[K]
-} & {
-  style: StyleOptions,
-  // TODO: Implement string-based styles
-  class: string,
-  for: TElement extends HTMLLabelElement ? TElement['htmlFor'] : never,
-};
-    
-export type Events<TElement extends SupportedElement> = {
-  [K in keyof TElement as 
-    TElement[K] extends EventHandler
-      ? K
-      : never
-  ]?: TElement[K]
-};
+export type RefableSmorkNode = Refable<SmorkNode>;
 
-export type SmorkNode = SupportedElement | string | null;
-type RefableSmorkNode = Refable<SmorkNode>;
+export function tag<TTag extends Tag>(tagName: TTag) {
 
-function createTag<TTag extends SupportedTag>(tagName: TTag) {
+  type TElement = ElementForTag[TTag];
+  type TProps = Props[TTag];
 
-  type TElement = TagElementMap[TTag];
-  type TProps = Partial<Refables<Props<TElement>>>;
-
-  // function elementFactory(props: TProps, events?: Events<TElement>, children?: HTMLNode[]): TElement;
-  function elementFactory(props: TProps, children?: RefableSmorkNode[]): TElement;
-  function elementFactory(children?: RefableSmorkNode[]): TElement;
-  function elementFactory(
+  function factory(props: TProps, children?: RefableSmorkNode[]): TElement;
+  function factory(children?: RefableSmorkNode[]): TElement;
+  function factory(
     propsOrChildren?: TProps | RefableSmorkNode[],
-    // eventsOrChildren?: Events<TElement> | HTMLNode[],
     childrenOrNone?: RefableSmorkNode[]
   ) {
-    // const [ props, events, children ] = 
-    //   Array.isArray(propsOrChildren) 
-    //     ?   [ undefined,        undefined,          propsOrChildren ] 
-    //     : Array.isArray(eventsOrChildren)
-    //       ? [ propsOrChildren,  undefined,          eventsOrChildren ]
-    //       : [ propsOrChildren,  eventsOrChildren,   childrenOrNone ];
-    // return verboseElementFactory(props, events, children);
     const [ props, children ] =
       Array.isArray(propsOrChildren)
         ? [ undefined, propsOrChildren ]
         : [ propsOrChildren, childrenOrNone ];
-    return verboseElementFactory(props, children);
+    return verboseFactory(props, children);
   }
 
-  return elementFactory;
+  return factory;
 
-  function verboseElementFactory(
+  function verboseFactory(
     props: TProps | undefined,
-    // events: Events<TElement> | undefined,
     children: RefableSmorkNode[] | undefined
   ) {
+
     const element = document.createElement(tagName) as TElement;
-    // events && Object.assign(element, events);
-    props && forEach(
-        renameKeys(props, {
-          class: 'className',
-          for: 'htmlFor'
-        } as any) as Refables<TElement>,
+    props && 
+      forEach(
+        props as AllProps,
         (value, key) => {
-          runAndWatch(value, value => {
-            key !== 'style'
-              ? element[key] = value as any
-              : forEach(value as StyleOptions, (value, key) =>
-                element.style[key] = value as any
-              );
-          });
+          typeof value === 'function'
+            ? element[key === 'style' ? 'cssText' : key] = value()
+            : $with(value, refable => {
+                update(unref(refable));
+                toref(refable).watch(update);
+                function update(value: Unref<typeof refable>) {
+                  typeof value === 'boolean'
+                    ? value
+                      ? element.setAttribute(key, '')
+                      : element.removeAttribute(key)
+                    : element.setAttribute(key, String(value));
+                };
+              })
         }
       );
-    if (children) {
+    children && 
       children.forEach(child => {
         let currentNode = Undefined<ChildNode>();
         const place = (node: Unref<RefableSmorkNode>) => {
@@ -123,20 +70,19 @@ function createTag<TTag extends SupportedTag>(tagName: TTag) {
         };
         child instanceof Ref ? child.watchImmediate(place) : place(child);
       });
-    };
     return element;
-  }
+  };
 
 };
 
-export const Checkbox = modelElement('input', 'checked', 
+export const Checkbox = modelElement('input', 'checked', Boolean,
   { type: 'checkbox' }, 
   model => ({
     onchange: () => model.set(!model.value)
   })
 );
 
-export const TextInput = modelElement('input', 'value',
+export const TextInput = modelElement('input', 'value', String,
   { type: 'text' },
   model => ({
     onkeyup: ({ key, target }: KeyboardEvent ) => {
@@ -156,21 +102,21 @@ type TextInputModelRef = ModelRef<HTMLInputElement, 'value'>; // should be Ref<s
 type CheckboxModelRef = ModelRef<HTMLInputElement, 'checked'>; // should be Ref<boolean>
 
 export function modelElement<
-  TTag extends SupportedTag,
-  TModelKey extends keyof Props<TagElementMap[TTag]>,
-  TProps extends Props<TagElementMap[TTag]>
+  TTag extends Tag,
+  TModelKey extends keyof Props<ElementForTag[TTag]>,
+  TProps extends Props<ElementForTag[TTag]>
 >(
   tag: TTag,
   modelKey: TModelKey,
   initProps: Partial<TProps>,
-  eventFactory: (model: ModelRef<TagElementMap[TTag], TModelKey>) => Events<TagElementMap[TTag]>
+  eventFactory: (model: ModelRef<ElementForTag[TTag], TModelKey>) => Events<ElementForTag[TTag]>
 ) {
-  type TElement = TagElementMap[TTag];
+  type TElement = ElementForTag[TTag];
   return (
     model: ModelRef<TElement, TModelKey>,
     props?: Omit<Props<TElement>, TModelKey | keyof TProps>
   ) => {
-    return createTag(tag)({
+    return tag(tag)({
       ...initProps,
       ...props,
       [modelKey]: model,

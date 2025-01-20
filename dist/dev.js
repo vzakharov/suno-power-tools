@@ -19,11 +19,6 @@
   function forEach(obj, callback) {
     return mapValues(obj, callback);
   }
-  function mapKeys(obj, mapper) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [mapper(key, value), value])
-    );
-  }
   function isFunction(value) {
     return typeof value === "function";
   }
@@ -222,35 +217,22 @@
       return !ref2.value;
     });
   }
-  function refResolver(arg) {
-    return (ifRef, ifValue) => {
-      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
-    };
+  function unref(refable) {
+    return refable instanceof Ref ? refable.value : refable;
   }
-  function unref(arg) {
-    return refResolver(arg)(
-      (ref2) => ref2.value,
-      // fn => fn(),
-      (value) => value
-    );
-  }
-  function runAndWatch(refable, callback) {
-    refResolver(refable)(
-      (ref2) => ref2.watchImmediate(callback),
-      // getter => ref(getter).watchImmediate(callback),
-      callback
-    );
+  function toref(refable) {
+    return refable instanceof Ref ? refable : new Ref(refable);
   }
 
   // src/utils.ts
   function Undefined() {
     return void 0;
   }
+  function $with(obj, fn) {
+    return fn(obj);
+  }
   function mutate(obj, partial) {
     Object.assign(obj, partial);
-  }
-  function renameKeys(record, keyMap) {
-    return mapKeys(record, (key) => keyMap[key] ?? key);
   }
 
   // src/smork/dom.ts
@@ -259,107 +241,58 @@
     Checkbox: () => Checkbox,
     If: () => If,
     Labeled: () => Labeled,
-    SUPPORTED_TAGS: () => SUPPORTED_TAGS,
     TextInput: () => TextInput,
-    a: () => a,
-    audio: () => audio,
-    body: () => body,
-    button: () => button,
-    createTags: () => createTags,
-    div: () => div,
-    h3: () => h3,
-    head: () => head,
-    html: () => html,
-    img: () => img,
     importScript: () => importScript,
-    input: () => input,
-    label: () => label,
     modelElement: () => modelElement,
-    p: () => p,
-    script: () => script,
-    style: () => style,
-    tags: () => tags
+    tag: () => tag
   });
-  var SUPPORTED_TAGS = [
-    "html",
-    "head",
-    "style",
-    "script",
-    "body",
-    "div",
-    "h3",
-    "p",
-    "a",
-    "img",
-    "audio",
-    "input",
-    "label",
-    "button"
-  ];
-  var tags = createTags(SUPPORTED_TAGS);
-  var {
-    html,
-    head,
-    style,
-    script,
-    body,
-    div,
-    h3,
-    p,
-    a,
-    img,
-    audio,
-    input,
-    label,
-    button
-  } = tags;
-  function createTags(tagNames) {
-    return tagNames.reduce((acc, tagName) => {
-      return Object.assign(acc, {
-        [tagName]: createTag(tagName)
-      });
-    }, {});
+
+  // src/smork/tags.ts
+  //! The reason we're spelling out all of the below as function instead of just saying e.g. `export const a = tag('a')`
+  //! is to allow esbuild to tree-shake the unused tags.
+  function label(...args) {
+    return tag("label")(...args);
   }
-  function createTag(tagName) {
-    function elementFactory(propsOrChildren, childrenOrNone) {
+
+  // src/smork/dom.ts
+  function tag(tagName) {
+    function factory(propsOrChildren, childrenOrNone) {
       const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
-      return verboseElementFactory(props, children);
+      return verboseFactory(props, children);
     }
-    return elementFactory;
-    function verboseElementFactory(props, children) {
+    return factory;
+    function verboseFactory(props, children) {
       const element = document.createElement(tagName);
       props && forEach(
-        renameKeys(props, {
-          class: "className",
-          for: "htmlFor"
-        }),
+        props,
         (value, key) => {
-          runAndWatch(value, (value2) => {
-            key !== "style" ? element[key] = value2 : forEach(
-              value2,
-              (value3, key2) => element.style[key2] = value3
-            );
+          typeof value === "function" ? element[key === "style" ? "cssText" : key] = value() : $with(value, (refable) => {
+            update(unref(refable));
+            toref(refable).watch(update);
+            function update(value2) {
+              typeof value2 === "boolean" ? value2 ? element.setAttribute(key, "") : element.removeAttribute(key) : element.setAttribute(key, String(value2));
+            }
+            ;
           });
         }
       );
-      if (children) {
-        children.forEach((child) => {
-          let currentNode = Undefined();
-          const place = (node) => {
-            const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
-            currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
-            currentNode = rawNode;
-          };
-          child instanceof Ref ? child.watchImmediate(place) : place(child);
-        });
-      }
-      ;
+      children && children.forEach((child) => {
+        let currentNode = Undefined();
+        const place = (node) => {
+          const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
+          currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
+          currentNode = rawNode;
+        };
+        child instanceof Ref ? child.watchImmediate(place) : place(child);
+      });
       return element;
     }
+    ;
   }
   var Checkbox = modelElement(
     "input",
     "checked",
+    Boolean,
     { type: "checkbox" },
     (model) => ({
       onchange: () => model.set(!model.value)
@@ -368,6 +301,7 @@
   var TextInput = modelElement(
     "input",
     "value",
+    String,
     { type: "text" },
     (model) => ({
       onkeyup: ({ key, target }) => {
@@ -375,9 +309,9 @@
       }
     })
   );
-  function modelElement(tag, modelKey, initProps, eventFactory) {
+  function modelElement(tag2, modelKey, initProps, eventFactory) {
     return (model, props) => {
-      return createTag(tag)({
+      return tag2(tag2)({
         ...initProps,
         ...props,
         [modelKey]: model,
@@ -399,12 +333,12 @@
     return output;
   }
   async function importScript(win, windowKey, url) {
-    const script2 = win.document.createElement("script");
-    script2.type = "text/javascript";
-    script2.src = url;
-    win.document.head.appendChild(script2);
+    const script = win.document.createElement("script");
+    script.type = "text/javascript";
+    script.src = url;
+    win.document.head.appendChild(script);
     return new Promise((resolve) => {
-      script2.onload = () => {
+      script.onload = () => {
         resolve(win[windowKey]);
       };
     });

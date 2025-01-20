@@ -1,0 +1,1 @@
+type Example = Record<string, number> & Record<number, boolean>;

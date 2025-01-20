@@ -261,8 +261,8 @@ export type Refable<T> = T | Ref<T> //| (() => T) ;
 export type Unref<TRefable> = 
   TRefable extends Ref<infer T> 
     ? T 
-  : TRefable extends () => infer T
-    ? T
+  // : TRefable extends () => infer T
+  //   ? T
   : TRefable;
 
 export type Refables<T extends Record<string, any>> = {
@@ -293,28 +293,26 @@ export function torefs<T extends Record<string, any>>(values: T) {
 
 export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
-export function isRefOrGetter<T>(value: Refable<T>) {
-  return isFunction(value) || value instanceof Ref;
-};
+// export function isRefOrGetter<T>(value: Refable<T>) {
+//   return isFunction(value) || value instanceof Ref;
+// };
 
-export function refResolver<T>(arg: Refable<T>) {
-  return <U>(ifRef: (ref: Ref<T>) => U, /*ifFunction: (fn: () => T) => U, */ifValue: (value: T) => U) => {
-    return (
-      arg instanceof Ref
-        ? ifRef(arg)
-      // : isFunction(arg)
-      //   ? ifFunction(arg)
-      : ifValue(arg)
-    );
-  };
-};
+// export function refResolver<T>(arg: Refable<T>) {
+//   return <U>(ifRef: (ref: Ref<T>) => U, /*ifFunction: (fn: () => T) => U, */ifValue: (value: T) => U) => {
+//     return (
+//       arg instanceof Ref
+//         ? ifRef(arg)
+//       // : isFunction(arg)
+//       //   ? ifFunction(arg)
+//       : ifValue(arg)
+//     );
+//   };
+// };
 
-export function unref<T>(arg: Refable<T>) {
-  return refResolver(arg)(
-    ref => ref.value,
-    // fn => fn(),
-    value => value
-  )
+export function unref<T>(refable: Refable<T>): T;
+export function unref<T>(refable: T extends Ref<infer U> ? Ref<U> : T): T extends Ref<infer U> ? U : T;
+export function unref<T>(refable: Refable<T>) {
+  return refable instanceof Ref ? refable.value : refable;
 };
 
 /**
@@ -322,30 +320,17 @@ export function unref<T>(arg: Refable<T>) {
  * - If the value is already a ref, it will be returned as is, NOT wrapped in a new computed ref.
  * - If a simple value is passed, it will be wrapped in a new **readonly** ref.
  */
-export function toref<T>(arg: Refable<T>) {
-  return refResolver(arg)(
-    ref => ref,
-    // fn => computed(fn),
-    value => new Ref(value)
-  )
-};
-
-/**
- * Invokes the provided callback immediately on the current value of a ref, the current result of a getter, or the provided value itself.
- * If a ref or a getter is provided, starts watching the ref itself or a new computed ref based on the getter.
- * 
- * **NB!** Unless a ref/getter is provided, the callback will only be invoked once.
- */
-export function runAndWatch<T>(refable: Refable<T>, callback: (value: T) => void) {
-  refResolver(refable)(
-    ref => ref.watchImmediate(callback),
-    // getter => ref(getter).watchImmediate(callback),
-    callback
-  )
-};
-
-export function assignAndWatch<T, K extends keyof T>(target: T, key: K, refable: Refable<T[K]>) {
-  runAndWatch(refable, value => {
-    target[key] = value;
-  });
+// export function toref<T>(refable: T extends Ref<infer U> ? Ref<U> : T) {
+//   return (
+//     refable instanceof Ref ? refable : new Ref(refable) 
+//   ) as T extends Ref<infer U> ? Ref<U> : Ref<T>;
+// };
+export function toref<T>(refable: Refable<T>): Ref<T>;
+export function toref<T>(refable: T extends Ref<infer U> ? Ref<U> : T): 
+  Exclude<
+    T extends Ref<infer U> ? Ref<U> : Ref<T>,
+    Ref<false> | Ref<true> // because boolean is technically true | false, making it distribute over the union. TypeScript can be beautifully weird.
+  >
+export function toref<T>(refable: T) {
+  return refable instanceof Ref ? refable : new Ref(refable);
 };

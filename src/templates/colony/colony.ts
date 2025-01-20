@@ -1,10 +1,11 @@
 import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { audio, button, Checkbox, div, h3, If, importScript, Labeled, p, style, TextInput } from '../../smork/dom';
+import { Checkbox, If, importScript, Labeled, TextInput } from '../../smork/dom';
 import { assignTo, ref } from '../../smork/refs';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
+import { audio, button, div, h3, p, style } from '../../smork/tags';
 
 export async function render(
   ctx: Colony,
@@ -141,10 +142,10 @@ export async function render(
     return (candidate: NodeOrId) => sameId(original, candidate);
   };
 
-  filterString.watchImmediate(filter => {
+  filterString.watchImmediate(rawFilter => {
     if ( !data.value || !graph.value )
       return;
-    filter = filter?.toLowerCase();
+    const filter = rawFilter?.toLowerCase();
     const matchingNodes = filter 
       ? data.value.nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter))
       : data.value.nodes;
@@ -172,16 +173,17 @@ export async function render(
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
   
-  const container = document.body.appendChild(div({ 
-      class: 'colony', style: { position: 'fixed', top: '0px', left: '0px', zIndex: '100',} 
+  const container = document.body.appendChild(
+    div({ 
+      class: 'colony', style: 'position: fixed; top: 0px; left: 0px; z-index: 100;'
     }, [
       If(showUI,
-        div({ style: { flexDirection: 'column', height: '100vh', width: '100vh', backgroundColor: '#000', } }, [
+        div({ style: 'flex-direction: column; height: 100vh; width: 100vh; background-color: #000;' }, [
           graphContainer.value = div(),
           div({ id: 'sidebar' }, [  
             div({ class: 'settings f-col' }, [
               button({ 
-                style: { marginBottom: '5px'},
+                style: 'margin-bottom: 5px;',
                 onclick: () => hideUI.set(true)
               }, [
                 'Close Colony'
@@ -224,14 +226,15 @@ export async function render(
           ])
         ]),
         button({ 
-          style: { position: 'fixed', top: '0px', left: '0px', padding: '5px', zIndex: '100', },
+          style: 'position: fixed; top: 0px; left: 0px; padding: 5px; z-index: 100;',
           onclick: () => hideUI.set(false)
         }, [
           'Reopen Colony'
         ])
       )
     ]
-  ));
+  )
+);
 
 
 };

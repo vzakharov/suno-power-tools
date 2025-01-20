@@ -21,11 +21,6 @@
   function forEach(obj, callback) {
     return mapValues(obj, callback);
   }
-  function mapKeys(obj, mapper) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [mapper(key, value), value])
-    );
-  }
   function isFunction(value) {
     return typeof value === "function";
   }
@@ -63,12 +58,12 @@
     throw new Error(message);
   }
   async function uploadTextFile() {
-    const input2 = document.createElement("input");
-    input2.type = "file";
-    input2.click();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.click();
     return new Promise((resolve) => {
-      input2.onchange = () => {
-        const file = input2.files?.[0];
+      input.onchange = () => {
+        const file = input.files?.[0];
         if (!file) {
           return resolve(void 0);
         }
@@ -76,7 +71,7 @@
         const reader = new FileReader();
         reader.onload = () => {
           resolve(reader.result);
-          input2.remove();
+          input.remove();
         };
         reader.readAsText(file);
       };
@@ -88,8 +83,8 @@
   function sortByDate(items, dateAccessor = (item) => item.created_at) {
     return items.sort((a2, b) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b)));
   }
-  function renameKeys(record, keyMap) {
-    return mapKeys(record, (key) => keyMap[key] ?? key);
+  function debug() {
+    debugger;
   }
 
   // src/cropping.ts
@@ -400,107 +395,83 @@
   function computed(getter, setter) {
     return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
   }
-  function refResolver(arg) {
-    return (ifRef, ifValue) => {
-      return arg instanceof Ref ? ifRef(arg) : ifValue(arg);
-    };
+  function unref(refable) {
+    return refable instanceof Ref ? refable.value : refable;
   }
-  function unref(arg) {
-    return refResolver(arg)(
-      (ref2) => ref2.value,
-      // fn => fn(),
-      (value) => value
-    );
+  function toref(refable) {
+    return refable instanceof Ref ? refable : new Ref(refable);
   }
-  function runAndWatch(refable, callback) {
-    refResolver(refable)(
-      (ref2) => ref2.watchImmediate(callback),
-      // getter => ref(getter).watchImmediate(callback),
-      callback
-    );
+
+  // src/smork/tags.ts
+  //! The reason we're spelling out all of the below as function instead of just saying e.g. `export const a = tag('a')`
+  //! is to allow esbuild to tree-shake the unused tags.
+  function a(...args) {
+    return tag("a")(...args);
+  }
+  function audio(...args) {
+    return tag("audio")(...args);
+  }
+  function button(...args) {
+    return tag("button")(...args);
+  }
+  function div(...args) {
+    return tag("div")(...args);
+  }
+  function h3(...args) {
+    return tag("h3")(...args);
+  }
+  function img(...args) {
+    return tag("img")(...args);
+  }
+  function label(...args) {
+    return tag("label")(...args);
+  }
+  function p(...args) {
+    return tag("p")(...args);
+  }
+  function style(...args) {
+    return tag("style")(...args);
   }
 
   // src/smork/dom.ts
-  var SUPPORTED_TAGS = [
-    "html",
-    "head",
-    "style",
-    "script",
-    "body",
-    "div",
-    "h3",
-    "p",
-    "a",
-    "img",
-    "audio",
-    "input",
-    "label",
-    "button"
-  ];
-  var tags = createTags(SUPPORTED_TAGS);
-  var {
-    html,
-    head,
-    style,
-    script,
-    body,
-    div,
-    h3,
-    p,
-    a,
-    img,
-    audio,
-    input,
-    label,
-    button
-  } = tags;
-  function createTags(tagNames) {
-    return tagNames.reduce((acc, tagName) => {
-      return Object.assign(acc, {
-        [tagName]: createTag(tagName)
-      });
-    }, {});
-  }
-  function createTag(tagName) {
-    function elementFactory(propsOrChildren, childrenOrNone) {
+  function tag(tagName) {
+    function factory(propsOrChildren, childrenOrNone) {
       const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
-      return verboseElementFactory(props, children);
+      return verboseFactory(props, children);
     }
-    return elementFactory;
-    function verboseElementFactory(props, children) {
+    return factory;
+    function verboseFactory(props, children) {
       const element = document.createElement(tagName);
       props && forEach(
-        renameKeys(props, {
-          class: "className",
-          for: "htmlFor"
-        }),
+        props,
         (value, key) => {
-          runAndWatch(value, (value2) => {
-            key !== "style" ? element[key] = value2 : forEach(
-              value2,
-              (value3, key2) => element.style[key2] = value3
-            );
+          typeof value === "function" ? element[key === "style" ? "cssText" : key] = value() : $with(value, (refable) => {
+            update(unref(refable));
+            toref(refable).watch(update);
+            function update(value2) {
+              typeof value2 === "boolean" ? value2 ? element.setAttribute(key, "") : element.removeAttribute(key) : element.setAttribute(key, String(value2));
+            }
+            ;
           });
         }
       );
-      if (children) {
-        children.forEach((child) => {
-          let currentNode = Undefined();
-          const place = (node) => {
-            const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
-            currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
-            currentNode = rawNode;
-          };
-          child instanceof Ref ? child.watchImmediate(place) : place(child);
-        });
-      }
-      ;
+      children && children.forEach((child) => {
+        let currentNode = Undefined();
+        const place = (node) => {
+          const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
+          currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
+          currentNode = rawNode;
+        };
+        child instanceof Ref ? child.watchImmediate(place) : place(child);
+      });
       return element;
     }
+    ;
   }
   var Checkbox = modelElement(
     "input",
     "checked",
+    Boolean,
     { type: "checkbox" },
     (model) => ({
       onchange: () => model.set(!model.value)
@@ -509,6 +480,7 @@
   var TextInput = modelElement(
     "input",
     "value",
+    String,
     { type: "text" },
     (model) => ({
       onkeyup: ({ key, target }) => {
@@ -516,9 +488,9 @@
       }
     })
   );
-  function modelElement(tag, modelKey, initProps, eventFactory) {
+  function modelElement(tag2, modelKey, initProps, eventFactory) {
     return (model, props) => {
-      return createTag(tag)({
+      return tag2(tag2)({
         ...initProps,
         ...props,
         [modelKey]: model,
@@ -540,12 +512,12 @@
     return output;
   }
   async function importScript(win, windowKey, url) {
-    const script2 = win.document.createElement("script");
-    script2.type = "text/javascript";
-    script2.src = url;
-    win.document.head.appendChild(script2);
+    const script = win.document.createElement("script");
+    script.type = "text/javascript";
+    script.src = url;
+    win.document.head.appendChild(script);
     return new Promise((resolve) => {
-      script2.onload = () => {
+      script.onload = () => {
         resolve(win[windowKey]);
       };
     });
@@ -555,14 +527,14 @@
   }
 
   // src/templates/colony/ClipCard.ts
-  function ClipCard({ id, image_url, name, tags: tags2 }) {
+  function ClipCard({ id, image_url, name, tags }) {
     return div({ class: "relative" }, [
       a({ href: `https://suno.com/song/${id}`, target: "_blank" }, [
-        img({ src: image_url, style: { opacity: "0.5", width: "200px" } }),
-        div({ class: "absolute topleft", style: { width: "190px", padding: "5px" } }, [
-          div(name || "[Untitled]"),
+        img({ src: image_url, style: "opacity: 0.5; width: 200px" }),
+        div({ class: "absolute topleft", style: "width: 190px; padding: 5px" }, [
+          div([name || "[Untitled]"]),
           div({ class: "smol" }, [
-            tags2 || "(no style)"
+            tags || "(no style)"
           ])
         ])
       ])
@@ -680,10 +652,10 @@
       return (candidate) => sameId(original, candidate);
     }
     ;
-    filterString.watchImmediate((filter) => {
+    filterString.watchImmediate((rawFilter) => {
       if (!data.value || !graph.value)
         return;
-      filter = filter?.toLowerCase();
+      const filter = rawFilter?.toLowerCase();
       const matchingNodes = filter ? data.value.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.value.nodes;
       const existing = graph.value.graphData();
       const nodes = [
@@ -702,73 +674,75 @@
       useDescendantLinks.set(false);
     }, 2e3);
     //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
-    const container = document.body.appendChild(div(
-      {
-        class: "colony",
-        style: { position: "fixed", top: "0px", left: "0px", zIndex: "100" }
-      },
-      [
-        If(
-          showUI,
-          div({ style: { flexDirection: "column", height: "100vh", width: "100vh", backgroundColor: "#000" } }, [
-            graphContainer.value = div(),
-            div({ id: "sidebar" }, [
-              div({ class: "settings f-col" }, [
-                button({
-                  style: { marginBottom: "5px" },
-                  onclick: () => hideUI.set(true)
-                }, [
-                  "Close Colony"
-                ]),
-                h3(["Settings"]),
-                div(
-                  Labeled(
-                    "Attract based on time",
-                    Checkbox(useNextLinks)
-                  )
-                ),
-                If(useNextLinks, div(
-                  Labeled(
-                    "Show time-based links",
-                    Checkbox(showNextLinks)
-                  )
-                )),
-                div(
-                  Labeled(
-                    "Attract to root clip",
-                    Checkbox(useDescendantLinks)
-                  )
-                ),
-                div([
-                  TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
-                  p({ class: "smol" }, [
-                    "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+    const container = document.body.appendChild(
+      div(
+        {
+          class: "colony",
+          style: "position: fixed; top: 0px; left: 0px; z-index: 100;"
+        },
+        [
+          If(
+            showUI,
+            div({ style: "flex-direction: column; height: 100vh; width: 100vh; background-color: #000;" }, [
+              graphContainer.value = div(),
+              div({ id: "sidebar" }, [
+                div({ class: "settings f-col" }, [
+                  button({
+                    style: "margin-bottom: 5px;",
+                    onclick: () => hideUI.set(true)
+                  }, [
+                    "Close Colony"
+                  ]),
+                  h3(["Settings"]),
+                  div(
+                    Labeled(
+                      "Attract based on time",
+                      Checkbox(useNextLinks)
+                    )
+                  ),
+                  If(useNextLinks, div(
+                    Labeled(
+                      "Show time-based links",
+                      Checkbox(showNextLinks)
+                    )
+                  )),
+                  div(
+                    Labeled(
+                      "Attract to root clip",
+                      Checkbox(useDescendantLinks)
+                    )
+                  ),
+                  div([
+                    TextInput(filterString, { placeholder: "Filter by name, style or ID" }),
+                    p({ class: "smol" }, [
+                      "Enter to apply. (Filter will include both matching nodes and any nodes belonging to the same root clip.)"
+                    ])
+                  ]),
+                  button({ onclick: redrawGraph }, [
+                    "Redraw"
+                  ]),
+                  button({ onclick: () => ctx.renderToFile(mode) }, [
+                    "Download"
                   ])
                 ]),
-                button({ onclick: redrawGraph }, [
-                  "Redraw"
-                ]),
-                button({ onclick: () => ctx.renderToFile(mode) }, [
-                  "Download"
-                ])
-              ]),
-              If(selectedClip, (clip) => {
-                return div({ class: "w-100" }, [
-                  ClipCard(clip),
-                  audioElement.value = audio({ src: clip.audio_url, controls: true, class: "w-100" })
-                ]);
-              })
+                If(selectedClip, (clip) => {
+                  return div({ class: "w-100" }, [
+                    ClipCard(clip),
+                    audioElement.value = audio({ src: clip.audio_url, controls: true, class: "w-100" })
+                  ]);
+                })
+              ])
+            ]),
+            button({
+              style: "position: fixed; top: 0px; left: 0px; padding: 5px; z-index: 100;",
+              onclick: () => hideUI.set(false)
+            }, [
+              "Reopen Colony"
             ])
-          ]),
-          button({
-            style: { position: "fixed", top: "0px", left: "0px", padding: "5px", zIndex: "100" },
-            onclick: () => hideUI.set(false)
-          }, [
-            "Reopen Colony"
-          ])
-        )
-      ]
-    ));
+          )
+        ]
+      )
+    );
   }
 
   // src/api.ts
@@ -1010,13 +984,13 @@
     }
     _graphData = Undefined();
     getGraphData() {
-      const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags: tags2 }, created_at, children, audio_url, image_url, root }) => ({
+      const nodes = this.sortedClips.map(({ id, title: name, metadata: { tags }, created_at, children, audio_url, image_url, root }) => ({
         id,
-        name: name || tags2 || created_at || id,
+        name: name || tags || created_at || id,
         created_at,
         audio_url,
         image_url,
-        tags: tags2,
+        tags,
         rootId: root?.id,
         // val: Math.log10(this.getTotalDescendants(id) + 1),
         val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
@@ -1051,8 +1025,8 @@
       await render(this, this.graphData, { mode });
     }
     renderToFile(...params) {
-      const html2 = this.getHtml(...params);
-      const blob = new Blob([html2], { type: "text/html" });
+      const html = this.getHtml(...params);
+      const blob = new Blob([html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const a2 = document.createElement("a");
       a2.href = url;
@@ -1088,6 +1062,6 @@
       metadata: { duration: 0, tags: "" }
     };
   }
-  mutate(window.vovas, { Colony, colony });
+  mutate(window.vovas, { Colony, colony, debug });
 })();
 }}).main();

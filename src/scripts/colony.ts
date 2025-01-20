@@ -5,7 +5,7 @@ import { find } from "../lodashish";
 import { Resolvable } from "../resolvable";
 import { Storage } from "../storage";
 import { render } from "../templates/colony/colony";
-import { $throw, $with, atLeast, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
+import { $throw, $with, atLeast, debug, EmptyArray, jsonClone, mutate, sortByDate, Undefined, uploadTextFile } from "../utils";
 import { api } from '../api';
 
 declare global {
@@ -412,4 +412,4 @@ function missingClip(id: string): MissingClip {
   };
 }
 
-mutate(window.vovas, { Colony, colony });
+mutate(window.vovas, { Colony, colony, debug });
