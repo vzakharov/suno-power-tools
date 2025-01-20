@@ -373,7 +373,7 @@
       props && forEach(
         props,
         (value, key) => {
-          typeof value === "function" ? element[key === "style" ? "cssText" : key] = value() : $with(value, (refable) => {
+          typeof value === "function" ? element[key] = value : $with(value, (refable) => {
             update(unref(refable));
             toref(refable).watch(update);
             function update(value2) {

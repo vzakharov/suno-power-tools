@@ -2,7 +2,7 @@ import { forEach, uniqueId } from "../lodashish";
 import { Inferable } from "../types";
 import { $with, Undefined } from "../utils";
 import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
-import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag, TAGS } from "./types";
+import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag, TAGS, EventName } from "./types";
 
 export type StyleOptions = Partial<Omit<CSSStyleDeclaration, 'length' | 'parentRule'>>
 
@@ -39,7 +39,7 @@ export function tag<TTag extends Tag>(tagName: TTag) {
         props as AllProps,
         (value, key) => {
           typeof value === 'function'
-            ? element[key === 'style' ? 'cssText' : key] = value()
+            ? element[key as EventName<TTag>] = value as any
             : $with(value, refable => {
                 update(unref(refable));
                 toref(refable).watch(update);

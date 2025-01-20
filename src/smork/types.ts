@@ -93,7 +93,7 @@ export type Attributes<T extends Tag> = {
 
 export type StringAttribute = Exclude<AnyAttribute, BooleanAttribute | NumberAttribute>
 
-type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
+export type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
 
 export type Events<T extends Tag> = {
   [K in keyof ElementForTag<T> as
@@ -105,11 +105,11 @@ export type Events<T extends Tag> = {
   ]: Extract<ElementForTag<T>[K], Func>
 };
 
-export type Event<T extends Tag> = keyof Events<T> & string;
+export type EventName<T extends Tag> = keyof Events<T> & string;
 
-export type AnyEvent = Event<Tag>;
+export type AnyEvent = EventName<Tag>;
 
-export type Prop<T extends Tag> = Attribute<T> | Event<T>;
+export type Prop<T extends Tag> = Attribute<T> | EventName<T>;
 
 export type Props<T extends Tag> = Partial<Refables<Attributes<T>> & Events<T>>;
 
@@ -117,4 +117,4 @@ export type AllProps =
   Record<StringAttribute, Refable<string>> 
   & Record<BooleanAttribute, Refable<boolean>> 
   & Record<NumberAttribute, Refable<number>>
-  & Record<AnyEvent, Func>;
+  & Record<AnyEvent, EventHandler>;
