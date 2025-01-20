@@ -26,6 +26,17 @@
     return Object.assign(obj, partial);
   }
 
+  // src/utils.ts
+  function Undefined() {
+    return void 0;
+  }
+  function $with(obj, fn) {
+    return fn(obj);
+  }
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
+  }
+
   // src/smork/refs.ts
   //! Smork, the smol framework
   var SmorkError = class extends Error {
@@ -100,24 +111,6 @@
       ;
       return mapped;
     }
-    // if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
-    // if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
-    // if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
-    // if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
-    //   return this.map(value => 
-    //     (
-    //       isFunction(comparator) ? comparator : isEqual(comparator)
-    //     )(value) 
-    //       ? infer(ifYes, value) 
-    //       : infer(ifNot, value)
-    //   );
-    // };
-    merge(mergee) {
-      return mergee ? computed(() => ({
-        ...this.value,
-        ...unref(mergee)
-      })) : this;
-    }
     uses(methods) {
       return assign(this, mapValues(methods, this.map));
     }
@@ -131,20 +124,16 @@
       };
       this.watchImmediate(wrapped);
     }
+    setter(setter = (value) => this._set(value)) {
+      return new SetterRef(this, setter);
+    }
   };
   var MappedRef = class extends Ref {
-    constructor(dependency, mapper) {
-      var __super = (...args) => {
-        super(...args);
-        this.dependency = dependency;
-        this.mapper = mapper;
-        return this;
-      };
-      if (dependency) {
-        __super(mapper(dependency.value));
-        dependency.watch(this.update);
-      }
-      ;
+    constructor(source2, mapper) {
+      super(mapper(source2.value));
+      this.source = source2;
+      this.mapper = mapper;
+      source2.watch(this.update);
     }
     update = (value) => this._set(this.mapper(value));
   };
@@ -159,20 +148,37 @@
       return this.get();
     }
     bridge(forward, backward) {
-      return new WritableComputedRef(
-        () => forward(this.value),
-        (value) => this.set(backward(value))
-      );
+      return this.map(forward).setter((value) => this.set(backward(value)));
     }
   };
+  var SetterRef = class extends WritableRef {
+    constructor(source2, setter, allowMismatch = false) {
+      super(source2.value);
+      this.source = source2;
+      this.allowMismatch = allowMismatch;
+      super.watch(assignTo(this));
+    }
+    set(value) {
+      super.set(value);
+      if (!this.allowMismatch && this.value !== value) {
+        throw new SmorkError("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.");
+      }
+      ;
+    }
+  };
+  function assignTo(ref2) {
+    return (value) => {
+      ref2.set(value);
+    };
+  }
   var currentComputedTracker = void 0;
-  var ComputedRef = class extends WritableRef {
+  var ComputedRef = class extends Ref {
     constructor(getter) {
       super(void 0);
       this.getter = getter;
       this.track();
     }
-    dependencies = /* @__PURE__ */ new Set();
+    _dependencies = /* @__PURE__ */ new Set();
     track = () => {
       if (currentComputedTracker) {
         throw new SmorkError(
@@ -180,59 +186,33 @@
         );
       }
       ;
-      this.dependencies.forEach((ref2) => ref2.unwatch(this.track));
-      this.dependencies = /* @__PURE__ */ new Set();
+      this._dependencies.forEach((ref2) => ref2.unwatch(this.track));
+      this._dependencies = /* @__PURE__ */ new Set();
       try {
         currentComputedTracker = (ref2) => {
           ref2.watch(this.track);
-          this.dependencies.add(ref2);
+          this._dependencies.add(ref2);
         };
         this._set(this.getter());
       } finally {
         currentComputedTracker = void 0;
       }
     };
-  };
-  var WritableComputedRef = class extends WritableRef {
-    constructor(getter, setter, allowMismatch = false) {
-      const computedRef = new ComputedRef(getter);
-      super(computedRef.value);
-      this.setter = setter;
-      this.allowMismatch = allowMismatch;
-      computedRef.watch((value) => this._set(value));
-    }
-    set(value) {
-      this.setter(value);
-      if (!this.allowMismatch && this.value !== value) {
-        throw new SmorkError("Setter did not update the value. If you want to allow this, set the allowMismatch property to true.");
-      }
-      ;
+    get dependencies() {
+      return this._dependencies;
     }
   };
   function computed(getter, setter) {
-    return setter ? new WritableComputedRef(getter, setter) : new ComputedRef(getter);
-  }
-  function useNot(ref2) {
-    return computed(() => {
-      return !ref2.value;
-    });
+    return $with(
+      new ComputedRef(getter),
+      (computedRef) => setter ? computedRef.setter(setter) : computedRef
+    );
   }
   function unref(refable) {
     return refable instanceof Ref ? refable.value : refable;
   }
   function toref(refable) {
     return refable instanceof Ref ? refable : new Ref(refable);
-  }
-
-  // src/utils.ts
-  function Undefined() {
-    return void 0;
-  }
-  function $with(obj, fn) {
-    return fn(obj);
-  }
-  function mutate(obj, partial) {
-    Object.assign(obj, partial);
   }
 
   // src/smork/dom.ts
@@ -559,6 +539,6 @@
   }
 
   // src/scripts/dev.ts
-  mutate(window, { ref, computed, useNot, Ref, WritableRef, ComputedRef, WritableComputedRef, ...dom_exports });
+  mutate(window, { ref, computed, Ref, WritableRef, ComputedRef, SetterRef, ...dom_exports });
 })();
 }}).main();

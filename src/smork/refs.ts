@@ -1,8 +1,7 @@
 //! Smork, the smol framework
-import assert from "assert";
-import { assign, forEach, identity, isFunction, mapValues } from "../lodashish";
-import { Func, infer, Inferable } from "../types";
-import { isEqual, mutate, truthy } from "../utils";
+import { assign, isFunction, mapValues } from "../lodashish";
+import { Func } from "../types";
+import { $with } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -13,7 +12,7 @@ export class SmorkError extends Error {
 export function ref<T>(value: Exclude<T, Func>): WritableRef<T>;
 export function ref<T>(): WritableRef<T | undefined>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
-export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function ref<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
 
 export function ref<T>(valueOrGetter?: T | (() => T), setter?: (value: T) => void) {
   return isFunction(valueOrGetter) 
@@ -96,28 +95,6 @@ export class Ref<T> {
     return mapped;
   };
 
-  // if<U>(compareTo: T, ifEquals: Inferable<U, T>, ifNot: Inferable<U, T>): MappedRef<T, U>;
-  // if<G extends T, U, V>(typeguard: (value: T) => value is G, ifMatches: Inferable<U, G>, ifNot: (value: Exclude<T, G>) => V): MappedRef<T, U | V>;
-  // if<U>(predicate: (value: T) => boolean, ifHolds: Inferable<U>, ifNot: Inferable<U>): MappedRef<T, U>;
-  // if<U>(comparator: T | ((value: T) => any) | ((value: T) => boolean), ifYes: (Inferable<U, T>), ifNot: Inferable<U, T>) {
-  //   return this.map(value => 
-  //     (
-  //       isFunction(comparator) ? comparator : isEqual(comparator)
-  //     )(value) 
-  //       ? infer(ifYes, value) 
-  //       : infer(ifNot, value)
-  //   );
-  // };
-
-  merge<U>(mergee: Refable<U> | undefined) {
-    return mergee
-      ? computed(() => ({
-        ...this.value,
-        ...unref(mergee)
-      }))
-      : this;
-  };
-
   uses<
     U extends Record<string, (value: T) => any>
   >(methods: U) {
@@ -139,18 +116,20 @@ export class Ref<T> {
     this.watchImmediate(wrapped);
   };
 
+  setter(setter = (value: T) => this._set(value)) {
+    return new SetterRef(this, setter);
+  };
+
 };
 
 export class MappedRef<T, U> extends Ref<U> {
   
   constructor(
-    public readonly dependency: Ref<T> | undefined,
+    public readonly source: Ref<T>,
     private mapper: (value: T) => U
   ) {
-    if ( dependency ) {
-      super(mapper(dependency.value));
-      dependency.watch(this.update);
-    };
+    super(mapper(source.value));
+    source.watch(this.update);
   };
 
   update = (value: T) => this._set(this.mapper(value));
@@ -172,10 +151,27 @@ export class WritableRef<T> extends Ref<T> {
   };
 
   bridge<U>(forward: (value: T) => U, backward: (value: U) => T) {
-    return new WritableComputedRef(
-      () => forward(this.value),
-      value => this.set(backward(value))
-    );
+    return this.map(forward).setter(value => this.set(backward(value)));
+  };
+
+};
+
+export class SetterRef<T> extends WritableRef<T> {
+
+  constructor(
+    public source: Ref<T>,
+    setter: (value: T) => void,
+    public allowMismatch = false
+  ) {
+    super(source.value);
+    super.watch(assignTo(this));
+  };
+
+  set(value: T) {
+    super.set(value);
+    if ( !this.allowMismatch && this.value !== value ) {
+      throw new SmorkError('Setter did not update the value. If you want to allow this, set the allowMismatch property to true.');
+    };
   };
 
 };
@@ -188,9 +184,9 @@ export function assignTo<T>(ref: WritableRef<T>) {
 
 let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
-export class ComputedRef<T> extends WritableRef<T> {
+export class ComputedRef<T> extends Ref<T> {
 
-  private dependencies = new Set<Ref<any>>();
+  private _dependencies = new Set<Ref<any>>();
 
   track = () => {
     if ( currentComputedTracker ) {
@@ -198,18 +194,22 @@ export class ComputedRef<T> extends WritableRef<T> {
         "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
       );
     };
-    this.dependencies.forEach(ref => ref.unwatch(this.track));
-    this.dependencies = new Set();
+    this._dependencies.forEach(ref => ref.unwatch(this.track));
+    this._dependencies = new Set();
     try {
       currentComputedTracker = ref => {
         ref.watch(this.track);
-        this.dependencies.add(ref);
+        this._dependencies.add(ref);
       };
       this._set(this.getter());
     } finally {
       currentComputedTracker = undefined;
     }
   };
+
+  get dependencies() {
+    return this._dependencies;
+  }
 
   constructor(
     private getter: () => T
@@ -220,42 +220,17 @@ export class ComputedRef<T> extends WritableRef<T> {
 
 };
 
-export class WritableComputedRef<T> extends WritableRef<T> {
-
-  constructor(
-    getter: () => T,
-    private setter: (value: T) => void,
-    public allowMismatch = false
-  ) {
-    const computedRef = new ComputedRef(getter);
-    super(computedRef.value);
-    computedRef.watch(value => this._set(value));
-  };
-
-  set(value: T) {
-    this.setter(value);
-    if ( !this.allowMismatch && this.value !== value ) {
-      throw new SmorkError('Setter did not update the value. If you want to allow this, set the allowMismatch property to true.');
-    };
-  };
-
-};
-
 export function computed<T>(getter: () => T): ComputedRef<T>;
-export function computed<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
-export function computed<T>(getter: () => T, setter: ((value: T) => void) | undefined): ComputedRef<T> | WritableComputedRef<T>;
+export function computed<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
+export function computed<T>(getter: () => T, setter: ((value: T) => void) | undefined): ComputedRef<T> | SetterRef<T>;
 export function computed<T>(getter: () => T, setter?: (value: T) => void) {
-  return setter
-    ? new WritableComputedRef(getter, setter)
-    : new ComputedRef(getter);
+  return $with(new ComputedRef(getter), computedRef =>
+    setter
+      ? computedRef.setter(setter)
+      : computedRef
+  );
 };
 
-
-export function useNot(ref: Ref<any>) {
-  return computed(() => {
-    return !ref.value
-  });
-};
 
 export type Refable<T> = T | Ref<T> //| (() => T) ;
 export type Unref<TRefable> = 
@@ -293,22 +268,6 @@ export function torefs<T extends Record<string, any>>(values: T) {
 
 export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
 
-// export function isRefOrGetter<T>(value: Refable<T>) {
-//   return isFunction(value) || value instanceof Ref;
-// };
-
-// export function refResolver<T>(arg: Refable<T>) {
-//   return <U>(ifRef: (ref: Ref<T>) => U, /*ifFunction: (fn: () => T) => U, */ifValue: (value: T) => U) => {
-//     return (
-//       arg instanceof Ref
-//         ? ifRef(arg)
-//       // : isFunction(arg)
-//       //   ? ifFunction(arg)
-//       : ifValue(arg)
-//     );
-//   };
-// };
-
 export function unref<T>(refable: Refable<T>): T;
 export function unref<T>(refable: T extends Ref<infer U> ? Ref<U> : T): T extends Ref<infer U> ? U : T;
 export function unref<T>(refable: Refable<T>) {
@@ -320,11 +279,6 @@ export function unref<T>(refable: Refable<T>) {
  * - If the value is already a ref, it will be returned as is, NOT wrapped in a new computed ref.
  * - If a simple value is passed, it will be wrapped in a new **readonly** ref.
  */
-// export function toref<T>(refable: T extends Ref<infer U> ? Ref<U> : T) {
-//   return (
-//     refable instanceof Ref ? refable : new Ref(refable) 
-//   ) as T extends Ref<infer U> ? Ref<U> : Ref<T>;
-// };
 export function toref<T>(refable: Refable<T>): Ref<T>;
 export function toref<T>(refable: T extends Ref<infer U> ? Ref<U> : T): 
   Exclude<

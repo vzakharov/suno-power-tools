@@ -23,9 +23,9 @@ export async function render(
   const data = graph.map(graph => graph?.graphData());
 
   const useNextLinks = ref(true);
-  const showNextLinks = ref(false);
   const useDescendantLinks = ref(true);
   const filterString = ref('');
+  const showNextLinks = ref(false);
 
   const audioElement = ref<HTMLAudioElement>();
 

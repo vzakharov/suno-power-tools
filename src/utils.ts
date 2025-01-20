@@ -115,3 +115,8 @@ export function truthy(value: any) {
 export function debug() {
   debugger;
 };
+
+export function doAndReturn<T>(target: T, fn: (target: T) => void) {
+  fn(target);
+  return target;
+}
