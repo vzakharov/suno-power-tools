@@ -247,12 +247,127 @@
     tag: () => tag
   });
 
+  // src/smork/types.ts
+  var TAGS = ["a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr"];
+
   // src/smork/tags.ts
-  //! The reason we're spelling out all of the below as function instead of just saying e.g. `export const a = tag('a')`
-  //! is to allow esbuild to tree-shake the unused tags.
-  function label(...args) {
-    return tag("label")(...args);
-  }
+  var {
+    a,
+    abbr,
+    address,
+    area,
+    article,
+    aside,
+    audio,
+    b,
+    base,
+    bdi,
+    bdo,
+    blockquote,
+    body,
+    br,
+    button,
+    canvas,
+    caption,
+    cite,
+    code,
+    col,
+    colgroup,
+    data,
+    datalist,
+    dd,
+    del,
+    details,
+    dfn,
+    dialog,
+    div,
+    dl,
+    dt,
+    em,
+    embed,
+    fieldset,
+    figcaption,
+    figure,
+    footer,
+    form,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    head,
+    header,
+    hgroup,
+    hr,
+    html,
+    i,
+    iframe,
+    img,
+    input,
+    ins,
+    kbd,
+    label,
+    legend,
+    li,
+    link,
+    main,
+    map,
+    mark,
+    menu,
+    meta,
+    meter,
+    nav,
+    noscript,
+    object: $object,
+    ol,
+    optgroup,
+    option,
+    output,
+    p,
+    picture,
+    pre,
+    progress,
+    q,
+    rp,
+    rt,
+    ruby,
+    s,
+    samp,
+    script,
+    search,
+    section,
+    select,
+    slot,
+    small,
+    source,
+    span,
+    strong,
+    style,
+    sub,
+    summary,
+    sup,
+    table,
+    tbody,
+    td,
+    template,
+    textarea,
+    tfoot,
+    th,
+    thead,
+    time,
+    title,
+    tr,
+    track,
+    u,
+    ul,
+    var: $var,
+    video,
+    wbr
+  } = TAGS.reduce((tags, tag2) => {
+    tags[tag2] = tag(tag2);
+    return tags;
+  }, {});
 
   // src/smork/dom.ts
   function tag(tagName) {
@@ -322,23 +437,23 @@
   }
   function Labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
-    const output = [
+    const output2 = [
       label({ for: element.id }, [labelText]),
       element
     ];
     if (element.type === "checkbox") {
-      output.reverse();
+      output2.reverse();
     }
     ;
-    return output;
+    return output2;
   }
   async function importScript(win, windowKey, url) {
-    const script = win.document.createElement("script");
-    script.type = "text/javascript";
-    script.src = url;
-    win.document.head.appendChild(script);
+    const script2 = win.document.createElement("script");
+    script2.type = "text/javascript";
+    script2.src = url;
+    win.document.head.appendChild(script2);
     return new Promise((resolve) => {
-      script.onload = () => {
+      script2.onload = () => {
         resolve(win[windowKey]);
       };
     });

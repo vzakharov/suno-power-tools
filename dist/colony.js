@@ -58,12 +58,12 @@
     throw new Error(message);
   }
   async function uploadTextFile() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.click();
+    const input2 = document.createElement("input");
+    input2.type = "file";
+    input2.click();
     return new Promise((resolve) => {
-      input.onchange = () => {
-        const file = input.files?.[0];
+      input2.onchange = () => {
+        const file = input2.files?.[0];
         if (!file) {
           return resolve(void 0);
         }
@@ -71,7 +71,7 @@
         const reader = new FileReader();
         reader.onload = () => {
           resolve(reader.result);
-          input.remove();
+          input2.remove();
         };
         reader.readAsText(file);
       };
@@ -81,7 +81,7 @@
     return isoString ? new Date(isoString).getTime() : 0;
   }
   function sortByDate(items, dateAccessor = (item) => item.created_at) {
-    return items.sort((a2, b) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b)));
+    return items.sort((a2, b2) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b2)));
   }
   function debug() {
     debugger;
@@ -121,10 +121,10 @@
   async function areImagesEqual(url1, url2) {
     const img1 = await loadImage(url1);
     const img2 = await loadImage(url2);
-    const canvas = document.createElement("canvas");
-    canvas.width = img1.width;
-    canvas.height = img1.height;
-    const ctx = canvas.getContext("2d") ?? $throw("Canvas 2D context not supported");
+    const canvas2 = document.createElement("canvas");
+    canvas2.width = img1.width;
+    canvas2.height = img1.height;
+    const ctx = canvas2.getContext("2d") ?? $throw("Canvas 2D context not supported");
     ctx.drawImage(img1, 0, 0);
     const img1Data = ctx.getImageData(0, 0, img1.width, img1.height);
     ctx.drawImage(img2, 0, 0);
@@ -133,14 +133,14 @@
     const data2 = img2Data.data;
     const len = data1.length;
     let diff = 0;
-    for (let i = 0; i < len; i += 4) {
+    for (let i2 = 0; i2 < len; i2 += 4) {
       for (let j = 0; j < 3; j++) {
-        diff += Math.abs(data1[i + j] - data2[i + j]);
+        diff += Math.abs(data1[i2 + j] - data2[i2 + j]);
       }
     }
     ;
     const avgDiff = diff / (len / 4);
-    canvas.remove();
+    canvas2.remove();
     return avgDiff < 32;
     //! (This is a very naive implementation; a more sophisticated one would involve comparing the images in the frequency domain, but that's a bit too much for this project)
   }
@@ -192,9 +192,9 @@
         request.onerror = () => reject(request.error);
       });
     }
-    async save(data) {
+    async save(data2) {
       const transaction = await dbTransaction("readwrite");
-      transaction.objectStore(storeName).put(data, this.key);
+      transaction.objectStore(storeName).put(data2, this.key);
       return transactionCompletionPromise(transaction);
     }
     async clear() {
@@ -402,36 +402,127 @@
     return refable instanceof Ref ? refable : new Ref(refable);
   }
 
+  // src/smork/types.ts
+  var TAGS = ["a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr"];
+
   // src/smork/tags.ts
-  //! The reason we're spelling out all of the below as function instead of just saying e.g. `export const a = tag('a')`
-  //! is to allow esbuild to tree-shake the unused tags.
-  function a(...args) {
-    return tag("a")(...args);
-  }
-  function audio(...args) {
-    return tag("audio")(...args);
-  }
-  function button(...args) {
-    return tag("button")(...args);
-  }
-  function div(...args) {
-    return tag("div")(...args);
-  }
-  function h3(...args) {
-    return tag("h3")(...args);
-  }
-  function img(...args) {
-    return tag("img")(...args);
-  }
-  function label(...args) {
-    return tag("label")(...args);
-  }
-  function p(...args) {
-    return tag("p")(...args);
-  }
-  function style(...args) {
-    return tag("style")(...args);
-  }
+  var {
+    a,
+    abbr,
+    address,
+    area,
+    article,
+    aside,
+    audio,
+    b,
+    base,
+    bdi,
+    bdo,
+    blockquote,
+    body,
+    br,
+    button,
+    canvas,
+    caption,
+    cite,
+    code,
+    col,
+    colgroup,
+    data,
+    datalist,
+    dd,
+    del,
+    details,
+    dfn,
+    dialog,
+    div,
+    dl,
+    dt,
+    em,
+    embed,
+    fieldset,
+    figcaption,
+    figure,
+    footer,
+    form,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    head,
+    header,
+    hgroup,
+    hr,
+    html,
+    i,
+    iframe,
+    img,
+    input,
+    ins,
+    kbd,
+    label,
+    legend,
+    li,
+    link,
+    main,
+    map,
+    mark,
+    menu,
+    meta,
+    meter,
+    nav,
+    noscript,
+    object: $object,
+    ol,
+    optgroup,
+    option,
+    output,
+    p,
+    picture,
+    pre,
+    progress,
+    q,
+    rp,
+    rt,
+    ruby,
+    s,
+    samp,
+    script,
+    search,
+    section,
+    select,
+    slot,
+    small,
+    source,
+    span,
+    strong,
+    style,
+    sub,
+    summary,
+    sup,
+    table,
+    tbody,
+    td,
+    template,
+    textarea,
+    tfoot,
+    th,
+    thead,
+    time,
+    title,
+    tr,
+    track,
+    u,
+    ul,
+    var: $var,
+    video,
+    wbr
+  } = TAGS.reduce((tags, tag2) => {
+    tags[tag2] = tag(tag2);
+    return tags;
+  }, {});
 
   // src/smork/dom.ts
   function tag(tagName) {
@@ -501,23 +592,23 @@
   }
   function Labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");
-    const output = [
+    const output2 = [
       label({ for: element.id }, [labelText]),
       element
     ];
     if (element.type === "checkbox") {
-      output.reverse();
+      output2.reverse();
     }
     ;
-    return output;
+    return output2;
   }
   async function importScript(win, windowKey, url) {
-    const script = win.document.createElement("script");
-    script.type = "text/javascript";
-    script.src = url;
-    win.document.head.appendChild(script);
+    const script2 = win.document.createElement("script");
+    script2.type = "text/javascript";
+    script2.src = url;
+    win.document.head.appendChild(script2);
     return new Promise((resolve) => {
-      script.onload = () => {
+      script2.onload = () => {
         resolve(win[windowKey]);
       };
     });
@@ -554,7 +645,7 @@
     const graphContainer = ref();
     graphContainer.onceDefined(createGraph);
     const graph = ref();
-    const data = graph.map((graph2) => graph2?.graphData());
+    const data2 = graph.map((graph2) => graph2?.graphData());
     const useNextLinks = ref(true);
     const showNextLinks = ref(false);
     const useDescendantLinks = ref(true);
@@ -597,31 +688,31 @@
       await render(this, rawData, { mode });
     }
     ;
-    function visibilityChecker(link) {
+    function visibilityChecker(link2) {
       return !{
         descendant: true,
         next: !showNextLinks.value
-      }[link.kind];
+      }[link2.kind];
     }
     ;
     function applyLinkFilter(kind, useLinks) {
-      if (!data.value || !graph.value)
+      if (!data2.value || !graph.value)
         return;
-      let { nodes, links } = data.value;
+      let { nodes, links } = data2.value;
       if (!useLinks) {
         links = links.filter((l) => l.kind !== kind);
       } else {
-        links.push(...data.value.links.filter((l) => l.kind === kind));
+        links.push(...data2.value.links.filter((l) => l.kind === kind));
       }
       if (kind === "next") {
         links = links.filter((l) => l.kind !== "next");
         if (useLinks) {
           sortByDate(nodes);
-          for (let i = 1; i < nodes.length; i++) {
-            const source = nodes[i - 1];
-            const target = nodes[i];
+          for (let i2 = 1; i2 < nodes.length; i2++) {
+            const source2 = nodes[i2 - 1];
+            const target = nodes[i2];
             links.push({
-              source: source.id,
+              source: source2.id,
               target: target.id,
               kind: "next",
               color: "#006",
@@ -653,16 +744,16 @@
     }
     ;
     filterString.watchImmediate((rawFilter) => {
-      if (!data.value || !graph.value)
+      if (!data2.value || !graph.value)
         return;
       const filter = rawFilter?.toLowerCase();
-      const matchingNodes = filter ? data.value.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data.value.nodes;
+      const matchingNodes = filter ? data2.value.nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter)) : data2.value.nodes;
       const existing = graph.value.graphData();
       const nodes = [
         ...matchingNodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        ...filter ? data.value.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
+        ...filter ? data2.value.nodes.filter((node) => matchingNodes.some((n) => n.rootId === node.rootId && n.id !== node.id)) : []
       ].map((node) => existing.nodes.find((n) => n.id === node.id) ?? node);
-      const links = data.value.links.filter((link) => nodes.some(sameIdAs(link.source)) && nodes.some(sameIdAs(link.target))).map(({ source, target, ...rest }) => ({ source: id(source), target: id(target), ...rest })).map((link) => existing.links.find((l) => sameId(link.source, l.source) && sameId(link.target, l.target)) ?? link);
+      const links = data2.value.links.filter((link2) => nodes.some(sameIdAs(link2.source)) && nodes.some(sameIdAs(link2.target))).map(({ source: source2, target, ...rest }) => ({ source: id(source2), target: id(target), ...rest })).map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2);
       graph.value.graphData({ nodes, links });
       if (filter)
         graph.value.nodeVal((node) => matchingNodes.some((n) => n.id === node.id) ? 3 : node.val);
@@ -873,10 +964,10 @@
     }
     async buildLinks() {
       console.log("Building links...");
-      for (let i = 0; i < this.state.rawClips.length; i++) {
-        const clip = this.state.rawClips[i];
-        if (i % 100 === 0) {
-          console.log(`Processed ${i} clips out of ${this.state.rawClips.length}`);
+      for (let i2 = 0; i2 < this.state.rawClips.length; i2++) {
+        const clip = this.state.rawClips[i2];
+        if (i2 % 100 === 0) {
+          console.log(`Processed ${i2} clips out of ${this.state.rawClips.length}`);
         }
         ;
         const { metadata } = clip;
@@ -995,8 +1086,8 @@
         // val: Math.log10(this.getTotalDescendants(id) + 1),
         val: id === root?.id && children?.length ? 2 : children?.length ? 1 : 0.5
       }));
-      const formatLink = ([source, target, kind]) => ({
-        source,
+      const formatLink = ([source2, target, kind]) => ({
+        source: source2,
         target,
         kind,
         color: kind === "next" ? "#006" : void 0,
@@ -1019,14 +1110,14 @@
       console.log("Rendering your colony, give it a few seconds...");
       return `<script>(vovas = {${window.vovas.main.toString()}}).main();vovas.colony.render(...${JSON.stringify([mode, this.graphData])})<\/script>`;
     }
-    async render(mode, data) {
+    async render(mode, data2) {
       console.log("Rendering your colony, give it a few seconds...");
-      this._graphData ??= data;
+      this._graphData ??= data2;
       await render(this, this.graphData, { mode });
     }
     renderToFile(...params) {
-      const html = this.getHtml(...params);
-      const blob = new Blob([html], { type: "text/html" });
+      const html2 = this.getHtml(...params);
+      const blob = new Blob([html2], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const a2 = document.createElement("a");
       a2.href = url;
