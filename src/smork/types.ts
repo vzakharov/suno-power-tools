@@ -11,9 +11,7 @@ export type AnyAttribute = [
   'accept', 'accept-charset', 'accesskey', 'action', 'align', 'allow', 'allowfullscreen', 'alt', 'as', 'async', 'autocapitalize', 'autocomplete', 'autofocus', 'autoplay', 'bgcolor', 'border', 'capture', 'charset', 'checked', 'cite', 'class', 'color', 'cols', 'colspan', 'content', 'contenteditable', 'controls', 'coords', 'crossorigin', 'csp', 'data', 'datetime', 'decoding', 'default', 'defer', 'dir', 'dirname', 'disabled', 'download', 'draggable', 'enctype', 'for', 'form', 'formaction', 'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'http-equiv', 'id', 'inert', 'inputmode', 'integrity', 'intrinsicsize', 'ismap', 'itemprop', 'keytype', 'kind', 'label', 'lang', 'language', 'list', 'loading', 'loop', 'low', 'manifest', 'max', 'maxlength', 'media', 'method', 'min', 'minlength', 'multiple', 'muted', 'name', 'novalidate', 'open', 'optimum', 'pattern', 'ping', 'placeholder', 'playsinline', 'poster', 'preload', 'radiogroup', 'readonly', 'referrerpolicy', 'rel', 'required', 'reversed', 'role', 'rows', 'rowspan', 'sandbox', 'scope', 'selected', 'shape', 'size', 'sizes', 'slot', 'span', 'spellcheck', 'src', 'srcdoc', 'srclang', 'srcset', 'start', 'step', 'style', 'summary', 'tabindex', 'target', 'title', 'translate', 'type', 'usemap', 'value', 'width', 'wrap'
 ][number]
 
-export type ElementForTag = {
-  [T in Tag]: T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : HTMLElement
-};
+export type ElementForTag<T extends Tag> = T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : HTMLElement;
 
 export type TagSpecificAttribute = {
   a: 'href' | 'hreflang' | 'ping' | 'rel' | 'target' | 'type' | 'download';
@@ -71,17 +69,14 @@ type InvalidAttribute = Exclude<TagSpecificAttribute[keyof TagSpecificAttribute]
 //@ts-expect-error: If this fires up, you have either misspelled an attribute in either TagSpecificAttribute or GlobalAttribute or you need to add a new attribute to the ATTRIBUTES array. See the InvalidAttribute type above for which attributes are missing
 function __testAttributes__(a: InvalidAttribute) { a.length };
 
-export type Attribute = {
-  [T in Tag]: 
-    (
-      T extends keyof TagSpecificAttribute
-        ? TagSpecificAttribute[T]
-        : never
-    )
-    | GlobalAttribute
-    | `data-${string}`
-    | `$${string}` // for custom attributes — the $ will be removed at runtime
-}
+export type Attribute<T extends Tag> =
+  (
+  T extends keyof TagSpecificAttribute
+    ? TagSpecificAttribute[T]
+    : never
+  )
+  | GlobalAttribute
+  | `data-${string}`
 
 export type BooleanAttribute = [
   'allowfullscreen', 'async', 'autofocus', 'autoplay', 'checked', 'controls', 'default', 'defer', 'disabled', 'formnovalidate', 'hidden', 'ismap', 'loop', 'multiple', 'muted', 'novalidate', 'open', 'readonly', 'required', 'reversed', 'selected'
@@ -91,41 +86,31 @@ export type NumberAttribute = [
   'cols', 'colspan', 'height', 'max', 'maxlength', 'min', 'minlength', 'rows', 'rowspan', 'size', 'span', 'start', 'step', 'width'
 ][number];
 
-export type Attributes = {
-  [T in Tag]: {
-    [A in Attribute[T]]: A extends BooleanAttribute ? boolean : A extends NumberAttribute ? number : string
-  }
+export type Attributes<T extends Tag> = {
+  [A in Attribute<T>]: A extends BooleanAttribute ? boolean : A extends NumberAttribute ? number : string
 };
 
 export type StringAttribute = Exclude<AnyAttribute, BooleanAttribute | NumberAttribute>
 
 type EventHandler = ((this: GlobalEventHandlers, ev: any) => any) | null;
 
-export type Events = {
-  [T in Tag]: {
-    [K in keyof ElementForTag[T] as
-      ElementForTag[T][K] extends EventHandler
-        ? K extends `on${string}` 
-          ? K 
-          : never
+export type Events<T extends Tag> = {
+  [K in keyof ElementForTag<T> as
+    ElementForTag<T>[K] extends EventHandler
+      ? K extends `on${string}` 
+        ? K 
         : never
-    ]: Extract<ElementForTag[T][K], Func>
-  }
+      : never
+  ]: Extract<ElementForTag<T>[K], Func>
 };
 
-export type Event = {
-  [T in Tag]: keyof Events[T] & string
-};
+export type Event<T extends Tag> = keyof Events<T> & string;
 
-export type AnyEvent = Event[Tag];
+export type AnyEvent = Event<Tag>;
 
-export type Prop = {
-  [T in Tag]: Attribute[T] | Event[T]
-};
+export type Prop<T extends Tag> = Attribute<T> | Event<T>;
 
-export type Props = {
-  [T in Tag]: Partial<Refables<Attributes[T]> & Events[T]>
-};
+export type Props<T extends Tag> = Partial<Refables<Attributes<T>> & Events<T>>;
 
 export type AllProps = 
   Record<StringAttribute, Refable<string>> 

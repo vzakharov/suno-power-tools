@@ -11,8 +11,8 @@ export type RefableSmorkNode = Refable<SmorkNode>;
 
 export function tag<TTag extends Tag>(tagName: TTag) {
 
-  type TElement = ElementForTag[TTag];
-  type TProps = Props[TTag];
+  type TElement = ElementForTag<TTag>;
+  type TProps = Props<TTag>;
 
   function factory(props: TProps, children?: RefableSmorkNode[]): TElement;
   function factory(children?: RefableSmorkNode[]): TElement;
