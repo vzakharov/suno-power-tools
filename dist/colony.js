@@ -405,7 +405,41 @@
   // src/smork/types.ts
   var TAGS = ["a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr"];
 
-  // src/smork/tags.ts
+  // src/smork/dom.ts
+  function tag(tagName) {
+    function factory(propsOrChildren, childrenOrNone) {
+      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
+      return verboseFactory(props, children);
+    }
+    return factory;
+    function verboseFactory(props, children) {
+      const element = document.createElement(tagName);
+      props && forEach(
+        props,
+        (value, key) => {
+          typeof value === "function" ? element[key === "style" ? "cssText" : key] = value() : $with(value, (refable) => {
+            update(unref(refable));
+            toref(refable).watch(update);
+            function update(value2) {
+              typeof value2 === "boolean" ? value2 ? element.setAttribute(key, "") : element.removeAttribute(key) : element.setAttribute(key, String(value2));
+            }
+            ;
+          });
+        }
+      );
+      children && children.forEach((child) => {
+        let currentNode = Undefined();
+        const place = (node) => {
+          const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
+          currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
+          currentNode = rawNode;
+        };
+        child instanceof Ref ? child.watchImmediate(place) : place(child);
+      });
+      return element;
+    }
+    ;
+  }
   var {
     a,
     abbr,
@@ -523,72 +557,23 @@
     tags[tagName] = tag(tagName);
     return tags;
   }, {});
-
-  // src/smork/dom.ts
-  function tag(tagName) {
-    function factory(propsOrChildren, childrenOrNone) {
-      const [props, children] = Array.isArray(propsOrChildren) ? [void 0, propsOrChildren] : [propsOrChildren, childrenOrNone];
-      return verboseFactory(props, children);
-    }
-    return factory;
-    function verboseFactory(props, children) {
-      const element = document.createElement(tagName);
-      props && forEach(
-        props,
-        (value, key) => {
-          typeof value === "function" ? element[key === "style" ? "cssText" : key] = value() : $with(value, (refable) => {
-            update(unref(refable));
-            toref(refable).watch(update);
-            function update(value2) {
-              typeof value2 === "boolean" ? value2 ? element.setAttribute(key, "") : element.removeAttribute(key) : element.setAttribute(key, String(value2));
-            }
-            ;
-          });
-        }
-      );
-      children && children.forEach((child) => {
-        let currentNode = Undefined();
-        const place = (node) => {
-          const rawNode = typeof node === "string" ? document.createTextNode(node) : node instanceof HTMLElement ? node : document.createComment("");
-          currentNode ? currentNode.replaceWith(rawNode) : element.appendChild(rawNode);
-          currentNode = rawNode;
-        };
-        child instanceof Ref ? child.watchImmediate(place) : place(child);
-      });
-      return element;
-    }
-    ;
-  }
-  var Checkbox = modelElement(
-    "input",
-    "checked",
-    Boolean,
-    { type: "checkbox" },
-    (model) => ({
+  function Checkbox(model, props) {
+    return tag("input")({
+      ...props,
+      type: "checkbox",
+      checked: model,
       onchange: () => model.set(!model.value)
-    })
-  );
-  var TextInput = modelElement(
-    "input",
-    "value",
-    String,
-    { type: "text" },
-    (model) => ({
+    });
+  }
+  function TextInput(model, props) {
+    return tag("input")({
+      ...props,
+      type: "text",
+      value: model,
       onkeyup: ({ key, target }) => {
         key === "Enter" && target instanceof HTMLInputElement && model.set(target.value);
       }
-    })
-  );
-  function modelElement(tag2, modelKey, initProps, eventFactory) {
-    return (model, props) => {
-      return tag2(tag2)({
-        ...initProps,
-        ...props,
-        [modelKey]: model,
-        // }, eventFactory(model))
-        ...eventFactory(model)
-      });
-    };
+    });
   }
   function Labeled(labelText, element) {
     element.id ||= uniqueId("smork-input-");

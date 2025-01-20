@@ -1,5 +1,5 @@
 import { ColonyNode } from '../../scripts/colony';
-import { div, a, img } from '../../smork/tags';
+import { div, a, img } from '../../smork/dom';
 
 export function ClipCard({ id, image_url, name, tags }: ColonyNode) {
   return div({ class: 'relative' }, [

@@ -1,7 +1,7 @@
 import { Func } from "../types";
 import { Refable, Refables } from "./refs";
 
-export type SmorkNode = HTMLElement | string | undefined;
+export type SmorkNode = HTMLElement | string | null | undefined;
 
 export const TAGS = [ "a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr" ] as const;
 
@@ -14,44 +14,45 @@ export type AnyAttribute = [
 export type ElementForTag<T extends Tag> = T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : HTMLElement;
 
 export type TagSpecificAttribute = {
-  a: 'href' | 'hreflang' | 'ping' | 'rel' | 'target' | 'type' | 'download';
-  area: 'alt' | 'coords' | 'shape' | 'href' | 'target' | 'download' | 'rel' | 'ping';
-  base: 'href' | 'target';
-  button: 'disabled' | 'form' | 'formaction' | 'formenctype' | 'formmethod' | 'formnovalidate' | 'formtarget' | 'name' | 'type' | 'value';
-  canvas: 'height' | 'width';
-  col: 'align' | 'bgcolor' | 'span';
-  colgroup: 'align' | 'bgcolor' | 'span';
-  details: 'open';
-  dialog: 'open';
-  embed: 'height' | 'width' | 'src' | 'type';
-  fieldset: 'disabled' | 'form' | 'name';
-  form: 'accept' | 'accept-charset' | 'action' | 'autocomplete' | 'enctype' | 'method' | 'name' | 'novalidate' | 'target';
-  iframe: 'allow' | 'allowfullscreen' | 'csp' | 'height' | 'loading' | 'name' | 'referrerpolicy' | 'sandbox' | 'src' | 'srcdoc' | 'width';
-  img: 'alt' | 'crossorigin' | 'decoding' | 'height' | 'intrinsicsize' | 'loading' | 'referrerpolicy' | 'sizes' | 'src' | 'srcset' | 'usemap' | 'width' | 'ismap';
-  input: 'accept' | 'alt' | 'autocomplete' | 'autofocus' | 'checked' | 'dirname' | 'disabled' | 'form' | 'formaction' | 'formenctype' | 'formmethod' | 'formnovalidate' | 'formtarget' | 'height' | 'inputmode' | 'list' | 'max' | 'maxlength' | 'min' | 'minlength' | 'multiple' | 'name' | 'pattern' | 'placeholder' | 'readonly' | 'required' | 'size' | 'src' | 'step' | 'type' | 'value' | 'width' | 'capture';
-  label: 'for' | 'form';
-  link: 'as' | 'crossorigin' | 'href' | 'hreflang' | 'media' | 'referrerpolicy' | 'rel' | 'sizes' | 'type' | 'integrity';
-  map: 'name';
-  meta: 'charset' | 'content' | 'http-equiv' | 'name';
-  meter: 'high' | 'low' | 'max' | 'min' | 'optimum' | 'value';
-  object: 'data' | 'form' | 'height' | 'name' | 'type' | 'usemap' | 'width';
-  ol: 'reversed' | 'start' | 'type';
-  optgroup: 'disabled' | 'label';
-  option: 'disabled' | 'label' | 'selected' | 'value';
-  output: 'for' | 'form' | 'name';
-  progress: 'max' | 'value';
-  script: 'async' | 'defer' | 'src' | 'type' | 'integrity' | 'crossorigin' | 'language';
-  select: 'autocomplete' | 'disabled' | 'form' | 'multiple' | 'name' | 'required' | 'size';
-  source: 'media' | 'sizes' | 'src' | 'srcset' | 'type';
-  style: 'media' | 'type';
-  table: 'align' | 'bgcolor' | 'summary';
-  tbody: 'align' | 'bgcolor';
-  td: 'align' | 'bgcolor' | 'colspan' | 'headers' | 'rowspan';
-  textarea: 'autocomplete' | 'cols' | 'dirname' | 'disabled' | 'form' | 'maxlength' | 'minlength' | 'name' | 'placeholder' | 'readonly' | 'required' | 'rows' | 'wrap';
-  th: 'align' | 'bgcolor' | 'colspan' | 'headers' | 'rowspan' | 'scope';
-  thead: 'align' | 'bgcolor';
-  time: 'datetime';
-  track: 'default' | 'kind' | 'label' | 'src' | 'srclang';
+  a: 'href' | 'hreflang' | 'ping' | 'rel' | 'target' | 'type' | 'download',
+  area: 'alt' | 'coords' | 'shape' | 'href' | 'target' | 'download' | 'rel' | 'ping',
+  audio: 'autoplay' | 'controls' | 'crossorigin' | 'loop' | 'muted' | 'preload' | 'src' | 'type',
+  base: 'href' | 'target',
+  button: 'disabled' | 'form' | 'formaction' | 'formenctype' | 'formmethod' | 'formnovalidate' | 'formtarget' | 'name' | 'type' | 'value',
+  canvas: 'height' | 'width',
+  col: 'align' | 'bgcolor' | 'span',
+  colgroup: 'align' | 'bgcolor' | 'span',
+  details: 'open',
+  dialog: 'open',
+  embed: 'height' | 'width' | 'src' | 'type',
+  fieldset: 'disabled' | 'form' | 'name',
+  form: 'accept' | 'accept-charset' | 'action' | 'autocomplete' | 'enctype' | 'method' | 'name' | 'novalidate' | 'target',
+  iframe: 'allow' | 'allowfullscreen' | 'csp' | 'height' | 'loading' | 'name' | 'referrerpolicy' | 'sandbox' | 'src' | 'srcdoc' | 'width',
+  img: 'alt' | 'crossorigin' | 'decoding' | 'height' | 'intrinsicsize' | 'loading' | 'referrerpolicy' | 'sizes' | 'src' | 'srcset' | 'usemap' | 'width' | 'ismap',
+  input: 'accept' | 'alt' | 'autocomplete' | 'autofocus' | 'checked' | 'dirname' | 'disabled' | 'form' | 'formaction' | 'formenctype' | 'formmethod' | 'formnovalidate' | 'formtarget' | 'height' | 'inputmode' | 'list' | 'max' | 'maxlength' | 'min' | 'minlength' | 'multiple' | 'name' | 'pattern' | 'placeholder' | 'readonly' | 'required' | 'size' | 'src' | 'step' | 'type' | 'value' | 'width' | 'capture',
+  label: 'for' | 'form',
+  link: 'as' | 'crossorigin' | 'href' | 'hreflang' | 'media' | 'referrerpolicy' | 'rel' | 'sizes' | 'type' | 'integrity',
+  map: 'name',
+  meta: 'charset' | 'content' | 'http-equiv' | 'name',
+  meter: 'high' | 'low' | 'max' | 'min' | 'optimum' | 'value',
+  object: 'data' | 'form' | 'height' | 'name' | 'type' | 'usemap' | 'width',
+  ol: 'reversed' | 'start' | 'type',
+  optgroup: 'disabled' | 'label',
+  option: 'disabled' | 'label' | 'selected' | 'value',
+  output: 'for' | 'form' | 'name',
+  progress: 'max' | 'value',
+  script: 'async' | 'defer' | 'src' | 'type' | 'integrity' | 'crossorigin' | 'language',
+  select: 'autocomplete' | 'disabled' | 'form' | 'multiple' | 'name' | 'required' | 'size',
+  source: 'media' | 'sizes' | 'src' | 'srcset' | 'type',
+  style: 'media' | 'type',
+  table: 'align' | 'bgcolor' | 'summary',
+  tbody: 'align' | 'bgcolor',
+  td: 'align' | 'bgcolor' | 'colspan' | 'headers' | 'rowspan',
+  textarea: 'autocomplete' | 'cols' | 'dirname' | 'disabled' | 'form' | 'maxlength' | 'minlength' | 'name' | 'placeholder' | 'readonly' | 'required' | 'rows' | 'wrap',
+  th: 'align' | 'bgcolor' | 'colspan' | 'headers' | 'rowspan' | 'scope',
+  thead: 'align' | 'bgcolor',
+  time: 'datetime',
+  track: 'default' | 'kind' | 'label' | 'src' | 'srclang',
   video: 'autoplay' | 'controls' | 'crossorigin' | 'height' | 'loop' | 'muted' | 'poster' | 'preload' | 'src' | 'width' | 'playsinline';
 };
 

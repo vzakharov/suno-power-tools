@@ -2,8 +2,7 @@ import { forEach, uniqueId } from "../lodashish";
 import { Inferable } from "../types";
 import { $with, Undefined } from "../utils";
 import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
-import { label } from "./tags";
-import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag } from "./types";
+import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag, TAGS } from "./types";
 
 export type StyleOptions = Partial<Omit<CSSStyleDeclaration, 'length' | 'parentRule'>>
 
@@ -75,58 +74,46 @@ export function tag<TTag extends Tag>(tagName: TTag) {
 
 };
 
-export const Checkbox = modelElement('input', 'checked', Boolean,
-  { type: 'checkbox' }, 
-  model => ({
-    onchange: () => model.set(!model.value)
-  })
-);
+// Note: the below doesn't allow tree-shaking, but it's better than spelling out each tag factory export manually (especially because TypeScript doesn't allow inferring all overloads of a function, which we would need for e.g. `a` to be inferred the same as `tag('a')`)
+export const {
+  a, abbr, address, area, article, aside, audio, b, base, bdi, bdo, blockquote, body, br, button, canvas, caption, cite, code, col, colgroup, data, datalist, dd, del, details, dfn, dialog, div, dl, dt, em, embed, fieldset, figcaption, figure, footer, form, h1, h2, h3, h4, h5, h6, head, header, hgroup, hr, html, i, iframe, img, input, ins, kbd, label, legend, li, link, main, map, mark, menu, meta, meter, nav, noscript, object: $object, ol, optgroup, option, output, p, picture, pre, progress, q, rp, rt, ruby, s, samp, script, search, section, select, slot, small, source, span, strong, style, sub, summary, sup, table, tbody, td, template, textarea, tfoot, th, thead, time, title, tr, track, u, ul, var: $var, video, wbr
+} = TAGS.reduce((tags, tagName) => {
+  tags[tagName as any] = tag(tagName);
+  return tags;
+}, {} as {
+  [T in typeof TAGS[number]]: ReturnType<typeof tag<T>>
+});
 
-export const TextInput = modelElement('input', 'value', String,
-  { type: 'text' },
-  model => ({
+
+export function Checkbox(model: WritableRef<boolean>, props?: Omit<Props<'input'>, 'type' | 'checked'>) {
+  return tag('input')({
+    ...props,
+    type: 'checkbox',
+    checked: model,
+    onchange: () => model.set(!model.value)
+  });
+};
+export type Checkbox = ReturnType<typeof Checkbox>;
+
+export function TextInput(model: WritableRef<string>, props?: Omit<Props<'input'>, 'type' | 'value'>) {
+  return tag('input')({
+    ...props,
+    type: 'text',
+    value: model,
     onkeyup: ({ key, target }: KeyboardEvent ) => {
       key === 'Enter'
         && target instanceof HTMLInputElement
         && model.set(target.value);
     }
-  })
-);
+  });
+};
+export type TextInput = ReturnType<typeof TextInput>;
 
-export type ModelRef<TElement extends SupportedElement, TModelKey extends keyof Props<TElement>> 
-  = WritableRef<NonNullable<Unref<Props<TElement>[TModelKey]>>>;
-
-// exmample
-
-type TextInputModelRef = ModelRef<HTMLInputElement, 'value'>; // should be Ref<string>
-type CheckboxModelRef = ModelRef<HTMLInputElement, 'checked'>; // should be Ref<boolean>
-
-export function modelElement<
-  TTag extends Tag,
-  TModelKey extends keyof Props<ElementForTag[TTag]>,
-  TProps extends Props<ElementForTag[TTag]>
->(
-  tag: TTag,
-  modelKey: TModelKey,
-  initProps: Partial<TProps>,
-  eventFactory: (model: ModelRef<ElementForTag[TTag], TModelKey>) => Events<ElementForTag[TTag]>
-) {
-  type TElement = ElementForTag[TTag];
-  return (
-    model: ModelRef<TElement, TModelKey>,
-    props?: Omit<Props<TElement>, TModelKey | keyof TProps>
-  ) => {
-    return tag(tag)({
-      ...initProps,
-      ...props,
-      [modelKey]: model,
-    // }, eventFactory(model))
-      ...eventFactory(model)
-    });
-  };
-}
-
-
+/**
+ * Creates a labeled input by generating or reusing an ID for the provided HTML input element.
+ *
+ * NOTE: The label is placed after the input element if the input element is a checkbox, and before otherwise.
+ */
 export function Labeled(labelText: string, element: HTMLInputElement) {
   element.id ||= uniqueId('smork-input-');
   const output = [
@@ -138,6 +125,7 @@ export function Labeled(labelText: string, element: HTMLInputElement) {
   };
   return output;
 };
+export type Labeled = ReturnType<typeof Labeled>;
 
 export async function importScript<T>(win: Window, windowKey: string, url: string) {
   const script = win.document.createElement('script');

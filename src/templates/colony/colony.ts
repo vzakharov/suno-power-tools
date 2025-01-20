@@ -1,11 +1,10 @@
 import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
-import { Checkbox, If, importScript, Labeled, TextInput } from '../../smork/dom';
+import { audio, button, Checkbox, div, h3, If, importScript, Labeled, p, style, TextInput } from '../../smork/dom';
 import { assignTo, ref } from '../../smork/refs';
 import { jsonClone, sortByDate, Undefined } from '../../utils';
 import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
-import { audio, button, div, h3, p, style } from '../../smork/tags';
 
 export async function render(
   ctx: Colony,
