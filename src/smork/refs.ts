@@ -1,7 +1,7 @@
 //! Smork, the smol framework
-import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla } from "../lodashish";
+import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla, values } from "../lodashish";
 import { Func, TypescriptErrorClarification } from "../types";
-import { $with, mutate, nextTick } from "../utils";
+import { $with, mutate, nextTick, Undefined } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -12,7 +12,7 @@ export class SmorkError extends Error {
 export type Refs<T> = { [K in keyof T]: Ref<T[K]> };
 
 export function isRefs<T>(value: any): value is Refs<T> {
-  return value && typeof value === 'object' && forEach(value, value => value instanceof Ref);
+  return value && typeof value === 'object' && values(value).every(value => value instanceof Ref);
 };
 
 export function ref<T>(value: Exclude<T, Func | Refs<any>>): WritableRef<T>;
@@ -26,20 +26,19 @@ export function ref<T>(valueOrGetter?: T | Refs<T> | (() => T), setter?: (value:
     ? computed(valueOrGetter, setter)
     : 
       isRefs(valueOrGetter)
-        ? new ComputedRef(() => mapValues(valueOrGetter, unref), { dontRetrack: true })
+        ? new ComputedRef(() => mapValues(valueOrGetter, unref), values(valueOrGetter))
         : new WritableRef(valueOrGetter);
 };
 
-export type Watcher<T> = (value: T, oldValue: T) => void;
-export type Effect = () => void;
+export type Watcher<T, TOld = T> = (value: T, oldValue: TOld) => void;
 
-const pendingEffects = new Set<Effect>();
+export const NotApplicable = Symbol('NotApplicable');
 
 export class Ref<T> {
 
   private watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
-  private effects = new Set<Effect>();
+  public targets = new Set<ComputedRef<any>>();
   
   constructor(
     private _value: T
@@ -54,6 +53,9 @@ export class Ref<T> {
     const { _value: oldValue } = this;
     if ( value !== this._value ) {
       this._value = value;
+      for ( const target of this.targets ) {
+        target.dirty = true;
+      };
       try {
         for ( const watcher of this.watchers ) {
           if ( this.activeWatchers.has(watcher) ) {
@@ -66,44 +68,17 @@ export class Ref<T> {
       } finally {
         this.activeWatchers = new WeakSet();
       };
-      this.effects.forEach(async effect => {
-        if ( pendingEffects.has(effect) ) return;
-        pendingEffects.add(effect);
-        await nextTick();
-        try {
-          effect();
-        } finally {
-          pendingEffects.delete(effect);
-        };
-      });
-    }
+    };
   };
 
-  runAndWatch(watcher: Watcher<T>) {
-    watcher(this._value, this._value);
+  watchImmediate(watcher: Watcher<T, T | typeof NotApplicable>) {
+    watcher(this.value, NotApplicable);
     this.watch(watcher);
   };
-
-  /**
-   * @alias runAndWatch
-   */
-  watchImmediate = this.runAndWatch;
 
   watch(watcher: Watcher<T>) {
     this.watchers.add(watcher);
   };
-
-  /**
-   * Unlike watchers, effects usually depend on multiple refs, so they are not tied to a specific ref's value. Moreover, they are not run immediately, but on the next tick, and only once, even if multiple refs trigger the same effect.
-   */
-  addEffect(effect: Effect) {
-    this.effects.add(effect);
-  };
-
-  /**
-   * @alias watch
-   */
-  onChange = this.watch; // just an alias
 
   unwatch(watcher: Watcher<T>) {
     this.watchers.delete(watcher);
@@ -147,17 +122,80 @@ export class Ref<T> {
 
 };
 
-export class MappedRef<U, T> extends Ref<U> {
+let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
+
+export class ComputedRef<T> extends Ref<T> {
+
+  readonly sources: Set<Ref<any>>;
+  sourcesPredefined = false;
+  dirty = true;
+  
+  constructor(
+    private getter: () => T,
+    predefinedSources = Undefined<Array<Ref<any>>>()
+  ) {
+    super(undefined as any);
+    this.sources = new Set(predefinedSources);
+    if ( this.sourcesPredefined = !!predefinedSources ) { // not a typo
+      predefinedSources.forEach(ref => ref.targets.add(this));
+    };
+  };
+
+  get() {
+    if ( this.dirty ) {
+      this.recalculate();
+      this.dirty = false;
+    };
+    return super.get();
+  };
+
+  private recalculate() {
+    if ( this.sourcesPredefined ) return this.update();
+    if ( currentComputedTracker ) {
+      throw new SmorkError(
+        "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
+      );
+    };
+    // this.sources.forEach(ref => ref.unwatch(this.track));
+    this.sources.forEach(ref => ref.targets.delete(this));
+    this.sources.clear();
+    try {
+      currentComputedTracker = ref => {
+        // ref.addEffect(this.options.dontRetrack ? this.update : this.track);
+        this.sources.add(ref);
+        ref.targets.add(this);
+      };
+      this.update();
+    } finally {
+      currentComputedTracker = undefined;
+    }
+  };
+
+  update = () => { this._set(this.getter()) }
+
+};
+
+export function computed<T>(getter: () => T): ComputedRef<T>;
+export function computed<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
+export function computed<T>(getter: () => T, setter: ((value: T) => void) | undefined): ComputedRef<T> | SetterRef<T>;
+export function computed<T>(getter: () => T, setter?: (value: T) => void) {
+  return $with(new ComputedRef(getter), computedRef =>
+    setter
+      ? computedRef.setter(setter)
+      : computedRef
+  );
+};
+
+
+export class MappedRef<U, T> extends ComputedRef<U> {
   
   constructor(
     public readonly source: Ref<T>,
-    private mapper: (value: T) => U
+    mapper: (value: T) => U
   ) {
-    super(mapper(source.value));
+    super(() => mapper(source.value), [source]);
     source.watch(this.update);
   };
-
-  update = (value: T) => this._set(this.mapper(value));
 
 };
 
@@ -222,59 +260,6 @@ export function assignTo<T>(ref: WritableRef<T>) {
   return (value: T) => {
     ref.set(value);
   };
-};
-
-let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
-
-export class ComputedRef<T> extends Ref<T> {
-
-  private _dependencies = new Set<Ref<any>>();
-  constructor(
-    private getter: () => T,
-    private options: {
-      dontRetrack?: boolean
-    } = {}
-  ) {
-    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
-    this.track();
-  };
-
-  track = () => {
-    if ( currentComputedTracker ) {
-      throw new SmorkError(
-        "Tried to compute a ref while another one is already being computed — did you nest a computed ref in another ref's getter function?"
-      );
-    };
-    this._dependencies.forEach(ref => ref.unwatch(this.track));
-    this._dependencies = new Set();
-    try {
-      currentComputedTracker = ref => {
-        ref.addEffect(this.options.dontRetrack ? this.update : this.track);
-        this._dependencies.add(ref);
-      };
-      this.update();
-    } finally {
-      currentComputedTracker = undefined;
-    }
-  };
-
-  update = () => { this._set(this.getter()) }
-
-  get dependencies() {
-    return this._dependencies;
-  }
-
-};
-
-export function computed<T>(getter: () => T): ComputedRef<T>;
-export function computed<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
-export function computed<T>(getter: () => T, setter: ((value: T) => void) | undefined): ComputedRef<T> | SetterRef<T>;
-export function computed<T>(getter: () => T, setter?: (value: T) => void) {
-  return $with(new ComputedRef(getter), computedRef =>
-    setter
-      ? computedRef.setter(setter)
-      : computedRef
-  );
 };
 
 // Refables

@@ -117,3 +117,7 @@ export function debounce<T extends Func>(fn: T, milliseconds: number) {
     });
   } as T;
 };
+
+export function values<T extends {}>(obj: T) {
+  return Object.values(obj) as T[keyof T][];
+};

@@ -27,7 +27,7 @@ export async function render(
   const audioElement = ref<HTMLAudioElement>();
 
   const selectedClip = ref<ColonyNode>();
-  selectedClip.onChange(() => 
+  selectedClip.watch(() => 
     setTimeout(() => { // we want to make sure the element is updated before we try to play it
       audioElement.value?.play();
     }, 0)
