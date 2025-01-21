@@ -289,12 +289,13 @@ export class Colony {
 
   get syntheticLinks() {
     const syntheticLinks: SyntheticLink[] = [];
-    const { rootClips } = this;
-    let currentParent = rootClips[0];
-    //! Link every clip with children to its root, for better visualization.
-    for ( const clip of this.linkedClips.filter(({ children }) => children?.length) ) {
-      syntheticLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
-    };
+    // const { rootClips } = this;
+    // let currentParent = rootClips[0];
+    // //! Link every clip with children to its root, for better visualization.
+    // for ( const clip of this.linkedClips.filter(({ children }) => children?.length) ) {
+    //   syntheticLinks.push([ ( clip.root ?? $throw(`Clip ${clip.id} has no root.`) ).id, clip.id, 'descendant' ]);
+    // };
+    //! (Moved to the graph renderer)
     return syntheticLinks;
   };
 
@@ -414,3 +415,5 @@ function missingClip(id: string): MissingClip {
 }
 
 mutate(window.vovas, { Colony, colony, debug });
+
+debug()

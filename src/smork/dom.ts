@@ -1,6 +1,7 @@
 import { forEach, uniqueId } from "../lodashish";
 import { Inferable } from "../types";
-import { $with, Undefined } from "../utils";
+import { $with, debug, getOrSet, Undefined } from "../utils";
+import { allElements, DEV_MODE, refToElementLinks } from "./devTools";
 import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
 import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag, TAGS, EventName } from "./types";
 
@@ -34,6 +35,7 @@ export function tag<TTag extends Tag>(tagName: TTag) {
   ) {
 
     const element = document.createElement(tagName) as TElement;
+    DEV_MODE && allElements.add(element);
     props && 
       forEach(
         props as AllProps,
@@ -43,6 +45,7 @@ export function tag<TTag extends Tag>(tagName: TTag) {
             : $with(value, refable => {
                 update(unref(refable));
                 toref(refable).watch(update);
+                DEV_MODE && refable instanceof Ref && getOrSet(refToElementLinks, refable, new Set()).add(element);
                 function update(value: Unref<typeof refable>) {
                   typeof value === 'boolean'
                     ? value
@@ -68,6 +71,7 @@ export function tag<TTag extends Tag>(tagName: TTag) {
           currentNode = rawNode;
         };
         child instanceof Ref ? child.watchImmediate(place) : place(child);
+        DEV_MODE && child instanceof Ref && getOrSet(refToElementLinks, child, new Set()).add(element);
       });
     return element;
   };
@@ -127,15 +131,12 @@ export function Labeled(labelText: string, element: HTMLInputElement) {
 };
 export type Labeled = ReturnType<typeof Labeled>;
 
-export async function importScript<T>(win: Window, windowKey: string, url: string) {
-  const script = win.document.createElement('script');
-  script.type = 'text/javascript';
-  script.src = url;
-  win.document.head.appendChild(script);
+export async function $import<T>(windowKey: string, src: string) {
+  if ( window[windowKey] ) {
+    return window[windowKey] as T;
+  };
   return new Promise<T>((resolve) => {
-    script.onload = () => {
-      resolve(win[windowKey] as T);
-    };
+    document.head.appendChild(script({ src, onload: () => resolve(window[windowKey] as T) }));
   });
 };
 

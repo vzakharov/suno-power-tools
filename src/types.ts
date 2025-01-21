@@ -44,3 +44,11 @@ export type OptionalIfUndefinable<T> = {
 } & {
   [K in keyof T as undefined extends T[K] ? K : never]?: T[K];
 };
+
+export type OptionalIfNotInBoth<T, U> = {
+  [K in keyof T as K extends keyof U ? K : never]: T[K];
+} & {
+  [K in keyof T as K extends keyof U ? never : K]?: T[K];
+} & {
+  [K in keyof U as K extends keyof T ? never : K]?: U[K];
+};

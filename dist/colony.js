@@ -54,6 +54,10 @@
   function mutate(obj, partial) {
     Object.assign(obj, partial);
   }
+  function mutated(obj, partial) {
+    mutate(obj, partial);
+    return obj;
+  }
   var lastCalled = 0;
   function atLeast(milliseconds) {
     const timeToWait = Math.max(0, milliseconds - (Date.now() - lastCalled));
@@ -93,12 +97,30 @@
   function sortByDate(items, dateAccessor = (item) => item.created_at) {
     return items.sort((a2, b2) => isoStringToTimestamp(dateAccessor(a2)) - isoStringToTimestamp(dateAccessor(b2)));
   }
-  function debug() {
-    debugger;
+  function debug(arg) {
+    if (typeof arg === "function") {
+      return function(...args) {
+        debugger;
+        return arg(...args);
+      };
+    } else {
+      debugger;
+      return arg;
+    }
+    ;
   }
   function doAndReturn(target, fn) {
     fn(target);
     return target;
+  }
+  function getOrSet(map2, key, defaultValue) {
+    const value = map2.get(key);
+    if (value !== void 0) {
+      return value;
+    }
+    ;
+    map2.set(key, defaultValue);
+    return defaultValue;
   }
 
   // src/cropping.ts
@@ -235,27 +257,29 @@
   var Ref = class {
     constructor(_value) {
       this._value = _value;
+      DEV_MODE && allRefs.add(this);
     }
     watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
     targets = /* @__PURE__ */ new Set();
+    id = uniqueId("ref-");
+    name = Undefined();
+    named(name) {
+      return mutated(this, { name });
+    }
     get() {
       currentComputedTracker?.(this);
       return this._value;
     }
     _set(value) {
       const { _value: oldValue } = this;
-      if (value !== this._value) {
+      if (value !== oldValue) {
         this._value = value;
-        for (const target of this.targets) {
-          target.dirty = true;
-        }
-        ;
+        this.tarnishTargets();
         try {
           for (const watcher of this.watchers) {
             if (this.activeWatchers.has(watcher)) {
               console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
-              return;
             }
             ;
             this.activeWatchers.add(watcher);
@@ -268,6 +292,9 @@
         ;
       }
       ;
+    }
+    tarnishTargets() {
+      this.targets.forEach((target) => target.tarnish());
     }
     watchImmediate(watcher) {
       watcher(this.value, NotApplicable);
@@ -285,7 +312,8 @@
     map(nestableGetter) {
       const mapped = new MappedRef(this, nestableGetter);
       if (isFunction(mapped.value)) {
-        this.unwatch(mapped.update);
+        this.targets.delete(mapped);
+        mapped.sources.clear();
         return (...args) => new MappedRef(
           this,
           (value) => nestableGetter(value)(...args)
@@ -318,14 +346,46 @@
     sources;
     sourcesPredefined = false;
     dirty = true;
+    /**
+     * Marks the current ref and its targets as dirty.
+     * 
+     * - If the ref is already dirty, it does nothing.
+     * - If there are watchers on the current object, it triggers the recalculation right away to notify them.
+     * - Otherwise, it marks the targets as dirty but doesn't recalculate them or itself until they are accessed or watched.
+     */
+    tarnish() {
+      if (this.dirty) return;
+      this.dirty = true;
+      if (this.watchers.size) {
+        this.recalculate();
+      } else {
+        this.tarnishTargets();
+      }
+      ;
+    }
+    /**
+     * Retrieves the value, recalculating it if necessary.
+     * 
+     * If the value is marked as dirty, calls the recalculate method.
+     * Otherwise, returns the value cached during the last recalculation.
+     * 
+     * (Newly created computed refs are dirty by definition, so they will recalculate on the first access.)
+     */
     get() {
       if (this.dirty) {
         this.recalculate();
-        this.dirty = false;
       }
       ;
       return super.get();
     }
+    /**
+     * Recalculates the current state of the ref.
+     * 
+     * - If `sourcesPredefined` is true, it simply calls the `update` method, updating the value according to the getter.
+     * - Otherwise, it clears the sources set, then recalculates the getter while tracking the sources.
+     * 
+     * In both cases, it updates the cached value and marks the ref as clean.
+     */
     recalculate() {
       if (this.sourcesPredefined) return this.update();
       if (currentComputedTracker) {
@@ -346,8 +406,12 @@
         currentComputedTracker = void 0;
       }
     }
+    /**
+     * Updates the cached value according to the getter and marks the ref as clean.
+     */
     update = () => {
       this._set(this.getter());
+      this.dirty = false;
     };
   };
   function computed(getter, setter) {
@@ -360,7 +424,6 @@
     constructor(source2, mapper) {
       super(() => mapper(source2.value), [source2]);
       this.source = source2;
-      source2.watch(this.update);
     }
   };
   var WritableRef = class extends Ref {
@@ -413,6 +476,117 @@
     return refable instanceof Ref ? refable : new Ref(refable);
   }
 
+  // src/smork/devTools.ts
+  var DEV_MODE = true;
+  var allRefs = /* @__PURE__ */ new Set();
+  var allElements = /* @__PURE__ */ new Set();
+  var refToElementLinks = /* @__PURE__ */ new Map();
+  async function devTools() {
+    const ForceGraph = await $import("ForceGraph", `https://unpkg.com/force-graph`);
+    let container;
+    let graphContainer;
+    const minimized = ref(false).named("minimized");
+    const size = minimized.map((minimized2) => minimized2 ? "10" : "70");
+    document.body.appendChild(
+      container = div({ style: "position: fixed; top: 0; right: 0; z-index: 300; background: #eee; padding: 1em;" }, [
+        div({ style: "position: relative;" }, [
+          graphContainer = div({ style: size.map((size2) => `height: ${size2}vh; width: ${size2}vw; overflow: auto`) }),
+          button({
+            style: "position: absolute; top: 0; left: 0; color: black",
+            onclick: () => container.remove()
+          }, ["X"]),
+          button({
+            style: "position: absolute; top: 0; right: 0; color: black",
+            onclick: () => minimized.set(!minimized.value)
+          }, [
+            If(minimized, "\u2199", "\u2197")
+          ])
+        ])
+      ])
+    );
+    const refs = [...allRefs];
+    const refNodes = refs.map((ref2) => ({
+      id: ref2.id,
+      ref: ref2,
+      class: ref2.constructor.name,
+      name: `${ref2.name ?? ref2.id} (${ref2.constructor.name}) = ${Array.isArray(ref2.value) ? `${ref2.value.length} \u2715 ${ref2.value[0]?.constructor.name}` : ref2.value?.toString()}`,
+      val: 3
+    }));
+    const refLinks = refNodes.map(({ id: source2, ref: { targets } }) => [...targets].map(({ id: target }) => ({ source: source2, target }))).flat();
+    const watcherNodes = refs.map(({ watchers }) => [...watchers].map((watcher) => ({
+      id: uniqueId("watcher-"),
+      watcher,
+      class: "watcher",
+      name: `${watcher.toString()}`
+    }))).flat();
+    const idByWatcher = new Map(watcherNodes.map(({ watcher, id }) => [watcher, id]));
+    const watcherLinks = refs.map(({ id: source2, watchers }) => [...watchers].map((watcher) => ({
+      source: source2,
+      target: idByWatcher.get(watcher) ?? $throw(`Watcher ${watcher} has no ID.`)
+    })).flat()).flat();
+    function ElementNode(element) {
+      return {
+        id: uniqueId("el-"),
+        element,
+        class: element.constructor.name,
+        name: `${element.tagName}#${element.id || ""}.${element.className}`,
+        val: element.querySelectorAll("*").length
+      };
+    }
+    ;
+    const elementNodes = [...allElements].map(ElementNode);
+    const idByElement = /* @__PURE__ */ new Map();
+    const getElementId = (element) => {
+      const elementId = (elementNodes.find(({ element: e }) => e === element) ?? (() => {
+        const newElementNode = ElementNode(element);
+        elementNodes.push(newElementNode);
+        return newElementNode;
+      })()).id;
+      return getOrSet(idByElement, element, elementId);
+    };
+    const elementLinks = [
+      ...[...refToElementLinks].map(([{ id: source2 }, elements]) => [...elements].map(
+        (element) => ({ source: source2, target: getElementId(element) })
+      )).flat(),
+      ...[...allElements].map((element) => {
+        const children = [...element.children].filter((child) => child instanceof HTMLElement);
+        return children.map((child) => ({ source: getElementId(element), target: getElementId(child) }));
+      }).flat()
+    ];
+    const nodes = [...refNodes, ...elementNodes, ...watcherNodes];
+    const links = [...refLinks, ...elementLinks, ...watcherLinks];
+    const graphData = { nodes, links };
+    const getColorForIndex = (index) => "#" + (index * 1234567 % Math.pow(2, 24)).toString(16).padStart(6, "0");
+    let maxIndex = 0;
+    const indexByString = /* @__PURE__ */ new Map();
+    const getColorForString = (string) => getColorForIndex(getOrSet(indexByString, string, ++maxIndex));
+    new ForceGraph(graphContainer).graphData(graphData).onNodeClick(({ ref: ref2, element }) => {
+      console.log(
+        ...ref2 ? [ref2, ref2["_value"]] : [element]
+      );
+      mutate(window, { $: ref2 ?? element });
+    }).nodeAutoColorBy("class").nodeCanvasObjectMode(({ ref: ref2, element }) => ref2 ? "after" : element && "replace").nodeCanvasObject(({ ref: ref2, element, x, y, val }, ctx) => {
+      if (ref2?.name && x && y) {
+        ctx.font = "10px Arial";
+        ctx.fillText(ref2.name, x + 10, y);
+      }
+      if (element && x && y) {
+        ctx.beginPath();
+        ctx.arc(x, y, Math.sqrt(Number(val) + 1), 0, 2 * Math.PI, false);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = getColorForString(element.tagName);
+        ctx.stroke();
+      }
+      ;
+    }).linkLineDash(({ target }) => typeof target === "object" && target.element ? [4, 2] : null).linkDirectionalParticles(1);
+    const result = { refNodes, elementNodes, refLinks, watcherLinks, elementLinks };
+    mutate(window.smork, result);
+    console.log(result);
+  }
+  Object.assign(window, { smork: { devTools, allRefs, allElements, refToElementLinks } });
+
   // src/smork/types.ts
   var TAGS = ["a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr"];
 
@@ -425,12 +599,14 @@
     return factory;
     function verboseFactory(props, children) {
       const element = document.createElement(tagName);
+      DEV_MODE && allElements.add(element);
       props && forEach(
         props,
         (value, key) => {
           typeof value === "function" ? element[key] = value : $with(value, (refable) => {
             update(unref(refable));
             toref(refable).watch(update);
+            DEV_MODE && refable instanceof Ref && getOrSet(refToElementLinks, refable, /* @__PURE__ */ new Set()).add(element);
             function update(value2) {
               typeof value2 === "boolean" ? value2 ? element.setAttribute(key, "") : element.removeAttribute(key) : element.setAttribute(key, String(value2));
             }
@@ -446,6 +622,7 @@
           currentNode = rawNode;
         };
         child instanceof Ref ? child.watchImmediate(place) : place(child);
+        DEV_MODE && child instanceof Ref && getOrSet(refToElementLinks, child, /* @__PURE__ */ new Set()).add(element);
       });
       return element;
     }
@@ -598,15 +775,13 @@
     ;
     return output2;
   }
-  async function importScript(win, windowKey, url) {
-    const script2 = win.document.createElement("script");
-    script2.type = "text/javascript";
-    script2.src = url;
-    win.document.head.appendChild(script2);
+  async function $import(windowKey, src) {
+    if (window[windowKey]) {
+      return window[windowKey];
+    }
+    ;
     return new Promise((resolve) => {
-      script2.onload = () => {
-        resolve(win[windowKey]);
-      };
+      document.head.appendChild(script({ src, onload: () => resolve(window[windowKey]) }));
     });
   }
   function If(condition, ifYes, ifNo = Undefined()) {
@@ -636,15 +811,15 @@
     mode = Undefined()
   }) {
     const in3D = mode?.toLowerCase() === "3d";
-    const hideUI = ref(false);
-    const showUI = hideUI.map((hide) => !hide);
-    const graphContainer = ref();
-    const useNextLinks = ref(true);
-    const useDescendantLinks = ref(true);
-    const filterString = ref("");
-    const showNextLinks = ref(false);
-    const audioElement = ref();
-    const selectedClip = ref();
+    const hideUI = ref(false).named("hideUI");
+    const showUI = hideUI.map((hide) => !hide).named("showUI");
+    const graphContainer = ref().named("graphContainer");
+    const useNextLinks = ref(true).named("useNextLinks");
+    const useDescendantLinks = ref(true).named("useDescendantLinks");
+    const filterString = ref("").named("filterString");
+    const showNextLinks = ref(false).named("showNextLinks");
+    const audioElement = ref().named("audioElement");
+    const selectedClip = ref().named("selectedClip");
     selectedClip.watch(
       () => setTimeout(() => {
         audioElement.value?.play();
@@ -653,18 +828,18 @@
     const nodesById = /* @__PURE__ */ new Map();
     function nodeById(id2) {
       return nodesById.get(id2) ?? doAndReturn(
-        data2.value?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
+        reusableData.value?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
         (node) => nodesById.set(id2, node)
       );
     }
     ;
-    const GraphRenderer = await importScript(window, "ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
+    const GraphRenderer = await $import("ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     window.document.head.appendChild(style([colonyCss]));
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
-    const graphData = jsonClone(rawData);
+    const rawDataClone = jsonClone(rawData);
     //! again, because ForceGraph mutates the data
     const graph = graphContainer.mapDefined((container2) => {
-      const graph2 = new GraphRenderer(container2).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
+      const graph2 = new GraphRenderer(container2).graphData(rawDataClone).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
         (clip) => div([
           ClipCard(clip),
           div({ class: "smol" }, [
@@ -682,8 +857,7 @@
       ;
       Object.assign(window, { graph: graph2 });
       return graph2;
-    });
-    const data2 = graph.map((graph2) => graph2?.graphData());
+    }).named("graph");
     async function redrawGraph() {
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
       graph.value?._destructor();
@@ -691,7 +865,7 @@
       await render(this, rawData, { mode });
     }
     ;
-    ref({ graph, showNextLinks }).map(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
+    ref({ graph, showNextLinks }).named("linkVisibility").watchImmediate(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
       graph2?.linkVisibility((link2) => {
         return !{
           descendant: true,
@@ -711,46 +885,51 @@
       return (candidate) => sameId(original, candidate);
     }
     ;
-    const graphLastUpdated = ref(Date.now);
-    const reusableData = ref({ data: data2, graph }).map(({ data: data3, graph: graph2 }) => {
+    const graphLastUpdated = ref(Date.now).named("graphLastUpdated");
+    const reusableData = ref({ graph, updated: graphLastUpdated }).map(({ graph: graph2 }) => {
+      const data2 = rawDataClone;
       const existing = graph2?.graphData();
-      return existing ? data3 && {
-        nodes: data3.nodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        links: data3.links.map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2)
-      } : data3;
-    });
-    const matchingNodes = ref({ reusableData, filterString, graph }).map(({ reusableData: { nodes: nodes2 } = {}, filterString: filter, graph: graph2 }) => {
-      if (!nodes2 || !graph2) return [];
-      if (!filter) return nodes2;
+      return existing ? data2 && {
+        nodes: data2.nodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
+        links: data2.links.map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2)
+      } : data2;
+    }).named("reusableData");
+    const matchingNodes = ref({ reusableData, filterString, graph }).map(({ reusableData: { nodes } = {}, filterString: filter, graph: graph2 }) => {
+      if (!nodes || !graph2) return [];
+      if (!filter) return nodes;
       filter = filter.toLowerCase();
-      return nodes2.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
-    });
-    ref({ graph, matchingNodes }).watchImmediate(
+      return nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
+    }).named("matchingNodes");
+    ref({ graph, matchingNodes }).named("highlightNodes").watchImmediate(
       ({ graph: graph2, matchingNodes: matchingNodes2 }) => graph2?.nodeVal((node) => matchingNodes2.some((n) => n.id === node.id) ? 3 : node.val)
     );
-    const nodes = ref({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes: nodes2 } = {} }) => {
+    const filteredNodes = ref({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes } = {} }) => {
       return [
         ...matchingNodes2,
-        ...nodes2?.filter((node) => matchingNodes2.some((n) => n.rootId === node.rootId && n.id !== node.id)) ?? []
+        ...nodes?.filter((node) => matchingNodes2.some((n) => n.rootId === node.rootId && n.id !== node.id)) ?? []
         // (^same root nodes)
       ];
-    });
-    const nextLinks = ref({ nodes, useNextLinks }).map(({ nodes: nodes2, useNextLinks: useNextLinks2 }) => {
-      if (!nodes2 || !useNextLinks2)
+    }).named("nodes");
+    const linksBetweenFilteredNodes = ref({ reusableData, nodes: filteredNodes }).map(({ reusableData: { links } = {}, nodes }) => {
+      if (!links || !nodes) return [];
+      return links.filter((link2) => nodes.some(sameIdAs(link2.source)) && nodes.some(sameIdAs(link2.target)));
+    }).named("linksBetweenFilteredNodes");
+    const nextLinks = ref({ nodes: filteredNodes, useNextLinks }).map(({ nodes, useNextLinks: useNextLinks2 }) => {
+      if (!nodes || !useNextLinks2)
         return [];
-      sortByDate(nodes2);
-      return nodes2.slice(1).map((node, i2) => ({
-        source: nodes2[i2].id,
+      sortByDate(nodes);
+      return nodes.slice(1).map((node, i2) => ({
+        source: nodes[i2].id,
         target: node.id,
         kind: "next",
         color: "#006",
         isMain: false
       }));
-    });
-    const descendantLinks = ref({ nodes, useDescendantLinks }).map(({ nodes: nodes2, useDescendantLinks: useDescendantLinks2 }) => {
-      if (!nodes2 || !useDescendantLinks2)
+    }).named("nextLinks");
+    const descendantLinks = ref({ nodes: filteredNodes, useDescendantLinks }).map(({ nodes, useDescendantLinks: useDescendantLinks2 }) => {
+      if (!nodes || !useDescendantLinks2)
         return [];
-      return compact(nodes2.map((node) => {
+      return compact(nodes.map((node) => {
         const root = nodeById(node.rootId ?? $throw(`Node ${node.id} has no root ID.`));
         return root !== node ? {
           source: root.id,
@@ -759,19 +938,18 @@
           isMain: false
         } : null;
       }));
-    });
-    const links = ref({ reusableData, nodes, nextLinks, descendantLinks }).map(
-      ({ reusableData: { links: links2 } = {}, nodes: nodes2, nextLinks: nextLinks2, descendantLinks: descendantLinks2 }) => {
-        if (!links2 || !nodes2) return [];
+    }).named("descendantLinks");
+    const filteredLinks = ref({ linksBetweenFilteredNodes, nextLinks, descendantLinks }).map(
+      ({ linksBetweenFilteredNodes: linksBetweenFilteredNodes2, nextLinks: nextLinks2, descendantLinks: descendantLinks2 }) => {
         return [
-          ...links2,
+          ...linksBetweenFilteredNodes2,
           ...nextLinks2,
           ...descendantLinks2
         ];
       }
-    );
-    ref({ graph, nodes, links }).watchImmediate(({ graph: graph2, ...data3 }) => {
-      graph2?.graphData(data3);
+    ).named("links");
+    ref({ graph, nodes: filteredNodes, links: filteredLinks }).named("graphData").watchImmediate(({ graph: graph2, ...data2 }) => {
+      graph2?.graphData(data2);
       graphLastUpdated.update();
     });
     setTimeout(() => {
@@ -1074,13 +1252,7 @@
     }
     get syntheticLinks() {
       const syntheticLinks = [];
-      const { rootClips } = this;
-      let currentParent = rootClips[0];
-      //! Link every clip with children to its root, for better visualization.
-      for (const clip of this.linkedClips.filter(({ children }) => children?.length)) {
-        syntheticLinks.push([(clip.root ?? $throw(`Clip ${clip.id} has no root.`)).id, clip.id, "descendant"]);
-      }
-      ;
+      //! (Moved to the graph renderer)
       return syntheticLinks;
     }
     getTotalDescendants(clipId) {
@@ -1168,5 +1340,6 @@
     };
   }
   mutate(window.vovas, { Colony, colony, debug });
+  debug();
 })();
 }}).main();

@@ -1,5 +1,5 @@
 import { mapKeys } from "./lodashish";
-import { StringKey } from "./types";
+import { Func, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -39,6 +39,11 @@ export function jsonClone<T>(obj: T): T {
 
 export function mutate<T extends {}, U extends {}>(obj: T, partial: U): asserts obj is T & U {
   Object.assign(obj, partial);
+};
+
+export function mutated<T extends {}, U extends {}>(obj: T, partial: U) {
+  mutate(obj, partial);
+  return obj;
 };
 
 let lastCalled = 0;
@@ -112,8 +117,21 @@ export function truthy(value: any) {
   return !!value;
 };
 
-export function debug() {
-  debugger;
+export function debug<TFunc extends Func>(fn: TFunc): TFunc;
+export function debug<T>(arg: T): T;
+export function debug(): void;
+export function debug(arg?: any) {
+  // debugger;
+  // return arg;
+  if ( typeof arg === 'function' ) {
+    return function(...args: Parameters<typeof arg>) {
+      debugger;
+      return arg(...args);
+    } as any;
+  } else {
+    debugger;
+    return arg;
+  };
 };
 
 export function doAndReturn<T>(target: T, fn: (target: T) => void) {
@@ -133,4 +151,25 @@ export function nextTick() {
   return new Promise<void>(resolve => {
     setTimeout(resolve, 0);
   });
+};
+
+export function getOrSet<T, U>(map: Map<T, U>, key: T, defaultValue: U) {
+  const value = map.get(key);
+  if ( value !== undefined ) {
+    return value;
+  };
+  map.set(key, defaultValue);
+  return defaultValue;
+};
+
+// Decorator to log the name, inputs and output of a class method
+export function logMethod(target: any, key: string, descriptor: PropertyDescriptor) {
+  const original = descriptor.value;
+  descriptor.value = function(...args: any[]) {
+    console.log(`Calling ${key} with`, args);
+    const result = original.apply(this, args);
+    console.log(`Result of ${key} is`, result);
+    return result;
+  };
+  return descriptor;
 };

@@ -1,7 +1,8 @@
 //! Smork, the smol framework
-import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla, values } from "../lodashish";
+import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla, uniqueId, values } from "../lodashish";
 import { Func, TypescriptErrorClarification } from "../types";
-import { $with, mutate, nextTick, Undefined } from "../utils";
+import { $with, logMethod, mutate, mutated, nextTick, Undefined } from "../utils";
+import { allRefs, DEV_MODE } from "./devTools";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -17,7 +18,7 @@ export function isRefs<T>(value: any): value is Refs<T> {
 
 export function ref<T>(value: Exclude<T, Func | Refs<any>>): WritableRef<T>;
 export function ref<T>(): WritableRef<T | undefined>;
-export function ref<TRefs extends Record<string, Ref<any>>>(refs: TRefs): ComputedRef<Unrefs<TRefs>>;
+export function ref<TRefs extends Record<string | number | symbol, Ref<any>>>(refs: TRefs): ComputedRef<Unrefs<TRefs>>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
 
@@ -36,13 +37,21 @@ export const NotApplicable = Symbol('NotApplicable');
 
 export class Ref<T> {
 
-  private watchers = new Set<Watcher<T>>();
+  public watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
   public targets = new Set<ComputedRef<any>>();
+  public id = uniqueId('ref-');
+  public name = Undefined<string>();
   
   constructor(
     private _value: T
-  ) { };
+  ) {
+    DEV_MODE && allRefs.add(this);
+  };
+
+  named<Name extends string>(name: Name) {
+    return mutated(this, { name });
+  };
 
   get() {
     currentComputedTracker?.(this);
@@ -51,16 +60,14 @@ export class Ref<T> {
 
   protected _set(value: T) {
     const { _value: oldValue } = this;
-    if ( value !== this._value ) {
+    if ( value !== oldValue ) {
       this._value = value;
-      for ( const target of this.targets ) {
-        target.dirty = true;
-      };
+      this.tarnishTargets();
       try {
         for ( const watcher of this.watchers ) {
           if ( this.activeWatchers.has(watcher) ) {
             console.warn('smork: watcher is already active — perhaps a circular dependency — exiting watch to prevent infinite loop');
-            return;
+            // break;
           };
           this.activeWatchers.add(watcher);
           watcher(value, oldValue);
@@ -69,6 +76,10 @@ export class Ref<T> {
         this.activeWatchers = new WeakSet();
       };
     };
+  };
+
+  protected tarnishTargets() {
+    this.targets.forEach(target => target.tarnish());
   };
 
   watchImmediate(watcher: Watcher<T, T | typeof NotApplicable>) {
@@ -93,7 +104,9 @@ export class Ref<T> {
   map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
     const mapped = new MappedRef(this, nestableGetter);
     if ( isFunction(mapped.value) ) {
-      this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
+      // this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
+      this.targets.delete(mapped);
+      mapped.sources.clear();
       return (...args: TArgs) => new MappedRef(this, 
         value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
       );
@@ -124,11 +137,20 @@ export class Ref<T> {
 
 let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
+/**
+ * A computed reference that derives its value from other references (`sources`) using a getter function.
+ * 
+ * Said references can be either predefined, if passed to the constructor, or dynamically tracked during the getter execution.
+ * 
+ * Computed refs are “lazy,” meaning they will only recalculate when either:
+ * - They are accessed (using the `get` method or the `value` property)
+ * - They are watched
+ */
 export class ComputedRef<T> extends Ref<T> {
 
   readonly sources: Set<Ref<any>>;
   sourcesPredefined = false;
-  dirty = true;
+  private dirty = true;
   
   constructor(
     private getter: () => T,
@@ -141,14 +163,46 @@ export class ComputedRef<T> extends Ref<T> {
     };
   };
 
+  /**
+   * Marks the current ref and its targets as dirty.
+   * 
+   * - If the ref is already dirty, it does nothing.
+   * - If there are watchers on the current object, it triggers the recalculation right away to notify them.
+   * - Otherwise, it marks the targets as dirty but doesn't recalculate them or itself until they are accessed or watched.
+   */
+  tarnish() {
+    if ( this.dirty ) return;
+    this.dirty = true;
+    if ( this.watchers.size ) {
+      this.recalculate();
+    } else {
+      this.tarnishTargets();
+    };
+  };
+
+  /**
+   * Retrieves the value, recalculating it if necessary.
+   * 
+   * If the value is marked as dirty, calls the recalculate method.
+   * Otherwise, returns the value cached during the last recalculation.
+   * 
+   * (Newly created computed refs are dirty by definition, so they will recalculate on the first access.)
+   */
   get() {
     if ( this.dirty ) {
       this.recalculate();
-      this.dirty = false;
     };
     return super.get();
   };
 
+  /**
+   * Recalculates the current state of the ref.
+   * 
+   * - If `sourcesPredefined` is true, it simply calls the `update` method, updating the value according to the getter.
+   * - Otherwise, it clears the sources set, then recalculates the getter while tracking the sources.
+   * 
+   * In both cases, it updates the cached value and marks the ref as clean.
+   */
   private recalculate() {
     if ( this.sourcesPredefined ) return this.update();
     if ( currentComputedTracker ) {
@@ -171,7 +225,13 @@ export class ComputedRef<T> extends Ref<T> {
     }
   };
 
-  update = () => { this._set(this.getter()) }
+  /**
+   * Updates the cached value according to the getter and marks the ref as clean.
+   */
+  update = () => { 
+    this._set(this.getter());
+    this.dirty = false;
+  }
 
 };
 
@@ -194,7 +254,6 @@ export class MappedRef<U, T> extends ComputedRef<U> {
     mapper: (value: T) => U
   ) {
     super(() => mapper(source.value), [source]);
-    source.watch(this.update);
   };
 
 };
