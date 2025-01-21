@@ -7,9 +7,10 @@
   };
 
   // src/lodashish.ts
-  var lastId = 0;
+  var lastIdByPrefix = {};
   function uniqueId(prefix = "") {
-    return `${prefix}${++lastId}`;
+    lastIdByPrefix[prefix] ??= 0;
+    return `${prefix}${++lastIdByPrefix[prefix]}`;
   }
   function mapValues(obj, mapper) {
     return Object.fromEntries(
@@ -39,6 +40,11 @@
   function mutate(obj, partial) {
     Object.assign(obj, partial);
   }
+  function nextTick() {
+    return new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
 
   // src/smork/refs.ts
   //! Smork, the smol framework
@@ -47,15 +53,20 @@
       super(`smork: ${message}`);
     }
   };
-  function ref(valueOrGetter, setter) {
-    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new WritableRef(valueOrGetter);
+  function isRefs(value) {
+    return value && typeof value === "object" && forEach(value, (value2) => value2 instanceof Ref);
   }
+  function ref(valueOrGetter, setter) {
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : isRefs(valueOrGetter) ? new ComputedRef(() => mapValues(valueOrGetter, unref), { dontRetrack: true }) : new WritableRef(valueOrGetter);
+  }
+  var pendingEffects = /* @__PURE__ */ new Set();
   var Ref = class {
     constructor(_value) {
       this._value = _value;
     }
     watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
+    effects = /* @__PURE__ */ new Set();
     get() {
       currentComputedTracker?.(this);
       return this._value;
@@ -70,6 +81,7 @@
               console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
               return;
             }
+            ;
             this.activeWatchers.add(watcher);
             watcher(value, oldValue);
           }
@@ -78,6 +90,17 @@
           this.activeWatchers = /* @__PURE__ */ new WeakSet();
         }
         ;
+        this.effects.forEach(async (effect) => {
+          if (pendingEffects.has(effect)) return;
+          pendingEffects.add(effect);
+          await nextTick();
+          try {
+            effect();
+          } finally {
+            pendingEffects.delete(effect);
+          }
+          ;
+        });
       }
     }
     runAndWatch(watcher) {
@@ -90,6 +113,12 @@
     watchImmediate = this.runAndWatch;
     watch(watcher) {
       this.watchers.add(watcher);
+    }
+    /**
+     * Unlike watchers, effects usually depend on multiple refs, so they are not tied to a specific ref's value. Moreover, they are not run immediately, but on the next tick, and only once, even if multiple refs trigger the same effect.
+     */
+    addEffect(effect) {
+      this.effects.add(effect);
     }
     /**
      * @alias watch
@@ -178,9 +207,10 @@
   }
   var currentComputedTracker = void 0;
   var ComputedRef = class extends Ref {
-    constructor(getter) {
+    constructor(getter, options = {}) {
       super(void 0);
       this.getter = getter;
+      this.options = options;
       this.track();
     }
     _dependencies = /* @__PURE__ */ new Set();
@@ -195,13 +225,16 @@
       this._dependencies = /* @__PURE__ */ new Set();
       try {
         currentComputedTracker = (ref2) => {
-          ref2.watch(this.track);
+          ref2.addEffect(this.options.dontRetrack ? this.update : this.track);
           this._dependencies.add(ref2);
         };
-        this._set(this.getter());
+        this.update();
       } finally {
         currentComputedTracker = void 0;
       }
+    };
+    update = () => {
+      this._set(this.getter());
     };
     get dependencies() {
       return this._dependencies;

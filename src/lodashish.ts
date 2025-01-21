@@ -14,10 +14,11 @@ export function createPredicate<T extends {}, U extends Partial<T>>(filter: U) {
   }
 };
 
-let lastId = 0;
+const lastIdByPrefix: Record<string, number | undefined> = {};
 
 export function uniqueId(prefix = '') {
-  return `${prefix}${++lastId}`;
+  lastIdByPrefix[prefix] ??= 0;
+  return `${prefix}${++lastIdByPrefix[prefix]}`;
 };
 
 export function mapValues<
@@ -101,4 +102,18 @@ export function compact<T>(arr: (T | null | undefined)[]) {
 
 export function isNil(value: any): value is null | undefined {
   return value === null || value === undefined;
+};
+
+const lastCalled = new WeakMap<Func, number>();
+
+export function debounce<T extends Func>(fn: T, milliseconds: number) {
+  return function(...args: Parameters<T>) {
+    const timeToWait = Math.max(0, milliseconds - (Date.now() - (lastCalled.get(fn) || 0)));
+    lastCalled.set(fn, Date.now());
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(fn(...args));
+      }, timeToWait);
+    });
+  } as T;
 };

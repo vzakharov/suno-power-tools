@@ -128,3 +128,9 @@ export function findInSet<T>(set: Set<T>, predicate: (value: T) => boolean) {
     };
   };
 };
+
+export function nextTick() {
+  return new Promise<void>(resolve => {
+    setTimeout(resolve, 0);
+  });
+};

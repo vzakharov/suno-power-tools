@@ -9,9 +9,10 @@
       return Object.entries(filter).every(([key, value]) => item[key] === value);
     };
   }
-  var lastId = 0;
+  var lastIdByPrefix = {};
   function uniqueId(prefix = "") {
-    return `${prefix}${++lastId}`;
+    lastIdByPrefix[prefix] ??= 0;
+    return `${prefix}${++lastIdByPrefix[prefix]}`;
   }
   function mapValues(obj, mapper) {
     return Object.fromEntries(
@@ -95,6 +96,11 @@
   function doAndReturn(target, fn) {
     fn(target);
     return target;
+  }
+  function nextTick() {
+    return new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
   }
 
   // src/cropping.ts
@@ -221,15 +227,20 @@
       super(`smork: ${message}`);
     }
   };
-  function ref(valueOrGetter, setter) {
-    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : new WritableRef(valueOrGetter);
+  function isRefs(value) {
+    return value && typeof value === "object" && forEach(value, (value2) => value2 instanceof Ref);
   }
+  function ref(valueOrGetter, setter) {
+    return isFunction(valueOrGetter) ? computed(valueOrGetter, setter) : isRefs(valueOrGetter) ? new ComputedRef(() => mapValues(valueOrGetter, unref), { dontRetrack: true }) : new WritableRef(valueOrGetter);
+  }
+  var pendingEffects = /* @__PURE__ */ new Set();
   var Ref = class {
     constructor(_value) {
       this._value = _value;
     }
     watchers = /* @__PURE__ */ new Set();
     activeWatchers = /* @__PURE__ */ new WeakSet();
+    effects = /* @__PURE__ */ new Set();
     get() {
       currentComputedTracker?.(this);
       return this._value;
@@ -244,6 +255,7 @@
               console.warn("smork: watcher is already active \u2014 perhaps a circular dependency \u2014 exiting watch to prevent infinite loop");
               return;
             }
+            ;
             this.activeWatchers.add(watcher);
             watcher(value, oldValue);
           }
@@ -252,6 +264,17 @@
           this.activeWatchers = /* @__PURE__ */ new WeakSet();
         }
         ;
+        this.effects.forEach(async (effect) => {
+          if (pendingEffects.has(effect)) return;
+          pendingEffects.add(effect);
+          await nextTick();
+          try {
+            effect();
+          } finally {
+            pendingEffects.delete(effect);
+          }
+          ;
+        });
       }
     }
     runAndWatch(watcher) {
@@ -264,6 +287,12 @@
     watchImmediate = this.runAndWatch;
     watch(watcher) {
       this.watchers.add(watcher);
+    }
+    /**
+     * Unlike watchers, effects usually depend on multiple refs, so they are not tied to a specific ref's value. Moreover, they are not run immediately, but on the next tick, and only once, even if multiple refs trigger the same effect.
+     */
+    addEffect(effect) {
+      this.effects.add(effect);
     }
     /**
      * @alias watch
@@ -352,9 +381,10 @@
   }
   var currentComputedTracker = void 0;
   var ComputedRef = class extends Ref {
-    constructor(getter) {
+    constructor(getter, options = {}) {
       super(void 0);
       this.getter = getter;
+      this.options = options;
       this.track();
     }
     _dependencies = /* @__PURE__ */ new Set();
@@ -369,13 +399,16 @@
       this._dependencies = /* @__PURE__ */ new Set();
       try {
         currentComputedTracker = (ref2) => {
-          ref2.watch(this.track);
+          ref2.addEffect(this.options.dontRetrack ? this.update : this.track);
           this._dependencies.add(ref2);
         };
-        this._set(this.getter());
+        this.update();
       } finally {
         currentComputedTracker = void 0;
       }
+    };
+    update = () => {
+      this._set(this.getter());
     };
     get dependencies() {
       return this._dependencies;
@@ -392,26 +425,6 @@
   }
   function toref(refable) {
     return refable instanceof Ref ? refable : new Ref(refable);
-  }
-  function unrefs(refs2) {
-    return mapValues(refs2, unref);
-  }
-  function torefs(values) {
-    return mapValues(values, toref);
-  }
-  function refs(refables, includeRefs = false) {
-    const writableRef = new WritableRef(unrefs(refables));
-    const refs2 = torefs(refables);
-    forEach(refs2, (ref2, key) => {
-      if (key in writableRef)
-        throw new SmorkError(`Key "${key}" already exists in the joint ref. Please use a different key.`);
-      ref2.watch((value) => {
-        const { [key]: oldValue, ...rest } = writableRef.value;
-        writableRef.value = { ...rest, [key]: value };
-      });
-    });
-    const readonlyRef = writableRef.clone();
-    return includeRefs ? [readonlyRef, refs2] : readonlyRef;
   }
 
   // src/smork/types.ts
@@ -665,7 +678,7 @@
     const graphData = jsonClone(rawData);
     //! again, because ForceGraph mutates the data
     const graph = graphContainer.mapDefined((container2) => {
-      const graph2 = new GraphRenderer(container2).graphData(graphData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
+      const graph2 = new GraphRenderer(container2).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
         (clip) => div([
           ClipCard(clip),
           div({ class: "smol" }, [
@@ -681,6 +694,7 @@
         graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
       }
       ;
+      Object.assign(window, { graph: graph2 });
       return graph2;
     });
     const data2 = graph.map((graph2) => graph2?.graphData());
@@ -691,7 +705,7 @@
       await render(this, rawData, { mode });
     }
     ;
-    refs({ graph, showNextLinks }).map(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
+    ref({ graph, showNextLinks }).map(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
       graph2?.linkVisibility((link2) => {
         return !{
           descendant: true,
@@ -711,30 +725,31 @@
       return (candidate) => sameId(original, candidate);
     }
     ;
-    const reusableData = refs({ data: data2, graph }).map(({ data: data3, graph: graph2 }) => {
+    const graphLastUpdated = ref(Date.now);
+    const reusableData = ref({ data: data2, graph }).map(({ data: data3, graph: graph2 }) => {
       const existing = graph2?.graphData();
       return existing ? data3 && {
         nodes: data3.nodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
         links: data3.links.map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2)
       } : data3;
     });
-    const matchingNodes = refs({ reusableData, filterString, graph }).map(({ reusableData: { nodes: nodes2 } = {}, filterString: filter, graph: graph2 }) => {
+    const matchingNodes = ref({ reusableData, filterString, graph }).map(({ reusableData: { nodes: nodes2 } = {}, filterString: filter, graph: graph2 }) => {
       if (!nodes2 || !graph2) return [];
       if (!filter) return nodes2;
       filter = filter.toLowerCase();
       return nodes2.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
     });
-    refs({ graph, matchingNodes }).map(
+    ref({ graph, matchingNodes }).map(
       ({ graph: graph2, matchingNodes: matchingNodes2 }) => graph2?.nodeVal((node) => matchingNodes2.some((n) => n.id === node.id) ? 3 : node.val)
     );
-    const nodes = refs({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes: nodes2 } = {} }) => {
+    const nodes = ref({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes: nodes2 } = {} }) => {
       return [
         ...matchingNodes2,
         ...nodes2?.filter((node) => matchingNodes2.some((n) => n.rootId === node.rootId && n.id !== node.id)) ?? []
         // (^same root nodes)
       ];
     });
-    const nextLinks = refs({ nodes, useNextLinks }).map(({ nodes: nodes2, useNextLinks: useNextLinks2 }) => {
+    const nextLinks = ref({ nodes, useNextLinks }).map(({ nodes: nodes2, useNextLinks: useNextLinks2 }) => {
       if (!nodes2 || !useNextLinks2)
         return [];
       sortByDate(nodes2);
@@ -746,7 +761,7 @@
         isMain: false
       }));
     });
-    const descendantLinks = refs({ nodes, useDescendantLinks }).map(({ nodes: nodes2, useDescendantLinks: useDescendantLinks2 }) => {
+    const descendantLinks = ref({ nodes, useDescendantLinks }).map(({ nodes: nodes2, useDescendantLinks: useDescendantLinks2 }) => {
       if (!nodes2 || !useDescendantLinks2)
         return [];
       return compact(nodes2.map((node) => {
@@ -759,7 +774,7 @@
         } : null;
       }));
     });
-    const links = refs({ reusableData, nodes, nextLinks, descendantLinks }).map(
+    const links = ref({ reusableData, nodes, nextLinks, descendantLinks }).map(
       ({ reusableData: { links: links2 } = {}, nodes: nodes2, nextLinks: nextLinks2, descendantLinks: descendantLinks2 }) => {
         if (!links2 || !nodes2) return [];
         return [
@@ -769,8 +784,9 @@
         ];
       }
     );
-    refs({ graph, nodes, links }).map(({ graph: graph2, ...data3 }) => {
+    ref({ graph, nodes, links }).watchImmediate(({ graph: graph2, ...data3 }) => {
       graph2?.graphData(data3);
+      graphLastUpdated.update();
     });
     setTimeout(() => {
       useNextLinks.set(false);

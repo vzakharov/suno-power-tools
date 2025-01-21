@@ -1,11 +1,11 @@
 import { default as ForceGraph } from 'force-graph';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode, LinkKind } from "../../scripts/colony";
 import { audio, button, Checkbox, div, h3, If, importScript, Labeled, p, style, TextInput } from '../../smork/dom';
-import { assignTo, ref, refs } from '../../smork/refs';
+import { assignTo, ref } from '../../smork/refs';
 import { $throw, doAndReturn, findInSet, jsonClone, sortByDate, Undefined } from '../../utils';
 import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
-import { compact } from '../../lodashish';
+import { compact, debounce } from '../../lodashish';
 
 export async function render(
   ctx: Colony,
@@ -54,7 +54,7 @@ export async function render(
 
   const graph = graphContainer.mapDefined(container => {
     const graph = new GraphRenderer<ColonyNode, ProcessedLink>(container)
-      .graphData(graphData)
+      // .graphData(graphData)
       .backgroundColor('#001')
       .linkAutoColorBy('kind')
       .nodeAutoColorBy('rootId')
@@ -79,6 +79,7 @@ export async function render(
     } else {
       graph.linkLineDash(l => l.isMain ? null : [1, 2])
     };
+    Object.assign(window, { graph });
     return graph;
   });
 
@@ -91,7 +92,7 @@ export async function render(
     await render(this, rawData, { mode });
   };
 
-  refs({ graph, showNextLinks }).map(({ graph, showNextLinks }) => {
+  ref({ graph, showNextLinks }).map(({ graph, showNextLinks }) => {
     graph?.linkVisibility(link => {
       return !{
         descendant: true,
@@ -111,7 +112,8 @@ export async function render(
     return (candidate: NodeOrId) => sameId(original, candidate);
   };
   
-  const reusableData = refs({ data, graph }).map(({ data, graph }) => {
+  const graphLastUpdated = ref(Date.now);
+  const reusableData = ref({ data, graph }).map(({ data, graph }) => {
     const existing = graph?.graphData();
     return existing ? data && {
       nodes: data.nodes.map(node => existing.nodes.find(sameIdAs(node)) ?? node),
@@ -119,18 +121,18 @@ export async function render(
     } : data;
   });
 
-  const matchingNodes = refs({ reusableData, filterString, graph }).map(({ reusableData: { nodes } = {}, filterString: filter, graph }) => {
+  const matchingNodes = ref({ reusableData, filterString, graph }).map(({ reusableData: { nodes } = {}, filterString: filter, graph }) => {
     if ( !nodes || !graph ) return [];
     if ( !filter ) return nodes;
     filter = filter.toLowerCase();
     return nodes.filter(node => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
   });
 
-  refs({ graph, matchingNodes }).map(({ graph, matchingNodes }) =>
+  ref({ graph, matchingNodes }).watchImmediate(({ graph, matchingNodes }) =>
     graph?.nodeVal(node => matchingNodes.some(n => n.id === node.id) ? 3 : node.val)
   );
 
-  const nodes = refs({ matchingNodes, reusableData }).map(({ matchingNodes, reusableData: { nodes } = {} }) => {    
+  const nodes = ref({ matchingNodes, reusableData }).map(({ matchingNodes, reusableData: { nodes } = {} }) => {    
     return [
       ...matchingNodes,
       ...nodes?.filter(node => matchingNodes.some(n => n.rootId === node.rootId && n.id !== node.id)) ?? []
@@ -138,7 +140,7 @@ export async function render(
     ];
   });
 
-  const nextLinks = refs({ nodes, useNextLinks }).map(({ nodes, useNextLinks }) => {
+  const nextLinks = ref({ nodes, useNextLinks }).map(({ nodes, useNextLinks }) => {
     if ( !nodes || !useNextLinks )
       return [];
     sortByDate(nodes);
@@ -151,7 +153,7 @@ export async function render(
     }));
   });
   
-  const descendantLinks = refs({ nodes, useDescendantLinks }).map(({ nodes, useDescendantLinks }) => {
+  const descendantLinks = ref({ nodes, useDescendantLinks }).map(({ nodes, useDescendantLinks }) => {
     if ( !nodes || !useDescendantLinks )
       return [];
     return compact(nodes.map(node => {
@@ -165,7 +167,7 @@ export async function render(
     }));
   });
 
-  const links = refs({ reusableData, nodes, nextLinks, descendantLinks }).map(
+  const links = ref({ reusableData, nodes, nextLinks, descendantLinks }).map(
     ({ reusableData: { links } = {}, nodes, nextLinks, descendantLinks }) => {
       if ( !links || !nodes ) return [];
       return [
@@ -176,8 +178,9 @@ export async function render(
     }
   );
 
-  refs({ graph, nodes, links }).map(({ graph, ...data }) => {
+  ref({ graph, nodes, links }).watchImmediate(({ graph, ...data }) => {
     graph?.graphData(data);
+    graphLastUpdated.update();
   });
 
   setTimeout(() => {

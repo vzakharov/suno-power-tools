@@ -149,3 +149,4 @@ export function If<TValue, TYesNode extends SmorkNode, TNoNode extends SmorkNode
 ) {
   return condition.map(value => value ? ifYes : ifNo);
 };
+export type If = ReturnType<typeof If>;

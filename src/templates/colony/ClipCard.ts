@@ -14,3 +14,4 @@ export function ClipCard({ id, image_url, name, tags }: ColonyNode) {
     ])
   ]);
 };
+export type ClipCard = ReturnType<typeof ClipCard>;

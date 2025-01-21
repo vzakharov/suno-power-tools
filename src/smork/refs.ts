@@ -1,7 +1,7 @@
 //! Smork, the smol framework
 import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla } from "../lodashish";
 import { Func, TypescriptErrorClarification } from "../types";
-import { $with, mutate } from "../utils";
+import { $with, mutate, nextTick } from "../utils";
 
 export class SmorkError extends Error {
   constructor(message: string) {
@@ -9,23 +9,37 @@ export class SmorkError extends Error {
   };
 };
 
-export function ref<T>(value: Exclude<T, Func>): WritableRef<T>;
+export type Refs<T> = { [K in keyof T]: Ref<T[K]> };
+
+export function isRefs<T>(value: any): value is Refs<T> {
+  return value && typeof value === 'object' && forEach(value, value => value instanceof Ref);
+};
+
+export function ref<T>(value: Exclude<T, Func | Refs<any>>): WritableRef<T>;
 export function ref<T>(): WritableRef<T | undefined>;
+export function ref<TRefs extends Record<string, Ref<any>>>(refs: TRefs): ComputedRef<Unrefs<TRefs>>;
 export function ref<T>(getter: () => T): ComputedRef<T>;
 export function ref<T>(getter: () => T, setter: (value: T) => void): SetterRef<T>;
 
-export function ref<T>(valueOrGetter?: T | (() => T), setter?: (value: T) => void) {
+export function ref<T>(valueOrGetter?: T | Refs<T> | (() => T), setter?: (value: T) => void) {
   return isFunction(valueOrGetter) 
     ? computed(valueOrGetter, setter)
-    : new WritableRef(valueOrGetter);
+    : 
+      isRefs(valueOrGetter)
+        ? new ComputedRef(() => mapValues(valueOrGetter, unref), { dontRetrack: true })
+        : new WritableRef(valueOrGetter);
 };
 
 export type Watcher<T> = (value: T, oldValue: T) => void;
+export type Effect = () => void;
+
+const pendingEffects = new Set<Effect>();
 
 export class Ref<T> {
 
   private watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
+  private effects = new Set<Effect>();
   
   constructor(
     private _value: T
@@ -45,13 +59,23 @@ export class Ref<T> {
           if ( this.activeWatchers.has(watcher) ) {
             console.warn('smork: watcher is already active — perhaps a circular dependency — exiting watch to prevent infinite loop');
             return;
-          }
+          };
           this.activeWatchers.add(watcher);
           watcher(value, oldValue);
         };
       } finally {
         this.activeWatchers = new WeakSet();
       };
+      this.effects.forEach(async effect => {
+        if ( pendingEffects.has(effect) ) return;
+        pendingEffects.add(effect);
+        await nextTick();
+        try {
+          effect();
+        } finally {
+          pendingEffects.delete(effect);
+        };
+      });
     }
   };
 
@@ -67,6 +91,13 @@ export class Ref<T> {
 
   watch(watcher: Watcher<T>) {
     this.watchers.add(watcher);
+  };
+
+  /**
+   * Unlike watchers, effects usually depend on multiple refs, so they are not tied to a specific ref's value. Moreover, they are not run immediately, but on the next tick, and only once, even if multiple refs trigger the same effect.
+   */
+  addEffect(effect: Effect) {
+    this.effects.add(effect);
   };
 
   /**
@@ -198,6 +229,15 @@ let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 export class ComputedRef<T> extends Ref<T> {
 
   private _dependencies = new Set<Ref<any>>();
+  constructor(
+    private getter: () => T,
+    private options: {
+      dontRetrack?: boolean
+    } = {}
+  ) {
+    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
+    this.track();
+  };
 
   track = () => {
     if ( currentComputedTracker ) {
@@ -209,25 +249,20 @@ export class ComputedRef<T> extends Ref<T> {
     this._dependencies = new Set();
     try {
       currentComputedTracker = ref => {
-        ref.watch(this.track);
+        ref.addEffect(this.options.dontRetrack ? this.update : this.track);
         this._dependencies.add(ref);
       };
-      this._set(this.getter());
+      this.update();
     } finally {
       currentComputedTracker = undefined;
     }
   };
 
+  update = () => { this._set(this.getter()) }
+
   get dependencies() {
     return this._dependencies;
   }
-
-  constructor(
-    private getter: () => T
-  ) {
-    super(undefined as any); // we need to initialize with an empty value to avoid running the getter twice (once in the constructor and once in the track method)
-    this.track();
-  };
 
 };
 
@@ -299,25 +334,3 @@ export function torefs<T extends Record<string, any>>(values: T) {
 };
 
 export type Unrefs<T extends Refables<any>> = ReturnType<typeof unrefs<T>>;
-
-type NoOverlap<T, U> = 
-  keyof T & keyof U extends never 
-    ? T 
-    : TypescriptErrorClarification<`'${Extract<keyof T & keyof U, string>}' cannot be used as a key"`>;
-
-export function refs<T extends Record<string, any>>(refables: Refables<T>): Ref<T>;
-export function refs<T extends Record<string, any>>(refables: Refables<T>, includeRefs: true): [ jointRef: Ref<T>, refs: { [K in keyof T]: Ref<T[K]> } ];
-export function refs<T extends Record<string, any>>(refables: Refables<T>, includeRefs = false) {
-  const writableRef = new WritableRef(unrefs<T>(refables));
-  const refs = torefs<T>(refables);
-  forEach(refs, (ref, key) => {
-    if ( key in writableRef )
-      throw new SmorkError(`Key "${key}" already exists in the joint ref. Please use a different key.`);
-    ref.watch(value => {
-      const { [key]: oldValue, ...rest } = writableRef.value;
-      writableRef.value = { ...rest, [key]: value } as T;
-    });
-  });
-  const readonlyRef: Ref<T> = writableRef.clone();
-  return includeRefs ? [ readonlyRef, refs ] as const : readonlyRef;
-};
