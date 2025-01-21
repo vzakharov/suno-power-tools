@@ -134,13 +134,13 @@ export async function devTools() {
   
   new ForceGraph<Node>(graphContainer)
     .graphData(graphData)
-    .onNodeClick(({ ref, element }) => { 
+    .onNodeClick(({ ref, element, watcher }) => { 
       console.log(
         ...ref 
-          ? [ ref, ref['_value'] ] // to avoid TypeScript complaining about accessing a private property
-          : [ element ]
+          ? [ ref['_value'], ref ] // to avoid TypeScript complaining about accessing a private property
+          : [ element ?? watcher ]
       );
-      mutate(window, { $: ref ?? element });
+      mutate(window, { $: ref ?? element ?? watcher });
     })
     .nodeAutoColorBy('class')
     .nodeCanvasObjectMode(({ ref, element }) => ref ? 'after' : element && 'replace')

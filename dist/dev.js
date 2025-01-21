@@ -183,6 +183,12 @@
     wbr: () => wbr
   });
 
+  // src/types.ts
+  var BRAND = Symbol("brand");
+  function infer(inferable, value) {
+    return isFunction(inferable) ? inferable(value) : inferable;
+  }
+
   // src/smork/types.ts
   var TAGS = ["a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select", "slot", "small", "source", "span", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr"];
 
@@ -381,7 +387,7 @@
     });
   }
   function If(condition, ifYes, ifNo = Undefined()) {
-    return condition.map((value) => value ? ifYes : ifNo);
+    return condition.map((value) => value ? infer(ifYes, value) : infer(ifNo));
   }
 
   // src/smork/devTools.ts
@@ -468,11 +474,11 @@
     let maxIndex = 0;
     const indexByString = /* @__PURE__ */ new Map();
     const getColorForString = (string) => getColorForIndex(getOrSet(indexByString, string, ++maxIndex));
-    new ForceGraph(graphContainer).graphData(graphData).onNodeClick(({ ref: ref2, element }) => {
+    new ForceGraph(graphContainer).graphData(graphData).onNodeClick(({ ref: ref2, element, watcher }) => {
       console.log(
-        ...ref2 ? [ref2, ref2["_value"]] : [element]
+        ...ref2 ? [ref2["_value"], ref2] : [element ?? watcher]
       );
-      mutate(window, { $: ref2 ?? element });
+      mutate(window, { $: ref2 ?? element ?? watcher });
     }).nodeAutoColorBy("class").nodeCanvasObjectMode(({ ref: ref2, element }) => ref2 ? "after" : element && "replace").nodeCanvasObject(({ ref: ref2, element, x, y, val }, ctx) => {
       if (ref2?.name && x && y) {
         ctx.font = "10px Arial";

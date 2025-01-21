@@ -1,5 +1,5 @@
 import { forEach, uniqueId } from "../lodashish";
-import { Inferable } from "../types";
+import { infer, Inferable } from "../types";
 import { $with, debug, getOrSet, Undefined } from "../utils";
 import { allElements, DEV_MODE, refToElementLinks } from "./devTools";
 import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
@@ -140,14 +140,11 @@ export async function $import<T>(windowKey: string, src: string) {
   });
 };
 
-export function If<TValue, TNode extends SmorkNode>(condition: Ref<TValue | undefined>, ifYes: Inferable<TNode, TValue>): TNode | null
-export function If<TNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TNode, boolean>): TNode | null;
-export function If<TYesNode extends SmorkNode, TNoNode extends SmorkNode>(condition: Ref<boolean>, ifYes: Inferable<TYesNode, boolean>, ifNo: Inferable<TNoNode, boolean>): TYesNode | TNoNode;
-export function If<TValue, TYesNode extends SmorkNode, TNoNode extends SmorkNode>(
-  condition: Ref<TValue | undefined>,
-  ifYes: Inferable<TYesNode, NonNullable<TValue>>,
-  ifNo = Undefined<Inferable<TNoNode, NonNullable<TValue>>>()
+export function If<T>(
+  condition: Ref<T>,
+  ifYes: Inferable<SmorkNode, NonNullable<T>>,
+  ifNo = Undefined<Inferable<SmorkNode, void>>()
 ) {
-  return condition.map(value => value ? ifYes : ifNo);
+  return condition.map(value => value ? infer(ifYes, value) : infer(ifNo));
 };
 export type If = ReturnType<typeof If>;
