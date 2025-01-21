@@ -810,10 +810,11 @@
   async function render(ctx, rawData, {
     mode = Undefined()
   }) {
+    const fullData = jsonClone(rawData);
+    //! because ForceGraph mutates the data
     const in3D = mode?.toLowerCase() === "3d";
     const hideUI = ref(false).named("hideUI");
     const showUI = hideUI.map((hide) => !hide).named("showUI");
-    const graphContainer = ref().named("graphContainer");
     const useNextLinks = ref(true).named("useNextLinks");
     const useDescendantLinks = ref(true).named("useDescendantLinks");
     const filterString = ref("").named("filterString");
@@ -828,7 +829,7 @@
     const nodesById = /* @__PURE__ */ new Map();
     function nodeById(id2) {
       return nodesById.get(id2) ?? doAndReturn(
-        reusableData.value?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
+        fullData?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
         (node) => nodesById.set(id2, node)
       );
     }
@@ -836,40 +837,36 @@
     const GraphRenderer = await $import("ForceGraph", `https://unpkg.com/${in3D ? "3d-" : ""}force-graph`);
     window.document.head.appendChild(style([colonyCss]));
     //! because ForceGraph mutates links by including source and target nodes instead of their IDs
-    const rawDataClone = jsonClone(rawData);
-    //! again, because ForceGraph mutates the data
-    const graph = graphContainer.mapDefined((container2) => {
-      const graph2 = new GraphRenderer(container2).graphData(rawDataClone).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
-        (clip) => div([
-          ClipCard(clip),
-          div({ class: "smol" }, [
-            "Click to play, right-click to open in Suno"
-          ])
-        ]).outerHTML
-      ).onNodeClick(assignTo(selectedClip)).onNodeRightClick(({ id: id2 }) => {
-        window.open(`https://suno.com/song/${id2}`);
-      });
-      if (in3D) {
-        graph2.linkOpacity((l) => l.isMain ? 1 : 0.2);
-      } else {
-        graph2.linkLineDash((l) => l.isMain ? null : [1, 2]);
-      }
-      ;
-      Object.assign(window, { graph: graph2 });
-      return graph2;
-    }).named("graph");
+    const graphContainer = div();
+    const graph = new GraphRenderer(graphContainer).graphData(fullData).backgroundColor("#001").linkAutoColorBy("kind").nodeAutoColorBy("rootId").linkLabel("kind").linkDirectionalParticles(1).nodeLabel(
+      (clip) => div([
+        ClipCard(clip),
+        div({ class: "smol" }, [
+          "Click to play, right-click to open in Suno"
+        ])
+      ]).outerHTML
+    ).onNodeClick(assignTo(selectedClip)).onNodeRightClick(({ id: id2 }) => {
+      window.open(`https://suno.com/song/${id2}`);
+    });
+    if (in3D) {
+      graph.linkOpacity((l) => l.isMain ? 1 : 0.2);
+    } else {
+      graph.linkLineDash((l) => l.isMain ? null : [1, 2]);
+    }
+    ;
+    Object.assign(window, { graph });
     async function redrawGraph() {
       new FinalizationRegistry(() => console.log("Previous graph destroyed, container removed from memory")).register(graph, "");
-      graph.value?._destructor();
+      graph._destructor();
       container.remove();
       await render(this, rawData, { mode });
     }
     ;
-    ref({ graph, showNextLinks }).named("linkVisibility").watchImmediate(({ graph: graph2, showNextLinks: showNextLinks2 }) => {
-      graph2?.linkVisibility((link2) => {
+    showNextLinks.watchImmediate((show) => {
+      graph.linkVisibility((link2) => {
         return !{
           descendant: true,
-          next: !showNextLinks2
+          next: !show
         }[link2.kind];
       });
     });
@@ -886,39 +883,32 @@
     }
     ;
     const graphLastUpdated = ref(Date.now).named("graphLastUpdated");
-    const reusableData = ref({ graph, updated: graphLastUpdated }).map(({ graph: graph2 }) => {
-      const data2 = rawDataClone;
-      const existing = graph2?.graphData();
-      return existing ? data2 && {
-        nodes: data2.nodes.map((node) => existing.nodes.find(sameIdAs(node)) ?? node),
-        links: data2.links.map((link2) => existing.links.find((l) => sameId(link2.source, l.source) && sameId(link2.target, l.target)) ?? link2)
-      } : data2;
-    }).named("reusableData");
-    const matchingNodes = ref({ reusableData, filterString, graph }).map(({ reusableData: { nodes } = {}, filterString: filter, graph: graph2 }) => {
-      if (!nodes || !graph2) return [];
+    const matchingNodes = filterString.map((filter) => {
+      const { nodes } = fullData;
+      //! Note that we are not watching reusableData, just accessing it here
       if (!filter) return nodes;
       filter = filter.toLowerCase();
       return nodes.filter((node) => `${node.id} ${node.name} ${node.tags} ${node.created_at}`.toLowerCase().includes(filter));
     }).named("matchingNodes");
-    ref({ graph, matchingNodes }).named("highlightNodes").watchImmediate(
-      ({ graph: graph2, matchingNodes: matchingNodes2 }) => graph2?.nodeVal((node) => matchingNodes2.some((n) => n.id === node.id) ? 3 : node.val)
+    matchingNodes.watchImmediate(
+      (nodes) => graph.nodeVal((node) => nodes.some((n) => n.id === node.id) ? 3 : node.val)
     );
-    const filteredNodes = ref({ matchingNodes, reusableData }).map(({ matchingNodes: matchingNodes2, reusableData: { nodes } = {} }) => {
-      return [
-        ...matchingNodes2,
-        ...nodes?.filter((node) => matchingNodes2.some((n) => n.rootId === node.rootId && n.id !== node.id)) ?? []
+    const filteredNodes = ref({ filter: filterString, nodes: matchingNodes }).map(({ filter, nodes }) => {
+      return filter ? [
+        ...nodes,
+        ...fullData.nodes?.filter((node) => !nodes.includes(node) && nodes.some((n) => n.rootId === node.rootId)) ?? []
         // (^same root nodes)
-      ];
+      ] : nodes;
     }).named("nodes");
-    const linksBetweenFilteredNodes = ref({ reusableData, nodes: filteredNodes }).map(({ reusableData: { links } = {}, nodes }) => {
-      if (!links || !nodes) return [];
-      return links.filter((link2) => nodes.some(sameIdAs(link2.source)) && nodes.some(sameIdAs(link2.target)));
+    const linksBetweenFilteredNodes = filteredNodes.map((nodes) => {
+      if (!nodes) return [];
+      return fullData.links.filter((link2) => nodes.some(sameIdAs(link2.source)) && nodes.some(sameIdAs(link2.target)));
     }).named("linksBetweenFilteredNodes");
     const nextLinks = ref({ nodes: filteredNodes, useNextLinks }).map(({ nodes, useNextLinks: useNextLinks2 }) => {
       if (!nodes || !useNextLinks2)
         return [];
       sortByDate(nodes);
-      return nodes.slice(1).map((node, i2) => ({
+      return nodes.filter((node) => node.rootId === node.id).slice(1).map((node, i2) => ({
         source: nodes[i2].id,
         target: node.id,
         kind: "next",
@@ -948,8 +938,8 @@
         ];
       }
     ).named("links");
-    ref({ graph, nodes: filteredNodes, links: filteredLinks }).named("graphData").watchImmediate(({ graph: graph2, ...data2 }) => {
-      graph2?.graphData(data2);
+    ref({ nodes: filteredNodes, links: filteredLinks }).named("graphData").watchImmediate((data2) => {
+      graph.graphData(data2);
       graphLastUpdated.update();
     });
     setTimeout(() => {
@@ -967,7 +957,7 @@
           If(
             showUI,
             div({ style: "flex-direction: column; height: 100vh; width: 100vh; background-color: #000;" }, [
-              graphContainer.value = div(),
+              graphContainer,
               div({ id: "sidebar" }, [
                 div({ class: "settings f-col" }, [
                   button({
