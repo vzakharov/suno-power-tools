@@ -2,5 +2,6 @@ import { Ref, SetterRef, computed, ComputedRef, WritableRef, ref } from "../smor
 import { Storage } from "../storage";
 import { mutate } from "../utils";
 import * as dom from "../smork/dom";
+import { unclass } from "../unclass";
 
-mutate(window, { ref, computed, Ref, WritableRef, ComputedRef, SetterRef, ...dom });
+mutate(window, { unclass });

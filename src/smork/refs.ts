@@ -1,7 +1,7 @@
 //! Smork, the smol framework
-import { assign, forEach, identity, isFunction, isNil, mapValues, mapzilla, uniqueId, values } from "../lodashish";
-import { Func, TypescriptErrorClarification } from "../types";
-import { $with, logMethod, mutate, mutated, nextTick, Undefined } from "../utils";
+import { assign, identity, isFunction, mapValues, uniqueId, values } from "../lodashish";
+import { Func } from "../types";
+import { $with, mutated, Undefined } from "../utils";
 import { allRefs, DEV_MODE } from "./devTools";
 
 export class SmorkError extends Error {
