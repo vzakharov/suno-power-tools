@@ -1,5 +1,7 @@
 import { isFunction } from "./lodashish";
 
+export type Defined<T> = Exclude<T, undefined>;
+
 const BRAND = Symbol('brand');
 
 export type Branded<Brand, T> = T & { [BRAND]: Brand };

@@ -1,18 +1,7 @@
+import { concat } from "./lodashish";
 import { mutated } from "./utils";
 
-function guessName(func: Function) {
-  const name = func.name;
-  if (name) {
-    return name;
-  }
-  const match = func.toString().match(/^function\s*([^\s(]+)/);
-  if (match) {
-    return match[1];
-  }
-  return "anonymous";
-}
-
-export function unclass<T extends object & {}>(factory: () => T) {
+export function unclass<TName extends string, T extends object & {}>(name: TName, factory: () => T) {
   
   const BRAND = Symbol(factory.name);
 
@@ -20,7 +9,8 @@ export function unclass<T extends object & {}>(factory: () => T) {
     return object && typeof object === 'object' && object[BRAND] === true;
   };
 
-  const unclassedTypeName = `Unclassed<${guessName(factory)}>`;
+  const unclassedTypeName = concat('Unclassed<', name, '>');
+
   return mutated(
     function Factory() {
       return mutated(factory(), {

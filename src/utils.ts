@@ -173,3 +173,49 @@ export function logMethod(target: any, key: string, descriptor: PropertyDescript
   };
   return descriptor;
 };
+
+// export function defineAccessors<
+//   T extends {}, 
+//   U extends Record<string, <V>(obj: T) => { get(): V, set?(value: V): void }>
+// >(
+//   obj: T,
+//   accessors: U,
+// ): obj is T & {
+//   readonly [K in keyof U as ReturnType<U[K]>['set'] extends undefined ? K : never]: ReturnType<ReturnType<U[K]>['get']>
+// } & {
+//   [K in keyof U as ReturnType<U[K]>['set'] extends undefined ? never : K]: ReturnType<ReturnType<U[K]>['get']>
+// } {
+//   for ( const key in accessors ) {
+//     Object.defineProperty(obj, key, {
+//       get: accessors[key](obj).get,
+//       set: accessors[key](obj).set,
+//     });
+//   };
+//   return true;
+// };
+
+export function defineAccessor<T, Key extends string, V>(
+  obj: T,
+  key: Key,
+  getter: (obj: T) => V,
+  // setter?: (obj: T, value: V) => void,
+): obj is T & { readonly [K in Key]: V };
+export function defineAccessor<T, Key extends string, V>(
+  obj: T,
+  key: Key,
+  getter: (obj: T) => V,
+  setter: (obj: T, value: V) => void,
+): obj is { [K in Key]: V } & T;
+
+export function defineAccessor<T, Key extends string, V>(
+  obj: T,
+  key: Key,
+  getter: (obj: T) => V,
+  setter?: (obj: T, value: V) => void,
+) {
+  Object.defineProperty(obj, key, {
+    get: () => getter(obj),
+    set: setter ? (value: V) => setter(obj, value) : undefined,
+  });
+  return true;
+};

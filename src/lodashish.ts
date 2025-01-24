@@ -121,3 +121,10 @@ export function debounce<T extends Func>(fn: T, milliseconds: number) {
 export function values<T extends {}>(obj: T) {
   return Object.values(obj) as T[keyof T][];
 };
+
+export function concat<S1 extends string, S2 extends string>(s1: S1, s2: S2): `${S1}${S2}`;
+export function concat<S1 extends string, S2 extends string, S3 extends string>(s1: S1, s2: S2, s3: S3): `${S1}${S2}${S3}`;
+export function concat<S1 extends string, S2 extends string, S3 extends string, S4 extends string>(s1: S1, s2: S2, s3: S3, s4: S4): `${S1}${S2}${S3}${S4}`;
+export function concat(...strings: string[]) {
+  return strings.join('') as any;
+};
