@@ -1,8 +1,7 @@
 //! Smork, the smol framework
 import { assign, identity, isFunction, mapValues, uniqueId, values } from "../lodashish";
-import { Defined, Func } from "../types";
-import { unclass, unclasses } from "../unclass";
-import { $with, defineAccessor, defineAccessors, mutate, mutated, Undefined } from "../utils";
+import { Func } from "../types";
+import { $with, mutated, Undefined } from "../utils";
 import { allRefs, DEV_MODE } from "./devTools";
 
 export class SmorkError extends Error {
@@ -36,223 +35,105 @@ export type Watcher<T, TOld = T> = (value: T, oldValue: TOld) => void;
 
 export const NotApplicable = Symbol('NotApplicable');
 
-// export class Ref<T> {
+export class Ref<T> {
 
-//   public watchers = new Set<Watcher<T>>();
-//   private activeWatchers = new WeakSet<Watcher<T>>();
-//   public targets = new Set<ComputedRef<any>>();
-//   public id = uniqueId('ref-');
-//   public name = Undefined<string>();
+  public watchers = new Set<Watcher<T>>();
+  private activeWatchers = new WeakSet<Watcher<T>>();
+  public targets = new Set<ComputedRef<any>>();
+  public id = uniqueId('ref-');
+  public name = Undefined<string>();
   
-//   constructor(
-//     private _value: T
-//   ) {
-//     DEV_MODE && allRefs.add(this);
-//   };
-
-//   named<Name extends string>(name: Name) {
-//     return mutated(this, { name });
-//   };
-
-//   get() {
-//     currentComputedTracker?.(this);
-//     return this._value;
-//   };
-
-//   protected _set(value: T) {
-//     const { _value: oldValue } = this;
-//     if ( value !== oldValue ) {
-//       this._value = value;
-//       this.tarnishTargets();
-//       try {
-//         for ( const watcher of this.watchers ) {
-//           if ( this.activeWatchers.has(watcher) ) {
-//             console.warn('smork: watcher is already active — perhaps a circular dependency — exiting watch to prevent infinite loop');
-//             // break;
-//           };
-//           this.activeWatchers.add(watcher);
-//           watcher(value, oldValue);
-//         };
-//       } finally {
-//         this.activeWatchers = new WeakSet();
-//       };
-//     };
-//   };
-
-//   protected tarnishTargets() {
-//     this.targets.forEach(target => target.tarnish());
-//   };
-
-//   watchImmediate(watcher: Watcher<T, T | typeof NotApplicable>) {
-//     watcher(this.value, NotApplicable);
-//     this.watch(watcher);
-//   };
-
-//   watch(watcher: Watcher<T>) {
-//     this.watchers.add(watcher);
-//   };
-
-//   unwatch(watcher: Watcher<T>) {
-//     this.watchers.delete(watcher);
-//   };
-
-//   get value() {
-//     return this.get();
-//   };
-
-//   map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, Ref<U>>;
-//   map<U>(getter: Func<[T], U>): Ref<U>;
-//   map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
-//     const mapped = new MappedRef(this, nestableGetter);
-//     if ( isFunction(mapped.value) ) {
-//       // this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
-//       this.targets.delete(mapped);
-//       mapped.sources.clear();
-//       return (...args: TArgs) => new MappedRef(this, 
-//         value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
-//       );
-//     };
-//     return mapped as any;
-//   };
-
-//   mapDefined<U>(callback: (value: T & ({} | null)) => U) {
-//     return this.map(value => value !== undefined ? callback(value) : undefined);
-//   };
-
-//   uses<
-//     U extends Record<string, (value: T) => any>
-//   >(methods: U) {
-//     return assign(this, mapValues(methods, this.map)) as this & {
-//       [K in keyof U]:
-//         ReturnType<U[K]> extends Func<infer TArgs, infer TReturn>
-//           ? Func<TArgs, MappedRef<TReturn, T>>
-//           : MappedRef<ReturnType<U[K]>, T>
-//     };
-//   };
-
-//   setter(setter = (value: T) => this._set(value)) {
-//     return new SetterRef(this, setter);
-//   };
-
-// };
-
-// export type Ref<T> = ReturnType<typeof Ref<T>>;
-export function Ref<T>(value: T) {
-  
-  function accessor(): T;
-  function accessor(setValue: Defined<T>): void;
-  function accessor(setValue?: T | Defined<T>) {
-    if ( setValue !== undefined ) {
-      _set(setValue);
-    } else {
-      return get();
-    };
+  constructor(
+    private _value: T
+  ) {
+    DEV_MODE && allRefs.add(this);
   };
 
-  const refObject = {};
-  
-  // DEV_MODE && allRefs.add(refObject);
+  named<Name extends string>(name: Name) {
+    return mutated(this, { name });
+  };
 
-  const watchers = new Set<Watcher<T>>();
-  let activeWatchers = new WeakSet<Watcher<T>>();
-  const targets = new Set<ComputedRef<any>>();
-  const id = uniqueId('ref-');
-  const name = Undefined<string>();
+  get() {
+    currentComputedTracker?.(this);
+    return this._value;
+  };
 
-  mutate(refObject, {
-    watchers,
-    targets,
-    id,
-    name,
-    named: <Name extends string>(name: Name) => mutated(refObject, { name }),
-  });
-
-  const get = () => (
-    currentComputedTracker?.(refObject),
-    value
-  );
-
-  function _set(setValue: T) {
-    const oldValue = value;
-    if ( setValue !== oldValue ) {
-      value = setValue;
-      tarnishTargets();
+  protected _set(value: T) {
+    const { _value: oldValue } = this;
+    if ( value !== oldValue ) {
+      this._value = value;
+      this.tarnishTargets();
       try {
-        for ( const watcher of watchers ) {
-          if ( activeWatchers.has(watcher) ) {
+        for ( const watcher of this.watchers ) {
+          if ( this.activeWatchers.has(watcher) ) {
             console.warn('smork: watcher is already active — perhaps a circular dependency — exiting watch to prevent infinite loop');
             // break;
           };
-          activeWatchers.add(watcher);
+          this.activeWatchers.add(watcher);
           watcher(value, oldValue);
         };
       } finally {
-        activeWatchers = new WeakSet();
+        this.activeWatchers = new WeakSet();
       };
     };
   };
 
-  function tarnishTargets() {
-    targets.forEach(target => target.tarnish());
+  protected tarnishTargets() {
+    this.targets.forEach(target => target.tarnish());
   };
 
-  mutate(refObject, { tarnishTargets });
+  watchImmediate(watcher: Watcher<T, T | typeof NotApplicable>) {
+    watcher(this.value, NotApplicable);
+    this.watch(watcher);
+  };
 
-  const watch = (watcher: Watcher<T>) => watchers.add(watcher);
-  const unwatch = (watcher: Watcher<T>) => watchers.delete(watcher);
+  watch(watcher: Watcher<T>) {
+    this.watchers.add(watcher);
+  };
 
-  mutate(refObject, { watch, unwatch,
+  unwatch(watcher: Watcher<T>) {
+    this.watchers.delete(watcher);
+  };
 
-    watchImmediate: (watcher: Watcher<T, T | typeof NotApplicable>) => (
-      watcher(value, NotApplicable),
-      watch(watcher)
-    )
+  get value() {
+    return this.get();
+  };
 
-  });
-
-  function map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, Ref<U>>;
-  function map<U>(getter: Func<[T], U>): Ref<U>;
-  function map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
-    const mapped = new MappedRef(refObject, nestableGetter);
+  map<U, TArgs extends any[]>(nestedGetter: Func<[T], Func<TArgs, U>>): Func<TArgs, Ref<U>>;
+  map<U>(getter: Func<[T], U>): Ref<U>;
+  map<U, TArgs extends any[]>(nestableGetter: Func<[T], U | Func<TArgs, U>>) {
+    const mapped = new MappedRef(this, nestableGetter);
     if ( isFunction(mapped.value) ) {
-      targets.delete(mapped);
+      // this.unwatch(mapped.update); // to not watch the getter itself, and to allow the mapped ref to be garbage collected
+      this.targets.delete(mapped);
       mapped.sources.clear();
-      return (...args: TArgs) => new MappedRef(refObject, 
+      return (...args: TArgs) => new MappedRef(this, 
         value => (nestableGetter as (value: T) => (...args: TArgs) => U)(value)(...args)
       );
     };
     return mapped as any;
   };
 
-  mutate(refObject, { map,
+  mapDefined<U>(callback: (value: T & ({} | null)) => U) {
+    return this.map(value => value !== undefined ? callback(value) : undefined);
+  };
 
-    mapDefined: <U>(callback: (value: T & ({} | null)) => U) => 
-      map(value => value !== undefined ? callback(value) : undefined),
-
-    uses: <
-      U extends Record<string, (value: T) => any>
-    >(methods: U) => assign(refObject, mapValues(methods, map)) as Ref<T> & {
+  uses<
+    U extends Record<string, (value: T) => any>
+  >(methods: U) {
+    return assign(this, mapValues(methods, this.map)) as this & {
       [K in keyof U]:
         ReturnType<U[K]> extends Func<infer TArgs, infer TReturn>
           ? Func<TArgs, MappedRef<TReturn, T>>
           : MappedRef<ReturnType<U[K]>, T>
-    },
+    };
+  };
 
-    setter: (setter = (value: T) => _set(value)) => new SetterRef(refObject, setter),
-
-  });
-
-  const ref = mutated(accessor, refObject);
-
-  defineAccessor(refObject, 'value', get);
-
-  return refObject
-
+  setter(setter = (value: T) => this._set(value)) {
+    return new SetterRef(this, setter);
+  };
 
 };
-
-const r = Ref(3);
-r.value
 
 let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
