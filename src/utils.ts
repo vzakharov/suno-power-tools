@@ -1,5 +1,5 @@
 import { mapKeys } from "./lodashish";
-import { Func, StringKey } from "./types";
+import { Defined, Func, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -153,10 +153,9 @@ export function nextTick() {
   });
 };
 
-export function getOrSet<T, U>(map: Map<T, U>, key: T, defaultValue: U) {
-  const value = map.get(key);
-  if ( value !== undefined ) {
-    return value;
+export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: U) {
+  if ( map.has(key) ) {
+    return map.get(key)!;
   };
   map.set(key, defaultValue);
   return defaultValue;
@@ -174,48 +173,56 @@ export function logMethod(target: any, key: string, descriptor: PropertyDescript
   return descriptor;
 };
 
-// export function defineAccessors<
-//   T extends {}, 
-//   U extends Record<string, <V>(obj: T) => { get(): V, set?(value: V): void }>
-// >(
-//   obj: T,
-//   accessors: U,
-// ): obj is T & {
-//   readonly [K in keyof U as ReturnType<U[K]>['set'] extends undefined ? K : never]: ReturnType<ReturnType<U[K]>['get']>
-// } & {
-//   [K in keyof U as ReturnType<U[K]>['set'] extends undefined ? never : K]: ReturnType<ReturnType<U[K]>['get']>
-// } {
-//   for ( const key in accessors ) {
-//     Object.defineProperty(obj, key, {
-//       get: accessors[key](obj).get,
-//       set: accessors[key](obj).set,
-//     });
-//   };
-//   return true;
-// };
-
-export function defineAccessor<T, Key extends string, V>(
+export function withAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
   // setter?: (obj: T, value: V) => void,
-): obj is T & { readonly [K in Key]: V };
-export function defineAccessor<T, Key extends string, V>(
+): T & { readonly [K in Key]: V };
+export function withAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
   setter: (obj: T, value: V) => void,
-): obj is { [K in Key]: V } & T;
+): { [K in Key]: V } & T;
 
-export function defineAccessor<T, Key extends string, V>(
+export function withAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
   setter?: (obj: T, value: V) => void,
 ) {
-  Object.defineProperty(obj, key, {
+  return Object.defineProperty(obj, key, {
     get: () => getter(obj),
     set: setter ? (value: V) => setter(obj, value) : undefined,
   });
-  return true;
+};
+
+export type Register<T extends WeakKey, U> = ReturnType<typeof VerboseRegister<T, U>>;
+
+function VerboseRegister<TKey extends WeakKey, TValue>() {
+
+  const register = new WeakMap<TKey, TValue>();
+
+  return function<T extends TValue>(key: TKey, defaultValue: T) {
+
+    function access(): T;
+    function access(value: T): void;
+    function access(value?: T) {
+      if ( arguments.length ) {
+        register.set(key, value as T);
+      } else {
+        return getOrSet(register, key, defaultValue);
+      };
+    };
+
+    return access
+  };
+
+};
+
+export function Register<TKey extends WeakKey>(): Register<TKey, any>;
+export function Register<TKey extends WeakKey, TValue>(): Register<TKey, TValue>;
+export function Register<TKey extends WeakKey, TValue>() {
+  return VerboseRegister<TKey, TValue>();
 };
