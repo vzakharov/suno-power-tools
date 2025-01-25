@@ -153,14 +153,6 @@ export function nextTick() {
   });
 };
 
-export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: U) {
-  if ( map.has(key) ) {
-    return map.get(key)!;
-  };
-  map.set(key, defaultValue);
-  return defaultValue;
-};
-
 // Decorator to log the name, inputs and output of a class method
 export function logMethod(target: any, key: string, descriptor: PropertyDescriptor) {
   const original = descriptor.value;
@@ -198,31 +190,48 @@ export function withAccessor<T, Key extends string, V>(
   });
 };
 
-export type Register<T extends WeakKey, U> = ReturnType<typeof VerboseRegister<T, U>>;
+export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: U) {
+  if ( map.has(key) ) {
+    return map.get(key)!;
+  };
+  map.set(key, defaultValue);
+  return defaultValue;
+};
 
-function VerboseRegister<TKey extends WeakKey, TValue>() {
+export function Register<TKey extends WeakKey, TValue>() {
 
   const register = new WeakMap<TKey, TValue>();
 
-  return function<T extends TValue>(key: TKey, defaultValue: T) {
+    function accessor(key: TKey) {
 
-    function access(): T;
-    function access(value: T): void;
-    function access(value?: T) {
-      if ( arguments.length ) {
-        register.set(key, value as T);
-      } else {
-        return getOrSet(register, key, defaultValue);
+      function init<T extends TValue>(defaultValue: T) {
+
+        function access(): T;
+        function access(value: T): void;
+        function access(value?: T) {
+          if ( arguments.length ) {
+            register.set(key, value as T);
+          } else {
+            return getOrSet(register, key, defaultValue);
+          };
+        };
+
+        return access;
+
       };
-    };
 
-    return access
+      return init;
   };
 
+  return accessor;
+
 };
 
-export function Register<TKey extends WeakKey>(): Register<TKey, any>;
-export function Register<TKey extends WeakKey, TValue>(): Register<TKey, TValue>;
-export function Register<TKey extends WeakKey, TValue>() {
-  return VerboseRegister<TKey, TValue>();
+export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;
+
+export function MetaRegister<TValue = any>() {
+  const register = Register<Symbol, TValue>();
+  return register(Symbol());
 };
+
+export type MetaRegister<TValue> = ReturnType<typeof MetaRegister<TValue>>;
