@@ -213,55 +213,53 @@ export function FunctionAccessor<T>(getter: () => T, setter: (value: T) => void)
 
 export type FunctionAccessor<T> = ReturnType<typeof FunctionAccessor<T>>;
 
-export function Register<TKey extends WeakKey, TValue>() {
+export function WrappedRegister<TKey extends WeakKey, TValue>() {
 
   const register = new WeakMap<TKey, TValue>();
 
-  function keyedAccessor(key: TKey) {
-    function init<T extends TValue>(defaultValue: T) {
-      return fullAccessor(key, defaultValue);
-    };
-    return init;
-  };
+  function wrappedAccessor(key: TKey) {
 
-  function valuedAccessor<T extends TValue>(initValue: () => T) {
-    function init(key: TKey) {
-      return fullAccessor(key, initValue());
+    function init<T extends TValue>(defaultValue: T) {
+
+      return FunctionAccessor<T>(
+        () => getOrSet(register, key, defaultValue) as T,
+        value => register.set(key, value)
+      );
+
     };
+
     return init;
   };
 
   function fullAccessor<T extends TValue>(key: TKey, defaultValue: T) {
-    return FunctionAccessor<T>(
-      () => getOrSet(register, key, defaultValue) as T,
-      value => register.set(key, value)
-    );
+    return wrappedAccessor(key)(defaultValue);
   };
 
-  function accessor<T extends TValue>(initValue: () => T): ReturnType<typeof valuedAccessor<T>>;
-  function accessor(key: TKey): ReturnType<typeof keyedAccessor>;
+  function accessor(key: TKey): ReturnType<typeof wrappedAccessor>;
   function accessor<T extends TValue>(key: TKey, defaultValue: T): ReturnType<typeof fullAccessor<T>>;
-  function accessor<T extends TValue>(one: TKey | Func<[], T>, two?: T) {
-    return arguments.length === 1
-      ? typeof one === 'function'
-        ? valuedAccessor(one)
-        : keyedAccessor(one)
-      : fullAccessor(one as TKey, two as T);
+  function accessor(key: TKey, defaultValue?: TValue) {
+    return arguments.length === 1 ? wrappedAccessor(key) : fullAccessor(key, defaultValue!);
   };
 
   return accessor;
 
 };
+export type WrappedRegister<TKey extends WeakKey, TValue> = ReturnType<typeof WrappedRegister<TKey, TValue>>;
 
-// export function ValuedRegister<TValue>(defaultValue: TValue) {
-//   const register = WrappedRegister<WeakKey, TValue>();
-//   return register;
-// }
+export function InitableRegister<TKey extends WeakKey, TValue>(initValue: () => TValue) {
+  const register = WrappedRegister<TKey, TValue>();
+  return (key: TKey) => register(key, initValue());
+};
+export type ValuedRegister<TKey extends WeakKey, TValue> = ReturnType<typeof InitableRegister<TKey, TValue>>;
 
-export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;
+export function Register<TKey extends WeakKey, TValue>(): WrappedRegister<TKey, TValue>;
+export function Register<TKey extends WeakKey, TValue>(key: Func<any[], TKey>, initValue: () => TValue): ValuedRegister<TKey, TValue>;
+export function Register<TKey extends WeakKey, TValue>(initValue?: () => TValue) {
+  return initValue ? InitableRegister(initValue) : WrappedRegister();
+};
 
 export function MetaRegister<TValue = any>() {
-  const register = Register<Symbol, TValue>();
+  const register = WrappedRegister<Symbol, TValue>();
   return register(Symbol());
 };
 
