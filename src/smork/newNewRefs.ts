@@ -1,5 +1,5 @@
 import { forEach, isFunction, uniqueId } from "../lodashish";
-import { Defined, Func, Inferable, NonFunction, TypingError, Undefined } from "../types";
+import { Defined, Func, Inferable, NonFunction, NOT_SET, NotSet, TypingError, Undefined } from "../types";
 import { Undefinable } from "../types";
 import { addAccessor, DataRegister, getOrSet, Register } from "../utils";
 
@@ -24,29 +24,25 @@ type Target = [
   iteration: number,
 ];
 
-let currentComputee = Undefined<Target>();
-// const computeeIteration = new WeakMap<AnyRef, Symbol>();
+// let currentComputee = Undefined<Target>();
+const computeeStack = [] as Target[];
 
-const RefRegister = <T>(initValue: Inferable<T, AnyRef>) => Register(Ref<any>, initValue);
-type RefRegister<T> = ReturnType<typeof RefRegister<T>>;
-
-// const dirtySources = RefRegister(0);
-// const computeeIteration = RefRegister(0);
-// const targetRegister = RefRegister(new Set<Target>());
 const refData = DataRegister(Ref<any>, {
   dirtySources: 0,
-  computeeIteration: 0,
+  iteration: 0,
   targets: () => new Set<Target>(),
 });
 
-function tarnish(target: Target) {
-  const [ ref, iteration ] = target;
-  const data = refData(ref);
-  if ( data.computeeIteration !== iteration ) {
-    data.dirtySources++;
-    data.targets.forEach(tarnish);
-  };
-}
+const [ tarnish, clean ] = [ +1, -1 ].map(
+  increment => (target: Target) => {
+    const [ ref, iteration ] = target;
+    const data = refData(ref);
+    if ( data.iteration !== iteration ) {
+      data.dirtySources += increment;
+      data.targets.forEach(increment === +1 ? tarnish : clean);
+    };
+  }
+);
 
 export function ref<T>(value: NonFunction<T>): Ref<T, { writable: true }>;
 export function ref<T>(getter: () => T): Ref<T, { writable: false }>;
@@ -61,26 +57,33 @@ export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>)
     value?: Defined<T>,
   ) => {
 
+    let cachedValue = NotSet<T>();
+
     const data = refData(self);
     const { targets } = data;
 
     if ( value === undefined ) {
 
-      function get() {
+      if ( cachedValue === NOT_SET || data.dirtySources ) {
+
+        const target = computeeStack.at(-1);
+        target && targets.add(target);
+
+        computeeStack.push([ self, data.iteration++ ]);
+        try {
+          const newValue = getter();
+          if ( newValue === cachedValue ) {
+            targets.forEach(clean); // i.e. this value isn't changed, no need to recompute the target at least as far as this source is concerned
+          } else {
+            cachedValue = newValue;
+          };
+        } finally {
+          computeeStack.pop();
+        };
+
       };
 
-      if ( currentComputee ) {
-        targets.add(currentComputee);
-        return get()
-      } else {
-        // currentComputee = [ self, computeeIteration(self).value++ ];
-        currentComputee = [ self, data.computeeIteration++ ];
-        try {
-          return get();
-        } finally {
-          currentComputee = undefined; // in case something goes wrong, we want to make sure we don't leave it in a bad state
-        }
-      };
+      return cachedValue;
 
     } else {
       if ( setter === undefined ) {
@@ -88,6 +91,7 @@ export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>)
       };
       setter(value);
       targets.forEach(tarnish);
+      return value;
     };
 
   });

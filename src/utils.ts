@@ -233,29 +233,48 @@ export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => 
 
 export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
 
+type LastItem<T extends any[]> = T extends [...infer _, infer Last] ? Last : never;
+
+export function SingletonFor<TKeys extends WeakKey[]>(...keys: TKeys) {
+
+  const map = keys
+    .slice(0, -1)
+    .reduce<WeakMap<any, any>>(
+      (map, key) =>
+        getOrSet(map, key, () => new WeakMap())
+      , new WeakMap()
+    ) as WeakMap<LastItem<TKeys>, any>;
+
+  return <T>(initializer: () => T) => {
+    return getOrSet(map, keys[keys.length - 1], initializer) as T;
+  };
+
+};
+export type SingletonFor<TKeys extends WeakKey[]> = ReturnType<typeof SingletonFor<TKeys>>;
+
 export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
   const map = new WeakMap<TKey, TValue>();
 
-  return (key: TKey) => addAccessor({}, 'value', 
+  return (key: TKey) => SingletonFor(map, key)(() => addAccessor({}, 'value',
     () => getOrSet(map, key, initValue),
     (value: TValue) => map.set(key, value),
-  );
+  ));
 
 };
 
 export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;
 
 export function DataRegister<TKey extends WeakKey, TInits extends Record<string, any>>(keyFactory: Func<any[], TKey>, initializers: TInits) {
-  const registers = mapValues(initializers, (initValue, key) => Register(keyFactory, initValue));
-  return (key: TKey) => {
+  const registers = mapValues(initializers, initValue => Register(keyFactory, initValue));
+  return (key: TKey) => SingletonFor(registers, key)(() => {
     const data = {};
-    forEach(initializers, (initValue, propName) => {
+    forEach(initializers, (_initValue, propName) => {
       addAccessor(data, propName, 
         () => registers[propName](key).value,
         (value) => registers[propName](key).value = value,
       );
     });
     return data as { [K in keyof TInits]: TInits[K] extends Func<any[], infer V> ? V : TInits[K] };
-  };
+  });
 };
 export type DataRegister<TKey extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof DataRegister<TKey, TInits>>;

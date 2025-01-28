@@ -1,6 +1,12 @@
 import { isFunction } from "./lodashish";
 import { mutated } from "./utils";
 
+export const NOT_SET = Symbol('NOT_SET');
+export type NotSet = typeof NOT_SET;
+export function NotSet<T>() {
+  return NOT_SET as NotSet | T;
+}
+
 export type Defined<T> = Exclude<T, undefined>;
 export type Undefinable<T> = T | undefined;
 export function Undefined<T>(value?: T) {
