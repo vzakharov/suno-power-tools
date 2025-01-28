@@ -198,12 +198,6 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
   return value;
 };
 
-// export type FunctionalAccessor<T, Readonly extends boolean> = 
-// {
-//   (): T;
-//   (value: Defined<T>): Readonly extends true ? never : T;
-// };
-
 export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)>(
   getter: () => T,
   setter?: Setter
@@ -233,31 +227,42 @@ export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => 
 
 export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
 
-type LastItem<T extends any[]> = T extends [...infer _, infer Last] ? Last : never;
+const SINGLETON_MAP = new WeakMap<WeakKey, any>();
 
-export function SingletonFor<TKeys extends WeakKey[]>(...keys: TKeys) {
+export type Singleton<T> = T;
 
-  const map = keys
-    .slice(0, -1)
-    .reduce<WeakMap<any, any>>(
-      (map, key) =>
-        getOrSet(map, key, () => new WeakMap())
-      , new WeakMap()
-    ) as WeakMap<LastItem<TKeys>, any>;
+export interface SingletonFactory {
+  <T>(initializer: () => T, options?: {
+    by: WeakKey[];
+  }): Singleton<T>;
+  by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton<T>;
+}
 
-  return <T>(initializer: () => T) => {
-    return getOrSet(map, keys[keys.length - 1], initializer) as T;
-  };
+export const Singleton = Object.assign(
+  function<T>(
+    initializer: () => T, {
+      by: keys = [] as WeakKey[]
+    } = {}
+  ) {
+    let map = SINGLETON_MAP;
 
-};
-export type SingletonFor<TKeys extends WeakKey[]> = ReturnType<typeof SingletonFor<TKeys>>;
+    for ( const key of keys.slice(0, -1) ) {
+      map = getOrSet(map, key, () => new WeakMap());
+    };
+    return getOrSet(map, keys.at(-1) ?? SINGLETON_MAP, initializer) as T;
+  }, { 
+    by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton(initializer, { by: keys }) 
+  }
+) as SingletonFactory;
 
 export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
   const map = new WeakMap<TKey, TValue>();
 
-  return (key: TKey) => SingletonFor(map, key)(() => addAccessor({}, 'value',
+  // return (key: TKey) => Singleton(() => addAccessor({}, 'value',
+  return (key: TKey) => Singleton.by(map, key)(() => addAccessor({}, 'value',
     () => getOrSet(map, key, initValue),
     (value: TValue) => map.set(key, value),
+  // ), { by: [ map, key ] });
   ));
 
 };
@@ -266,7 +271,7 @@ export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<
 
 export function DataRegister<TKey extends WeakKey, TInits extends Record<string, any>>(keyFactory: Func<any[], TKey>, initializers: TInits) {
   const registers = mapValues(initializers, initValue => Register(keyFactory, initValue));
-  return (key: TKey) => SingletonFor(registers, key)(() => {
+  return (key: TKey) => Singleton.by(registers, key)(() => {
     const data = {};
     forEach(initializers, (_initValue, propName) => {
       addAccessor(data, propName, 
