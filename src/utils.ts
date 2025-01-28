@@ -1,4 +1,4 @@
-import { isFunction, mapKeys } from "./lodashish";
+import { forEach, isFunction, mapKeys, mapValues } from "./lodashish";
 import { Defined, Func, infer, Inferable, StringKey, TypingError } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
@@ -164,25 +164,25 @@ export function logMethod(target: any, key: string, descriptor: PropertyDescript
 export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
-  getter: (obj: T) => V,
+  getter: () => V,
   // setter?: (obj: T, value: V) => void,
 ): T & { readonly [K in Key]: V };
 export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
-  getter: (obj: T) => V,
-  setter: (obj: T, value: V) => void,
+  getter: () => V,
+  setter: (value: V) => void,
 ): { [K in Key]: V } & T;
 
 export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
-  getter: (obj: T) => V,
-  setter?: (obj: T, value: V) => void,
+  get: () => V,
+  set?: (value: V) => void,
 ) {
   return Object.defineProperty(obj, key, {
-    get: () => getter(obj),
-    set: setter ? (value: V) => setter(obj, value) : undefined,
+    get,
+    set
   });
 };
 
@@ -233,26 +233,29 @@ export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => 
 
 export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
 
-export class ValueAccessor<TKey extends WeakKey, TValue> {
-  
-  constructor(
-    private map: WeakMap<TKey, TValue>,
-    private key: TKey,
-    private initValue: Inferable<TValue, TKey>) {
-  };
-
-  get value() {
-    return getOrSet(this.map, this.key, this.initValue);
-  };
-
-  set value(value: TValue) {
-    this.map.set(this.key, value);
-  };
-
-};
-
 export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
   const map = new WeakMap<TKey, TValue>();
-  return (key: TKey) => new ValueAccessor(map, key, initValue);
+
+  return (key: TKey) => addAccessor({}, 'value', 
+    () => getOrSet(map, key, initValue),
+    (value: TValue) => map.set(key, value),
+  );
+
 };
+
 export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;
+
+export function DataRegister<TKey extends WeakKey, TInits extends Record<string, any>>(keyFactory: Func<any[], TKey>, initializers: TInits) {
+  const registers = mapValues(initializers, (initValue, key) => Register(keyFactory, initValue));
+  return (key: TKey) => {
+    const data = {};
+    forEach(initializers, (initValue, propName) => {
+      addAccessor(data, propName, 
+        () => registers[propName](key).value,
+        (value) => registers[propName](key).value = value,
+      );
+    });
+    return data as { [K in keyof TInits]: TInits[K] extends Func<any[], infer V> ? V : TInits[K] };
+  };
+};
+export type DataRegister<TKey extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof DataRegister<TKey, TInits>>;

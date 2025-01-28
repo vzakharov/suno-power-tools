@@ -1,7 +1,7 @@
 import { forEach, isFunction, uniqueId } from "../lodashish";
 import { Defined, Func, Inferable, NonFunction, TypingError, Undefined } from "../types";
 import { Undefinable } from "../types";
-import { addAccessor, getOrSet, Register } from "../utils";
+import { addAccessor, DataRegister, getOrSet, Register } from "../utils";
 
 export const NonWritableRefError = () => new TypingError('Cannot write to a non-writable ref');
 export type NonWritableRefError = ReturnType<typeof NonWritableRefError>;
@@ -27,15 +27,24 @@ type Target = [
 let currentComputee = Undefined<Target>();
 // const computeeIteration = new WeakMap<AnyRef, Symbol>();
 
-const dirtySources = Register(Ref<any>, 0);
-const computeeIteration = Register(Ref<any>, 0);
-const targetRegister = Register(Ref<any>, () => new Set<Target>());
+const RefRegister = <T>(initValue: Inferable<T, AnyRef>) => Register(Ref<any>, initValue);
+type RefRegister<T> = ReturnType<typeof RefRegister<T>>;
+
+// const dirtySources = RefRegister(0);
+// const computeeIteration = RefRegister(0);
+// const targetRegister = RefRegister(new Set<Target>());
+const refData = DataRegister(Ref<any>, {
+  dirtySources: 0,
+  computeeIteration: 0,
+  targets: () => new Set<Target>(),
+});
 
 function tarnish(target: Target) {
   const [ ref, iteration ] = target;
-  if ( computeeIteration(ref).value !== iteration ) {
-    dirtySources(ref).value++;
-    targetRegister(ref).value.forEach(tarnish);
+  const data = refData(ref);
+  if ( data.computeeIteration !== iteration ) {
+    data.dirtySources++;
+    data.targets.forEach(tarnish);
   };
 }
 
@@ -48,14 +57,12 @@ export function ref<T>(getterOrValue: T | (() => T), setter?: (value: T) => void
 
 export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>) {
 
-  // const targets = new Set<Target>();
-  // recomputees.add(self);
-
   const self = <Ref<T, RefOptions>>((
     value?: Defined<T>,
   ) => {
 
-    const targets = targetRegister(self).value;
+    const data = refData(self);
+    const { targets } = data;
 
     if ( value === undefined ) {
 
@@ -66,7 +73,8 @@ export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>)
         targets.add(currentComputee);
         return get()
       } else {
-        currentComputee = [ self, computeeIteration(self).value++ ];
+        // currentComputee = [ self, computeeIteration(self).value++ ];
+        currentComputee = [ self, data.computeeIteration++ ];
         try {
           return get();
         } finally {
