@@ -1,5 +1,4 @@
-import { Func, Inferable } from "./types";
-import { addAccessor, getOrSet } from "./utils";
+import { getOrSet, mutated } from "./utils";
 
 const SINGLETON_MAP = new WeakMap<WeakKey, any>();
 
@@ -16,18 +15,10 @@ function createSingleton<T>(
   return getOrSet(map, keys.at(-1) ?? SINGLETON_MAP, initializer) as T;
 };
 
-type PlainSingletonFactory = typeof createSingleton;
-
-const SINGLETON_CHAINED_FACTORIES = {
-  by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton(initializer, { by: keys })
-};
-
-type SingletonChainFactories = typeof SINGLETON_CHAINED_FACTORIES;
-
-export type SingletonFactory = PlainSingletonFactory & SingletonChainFactories;
-
-export const Singleton = Object.assign(
-  createSingleton, SINGLETON_CHAINED_FACTORIES
-) as SingletonFactory;
+export const Singleton = mutated(
+  createSingleton, {
+    by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton(initializer, { by: keys })
+  }
+);
 
 export type Singleton<T> = ReturnType<typeof createSingleton<T>>;
