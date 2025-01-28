@@ -24,62 +24,6 @@ fs.rmSync(outputPath, { recursive: true, force: true });
 fs.mkdirSync(outputPath);
 // const prebuilt = resolvable();
 
-// fs.readdir(templatesPath, (err, files) => {
-//   if (err) {
-//     console.error('Failed to read templates directory:', err);
-//     return;
-//   }
-
-//   Promise.all(files.filter(file => fs.statSync(path.join(templatesPath, file)).isDirectory()).map(
-//     async folder => {
-//       try {
-
-//         const tsFile = path.join(templatesPath, folder, `standalone.ts`);
-//         console.log('Pre-building template', folder, 'from', tsFile);
-//         if (!fs.existsSync(tsFile)) {
-//           console.warn(`No script found for template ${folder}, skipping...`);
-//           return;
-//         };
-
-//         const outfile = path.join(templatesPath, folder, 'standalone_compiled.js');
-//         // Delete the file if it exists
-//         if (fs.existsSync(outfile)) {
-//           fs.rmSync(outfile);
-//         };
-
-//         await esbuild.build({
-//           entryPoints: [tsFile],
-//           outfile,
-//           bundle: true,
-//           platform: 'browser',
-//           format: 'iife',
-//           legalComments: 'none',
-//           banner: {
-//             // js: 'export const render_compiled = () => '
-//             js: 'export function render_compiled() {\nwindow.render_compiled = arguments.callee;\n'
-//           },
-//           footer: {
-//             js: '}\n'
-//           }
-//         });
-
-//         fs.chmodSync(outfile, '444');
-
-//         const cssFile = path.join(templatesPath, folder, 'style.css');
-//         const css = fs.readFileSync(cssFile, 'utf8').replace(/\n\s*/g, '');
-//         fs.writeFileSync(
-//           path.join(templatesPath, folder, 'css.js'),
-//           `export const ${folder}Css = ${JSON.stringify(css)};`
-//         );
-
-//       } catch (err) {
-//         console.error('Pre-build failed:', err);
-//         process.exit(1);
-//       }
-//     }
-//   )).then(prebuilt.resolve);
-// });
-// await prebuilt.promise;
 fs.readdir(scriptsPath, (err, files) => {
 
   if (err) {
@@ -87,7 +31,11 @@ fs.readdir(scriptsPath, (err, files) => {
     return;
   }
 
-  files.filter(file => file.endsWith('.ts')).forEach(
+  files.filter(file => 
+    // file.endsWith('.ts')
+    // If there's an argument, only build that script
+    process.argv.length < 3 ? file.endsWith('.ts') : file === `${process.argv[2]}.ts`
+  ).forEach(
     async file => {
       try {
 

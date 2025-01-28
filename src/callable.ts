@@ -1,11 +1,9 @@
 import { Func } from "./types";
 import { $throw } from "./utils";
 
-export const CallableMethod = Symbol('CallableMethod');
-
 export const Callable = (
   function() {
-    const func = this.constructor.prototype[CallableMethod];
+    const func = this.constructor.prototype.call;
     function apply() {
       return func.apply(apply, arguments);
     };
@@ -17,7 +15,7 @@ export const Callable = (
   }
 ) as unknown as {
   new <F extends Func>() : F & {
-    [CallableMethod](...args: Parameters<F>): ReturnType<F>;
+    call(...args: Parameters<F>): ReturnType<F>;
   };
 };
 
@@ -27,7 +25,7 @@ Callable.prototype = Object.create(Function.prototype);
 
 class SomeClass extends Callable<Func<[string], number>> {
 
-  [CallableMethod](arg: string) {
+  call(arg: string) {
     return arg.length;
   };
 

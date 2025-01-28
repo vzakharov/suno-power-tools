@@ -1,6 +1,13 @@
 import { isFunction } from "./lodashish";
+import { mutated } from "./utils";
 
 export type Defined<T> = Exclude<T, undefined>;
+export type Undefinable<T> = T | undefined;
+export function Undefined<T>(value?: T) {
+  return value;
+};
+export type Undefined<T> = Undefinable<T>;
+export const Undefinable = Undefined;
 
 const BRAND = Symbol('brand');
 
@@ -16,6 +23,8 @@ export type UnionToIntersection<U> =
 export type StringKey<T> = Extract<keyof T, string>;
 
 export type Func<TArgs extends any[] = any[], TReturn = any> = (...args: TArgs) => TReturn;
+
+export type NonFunction<T> = T extends Func ? never : T;
 
 export type KeyWithValueOfType<TType, TRecord> = {
   [K in keyof TRecord]: TRecord[K] extends TType ? K : never;
@@ -33,9 +42,27 @@ export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value?
   return isFunction(inferable) ? inferable(value as any) : inferable;
 };
 
-export type TypescriptErrorClarification<T extends string> = T & {
-  readonly __brand: unique symbol;
-};
+// const TypingErrorMarker = Symbol('typescript-error');
+// export const TypingError = mutated(
+//   <T extends string>(message: T) => (
+//     { [TypingErrorMarker]: message }
+//   ), {
+//     test: (candidate: any): candidate is typeof TypingError =>
+//       TypingErrorMarker in candidate
+//   }
+// );
+
+// export type TypingError<T extends string> = ReturnType<typeof TypingError<T>>;
+export class TypingError<T extends string> extends Error {
+  constructor(message: T) {
+    super(message);
+  };
+}
+
+// export type TypescriptError<T extends string> = {
+//   // readonly __brand: unique symbol;
+//   readonly [TypescriptError$]: T;
+// };
 
 /**
  * Constructs a type by making properties optional if their type includes `undefined`.

@@ -3,7 +3,8 @@ import { compact } from '../../lodashish';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode } from "../../scripts/colony";
 import { $import, audio, button, Checkbox, div, h3, If, Labeled, p, style, TextInput } from '../../smork/dom';
 import { assignTo, ref } from '../../smork/refs';
-import { $throw, doAndReturn, jsonClone, sortByDate, Undefined } from '../../utils';
+import { $throw, doAndReturn, jsonClone, sortByDate } from '../../utils';
+import { Undefined } from "../../types";
 import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
 
@@ -30,7 +31,7 @@ export async function render(
   const selectedClip = ref<ColonyNode>().named('selectedClip');
   selectedClip.watch(() => 
     setTimeout(() => { // we want to make sure the element is updated before we try to play it
-      audioElement.value?.play();
+      audioElement()?.play();
     }, 0)
   );
 
@@ -204,8 +205,8 @@ export async function render(
     });
 
   setTimeout(() => {
-    useNextLinks.set(false);
-    useDescendantLinks.set(false);
+    useNextLinks(false);
+    useDescendantLinks(false);
   }, 2000);
   //! (We need to start with using time-based/root forces for a more interesting initial layout, but we want to release them then because they kinda look bad)
   
@@ -220,7 +221,7 @@ export async function render(
             div({ class: 'settings f-col' }, [
               button({ 
                 style: 'margin-bottom: 5px;',
-                onclick: () => hideUI.set(true)
+                onclick: () => hideUI(true)
               }, [
                 'Close Colony'
               ]),
@@ -256,14 +257,16 @@ export async function render(
             If(selectedClip, clip => {
               return div({ class: 'w-100' }, [
                 ClipCard(clip),
-                audioElement.value = audio({ src: clip.audio_url, controls: true, class: 'w-100' })
+                audioElement(
+                  audio({ src: clip.audio_url, controls: true, class: 'w-100' })
+                )
               ])
             })
           ])
         ]),
         button({ 
           style: 'position: fixed; top: 0px; left: 0px; padding: 5px; z-index: 100;',
-          onclick: () => hideUI.set(false)
+          onclick: () => hideUI(false)
         }, [
           'Reopen Colony'
         ])

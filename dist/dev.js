@@ -1,5 +1,15 @@
 (vovas = { main() {
 (() => {
+  // src/types.ts
+  var BRAND = Symbol("brand");
+  var TypescriptErrorMarker = Symbol("typescript-error");
+  var TypescriptError = mutated(
+    (message) => ({ [TypescriptErrorMarker]: message }),
+    {
+      test: (candidate) => TypescriptErrorMarker in candidate
+    }
+  );
+
   // src/utils.ts
   function mutate(obj, partial) {
     Object.assign(obj, partial);
@@ -8,41 +18,37 @@
     mutate(obj, partial);
     return obj;
   }
-
-  // src/unclass.ts
-  function guessName(func) {
-    const name = func.name;
-    if (name) {
-      return name;
-    }
-    const match = func.toString().match(/^function\s*([^\s(]+)/);
-    if (match) {
-      return match[1];
-    }
-    return "anonymous";
+  function $throw(message) {
+    throw new Error(message);
   }
-  function unclass(factory) {
-    const BRAND = Symbol(factory.name);
-    function test(object) {
-      return object && typeof object === "object" && object[BRAND] === true;
+
+  // src/callable.ts
+  var Callable = function() {
+    const func = this.constructor.prototype.call;
+    function apply() {
+      return func.apply(apply, arguments);
     }
     ;
-    const unclassedTypeName = `Unclassed<${guessName(factory)}>`;
-    return mutated(
-      function Factory() {
-        return mutated(factory(), {
-          [BRAND]: true,
-          [Symbol.toStringTag]: unclassedTypeName
-        });
-      },
-      {
-        test,
-        toString: () => unclassedTypeName
-      }
-    );
-  }
+    Object.setPrototypeOf(apply, this.constructor.prototype);
+    Object.getOwnPropertyNames(this).forEach((key) => {
+      Object.defineProperty(apply, key, Object.getOwnPropertyDescriptor(func, key) ?? $throw(`Failed to get descriptor for ${key}`));
+    });
+    return apply;
+  };
+  Callable.prototype = Object.create(Function.prototype);
+  var SomeClass = class extends Callable {
+    call(arg) {
+      return arg.length;
+    }
+    otherMethod() {
+      return "hello";
+    }
+  };
+  var instance = new SomeClass();
+  console.log(instance("hello"));
+  console.log(instance.otherMethod());
 
   // src/scripts/dev.ts
-  mutate(window, { unclass });
+  mutate(window, { Callable });
 })();
 }}).main();

@@ -1,6 +1,7 @@
 import { forEach, uniqueId } from "../lodashish";
 import { infer, Inferable } from "../types";
-import { $with, debug, getOrSet, Undefined } from "../utils";
+import { $with, debug, getOrSet } from "../utils";
+import { Undefined } from "../types";
 import { allElements, DEV_MODE, refToElementLinks } from "./devTools";
 import { Ref, Refable, toref, unref, Unref, WritableRef } from "./refs";
 import { AllProps, ElementForTag, Events, Props, SmorkNode, Tag, TAGS, EventName } from "./types";

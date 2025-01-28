@@ -1,5 +1,5 @@
-import { mapKeys } from "./lodashish";
-import { Defined, Func, StringKey } from "./types";
+import { isFunction, mapKeys } from "./lodashish";
+import { Defined, Func, infer, Inferable, StringKey, TypingError } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -16,10 +16,6 @@ export function Null<T>() {
 export function Nullable<T>(value?: T) {
   return value ?? null;
 }
-
-export function Undefined<T>() {
-  return undefined as T | undefined;
-};
 
 export function Undefinable<T>(value?: T) {
   return value;
@@ -165,20 +161,20 @@ export function logMethod(target: any, key: string, descriptor: PropertyDescript
   return descriptor;
 };
 
-export function withAccessor<T, Key extends string, V>(
+export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
   // setter?: (obj: T, value: V) => void,
 ): T & { readonly [K in Key]: V };
-export function withAccessor<T, Key extends string, V>(
+export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
   setter: (obj: T, value: V) => void,
 ): { [K in Key]: V } & T;
 
-export function withAccessor<T, Key extends string, V>(
+export function addAccessor<T, Key extends string, V>(
   obj: T,
   key: Key,
   getter: (obj: T) => V,
@@ -190,77 +186,73 @@ export function withAccessor<T, Key extends string, V>(
   });
 };
 
-export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: U) {
+// export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: Inferable<U, T>) {
+export function getOrSet<T extends WeakKey, U>(map: Map<T, U> | WeakMap<T, U>, key: T, defaultValue: Inferable<U, T>): U;
+export function getOrSet<T, U>(map: Map<T, U>, key: T, defaultValue: Inferable<U, T>): U;
+export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T, U> : never ), key: T, defaultValue: Inferable<U, T>) {
   if ( map.has(key) ) {
     return map.get(key)!;
   };
-  map.set(key, defaultValue);
-  return defaultValue;
+  const value = infer(defaultValue, key);
+  map.set(key, value);
+  return value;
 };
 
-export function FunctionAccessor<T>(getter: () => T, setter: (value: T) => void) {
+// export type FunctionalAccessor<T, Readonly extends boolean> = 
+// {
+//   (): T;
+//   (value: Defined<T>): Readonly extends true ? never : T;
+// };
+
+export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)>(
+  getter: () => T,
+  setter?: Setter
+) {
+
   function access(): T;
-  function access(value: T): void;
-  function access(value?: T) {
-    if ( arguments.length ) {
-      setter(value as T);
-    } else {
+  function access(setValue: 
+      Setter extends undefined 
+        ? TypingError<'Cannot set value on read-only accessor'>
+        : Defined<T>
+  ): T;
+  function access(value?: T | TypingError<any>) {
+    if ( value === undefined ) {
       return getter();
+    } else {
+      (
+        !(value instanceof TypingError)
+        && setter 
+        || $throw('Cannot set value on read-only accessor')
+      )(value as T);
+      return value;
     };
   };
   return access;
+  
 };
 
-export type FunctionAccessor<T> = ReturnType<typeof FunctionAccessor<T>>;
+export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
 
-export function WrappedRegister<TKey extends WeakKey, TValue>() {
-
-  const register = new WeakMap<TKey, TValue>();
-
-  function wrappedAccessor(key: TKey) {
-
-    function init<T extends TValue>(defaultValue: T) {
-
-      return FunctionAccessor<T>(
-        () => getOrSet(register, key, defaultValue) as T,
-        value => register.set(key, value)
-      );
-
-    };
-
-    return init;
+export class ValueAccessor<TKey extends WeakKey, TValue> {
+  
+  constructor(
+    private map: WeakMap<TKey, TValue>,
+    private key: TKey,
+    private initValue: Inferable<TValue, TKey>) {
   };
 
-  function fullAccessor<T extends TValue>(key: TKey, defaultValue: T) {
-    return wrappedAccessor(key)(defaultValue);
+  get value() {
+    return getOrSet(this.map, this.key, this.initValue);
   };
 
-  function accessor(key: TKey): ReturnType<typeof wrappedAccessor>;
-  function accessor<T extends TValue>(key: TKey, defaultValue: T): ReturnType<typeof fullAccessor<T>>;
-  function accessor(key: TKey, defaultValue?: TValue) {
-    return arguments.length === 1 ? wrappedAccessor(key) : fullAccessor(key, defaultValue!);
+  set value(value: TValue) {
+    this.map.set(this.key, value);
   };
 
-  return accessor;
-
-};
-export type WrappedRegister<TKey extends WeakKey, TValue> = ReturnType<typeof WrappedRegister<TKey, TValue>>;
-
-export function InitableRegister<TKey extends WeakKey, TValue>(initValue: () => TValue) {
-  const register = WrappedRegister<TKey, TValue>();
-  return (key: TKey) => register(key, initValue());
-};
-export type ValuedRegister<TKey extends WeakKey, TValue> = ReturnType<typeof InitableRegister<TKey, TValue>>;
-
-export function Register<TKey extends WeakKey, TValue>(): WrappedRegister<TKey, TValue>;
-export function Register<TKey extends WeakKey, TValue>(key: Func<any[], TKey>, initValue: () => TValue): ValuedRegister<TKey, TValue>;
-export function Register<TKey extends WeakKey, TValue>(initValue?: () => TValue) {
-  return initValue ? InitableRegister(initValue) : WrappedRegister();
 };
 
-export function MetaRegister<TValue = any>() {
-  const register = WrappedRegister<Symbol, TValue>();
-  return register(Symbol());
+export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
+  const map = new WeakMap<TKey, TValue>();
+  return (key: TKey) => new ValueAccessor(map, key, initValue);
 };
-
-export type MetaRegister<TValue> = ReturnType<typeof MetaRegister<TValue>>;
+export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;

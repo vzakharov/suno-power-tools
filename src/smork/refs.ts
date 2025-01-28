@@ -1,7 +1,9 @@
 //! Smork, the smol framework
+import { Callable } from "../callable";
 import { assign, identity, isFunction, mapValues, uniqueId, values } from "../lodashish";
-import { Func } from "../types";
-import { $with, mutated, Undefined } from "../utils";
+import { Defined, Func } from "../types";
+import { $with, FunctionalAccessor, mutated } from "../utils";
+import { Undefined } from "../types";
 import { allRefs, DEV_MODE } from "./devTools";
 
 export class SmorkError extends Error {
@@ -35,7 +37,7 @@ export type Watcher<T, TOld = T> = (value: T, oldValue: TOld) => void;
 
 export const NotApplicable = Symbol('NotApplicable');
 
-export class Ref<T> {
+export class Ref<T> extends Callable<FunctionalAccessor<T, undefined>> {
 
   public watchers = new Set<Watcher<T>>();
   private activeWatchers = new WeakSet<Watcher<T>>();
@@ -46,6 +48,7 @@ export class Ref<T> {
   constructor(
     private _value: T
   ) {
+    super();
     DEV_MODE && allRefs.add(this);
   };
 
@@ -77,6 +80,8 @@ export class Ref<T> {
       };
     };
   };
+
+  call = FunctionalAccessor(() => this.get());
 
   protected tarnishTargets() {
     this.targets.forEach(target => target.tarnish());
@@ -134,6 +139,11 @@ export class Ref<T> {
   };
 
 };
+
+const readonlyRef = new Ref(5);
+const value = readonlyRef()
+//@ts-expect-error because it's readonly
+const setValue = readonlyRef(5);
 
 let currentComputedTracker: ((ref: Ref<any>) => void) | undefined = undefined;
 
