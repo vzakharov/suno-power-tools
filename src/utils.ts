@@ -1,4 +1,5 @@
 import { forEach, isFunction, mapKeys, mapValues } from "./lodashish";
+import { Singleton } from "./singletons";
 import { Defined, Func, infer, Inferable, StringKey, TypingError } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
@@ -226,34 +227,6 @@ export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => 
 };
 
 export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
-
-const SINGLETON_MAP = new WeakMap<WeakKey, any>();
-
-export type Singleton<T> = T;
-
-export interface SingletonFactory {
-  <T>(initializer: () => T, options?: {
-    by: WeakKey[];
-  }): Singleton<T>;
-  by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton<T>;
-}
-
-export const Singleton = Object.assign(
-  function<T>(
-    initializer: () => T, {
-      by: keys = [] as WeakKey[]
-    } = {}
-  ) {
-    let map = SINGLETON_MAP;
-
-    for ( const key of keys.slice(0, -1) ) {
-      map = getOrSet(map, key, () => new WeakMap());
-    };
-    return getOrSet(map, keys.at(-1) ?? SINGLETON_MAP, initializer) as T;
-  }, { 
-    by: (...keys: WeakKey[]) => <T>(initializer: () => T) => Singleton(initializer, { by: keys }) 
-  }
-) as SingletonFactory;
 
 export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
   const map = new WeakMap<TKey, TValue>();
