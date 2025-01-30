@@ -1,4 +1,4 @@
-import { Callable } from "../callable";
+import { ComputedRef, RootRef } from "../smork/newNewRefs";
 import { mutate } from "../utils";
 
-mutate(window, { Callable });
+mutate(window, { RootRef, ComputedRef });

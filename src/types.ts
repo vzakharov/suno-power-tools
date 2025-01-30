@@ -6,8 +6,9 @@ export type Primitive = string | number | boolean | null | undefined;
 export const NOT_SET = Symbol('NOT_SET');
 export type NotSet = typeof NOT_SET;
 export function NotSet<T>() {
-  return NOT_SET as NotSet | T;
-}
+  return NOT_SET as T | NotSet;
+};
+export type MaybeNotSet<T> = T | NotSet;
 
 export type Defined<T> = Exclude<T, undefined>;
 export type Undefinable<T> = T | undefined;

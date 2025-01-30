@@ -128,3 +128,7 @@ export function concat<S1 extends string, S2 extends string, S3 extends string, 
 export function concat(...strings: string[]) {
   return strings.join('') as any;
 };
+
+export function maxOf<T>(iterables: Iterable<T>, callback: (item: T) => number) {
+  return Math.max(...[...iterables].map(callback));
+};

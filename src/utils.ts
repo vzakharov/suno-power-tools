@@ -1,5 +1,5 @@
 import { isFunction, mapKeys } from "./lodashish";
-import { Defined, Func, infer, Inferable, Primitive, StringKey, TypingError, Undefinable } from "./types";
+import { Defined, Func, infer, Inferable, MaybeNotSet, NotSet, Primitive, StringKey, TypingError, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -194,56 +194,79 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
   return value;
 };
 
-export function createBox<T, TWritable extends boolean>(
-  getter: () => T,
-  setter?: TWritable extends true ? (value: T) => void : undefined
-) {
+export type CreateBoxArgs<T, TWritable extends boolean> = [
+  getterOrValue: T | (() => T),
+  setter?: (value: T) => void
+];
 
-  const CannotSetError = () => new TypingError('Cannot set value on a read-only box');
-  type CannotSetError = ReturnType<typeof CannotSetError>;
 
-  function box(): T;
-  function box(setValue:
-    TWritable extends true
-      ? Defined<T>
-      : CannotSetError
-  ): Defined<T>;
-  function box(value?: T | TypingError<any>) {
-    if ( value === undefined ) {
-      return getter();
-    } else {
-      if ( !setter || value instanceof TypingError ) {
-        throw CannotSetError();
-      };
-      setter(value);
-      return value;
-    };
+const CannotSetError = () => new TypingError('Cannot set value on a read-only box');
+type CannotSetError = ReturnType<typeof CannotSetError>;
+
+type EnsureWritable<T, TWritable extends boolean> = TWritable extends true ? Defined<T> : CannotSetError;
+
+export function createBox<T, TWritable extends boolean>(...[ getterOrValue, setter ]: CreateBoxArgs<T, TWritable>) {
+
+  if ( !isFunction(getterOrValue) ) {
+    let value = getterOrValue;
+    return createBoxWithGetter(() => value, setValue => value = setValue);
+  } else {
+    return createBoxWithGetter(getterOrValue, setter);
   };
-  return box;
+
+  function createBoxWithGetter(getter: () => T, setter?: (value: T) => void) {
+
+    type TSetValue = EnsureWritable<T, TWritable>;
+
+    function box(): T;
+    function box(setValue: TSetValue): Defined<T>;
+    function box(setValue: (value: T) => TSetValue): T;
+    function box(setValue?: Defined<T> | ((value: T) => TSetValue) | TypingError<any>) {
+      if ( setValue === undefined ) {
+        return getter();
+      } else {
+        if ( !setter || setValue instanceof TypingError ) {
+          throw CannotSetError();
+        };
+        if ( isFunction(setValue) ) {
+          return box(setValue(getter()));
+        } else {
+          setter(setValue);
+          return setValue;
+        };
+      };
+    };
+    return box;
+  };
   
 };
 
-export function Box<T>(getter: () => T, setter: (value: T) => void): Box<T, true>;
+export type GetSetTuple<T> = [ getter: () => T, setter: (value: T) => void ]
+
+export function Box<T>(...args: GetSetTuple<T>): Box<T, true>;
 export function Box<T>(getter: () => T): Box<T, false>;
 export function Box<T>(value: T): Box<T, true>;
 
-export function Box<T>(getterOrValue: (() => T) | T, setter?: (value: T) => void) {
-  return isFunction(getterOrValue) 
-    ? createBox(getterOrValue, setter)
-    : $with(getterOrValue, value => createBox(() => value, setValue => value = setValue));
+export function Box<T>(...args: CreateBoxArgs<T, boolean>) {
+  return createBox(...args);
 };
 
-// quick test
-const box1 = Box(1);
-box1();
-box1(2);
-const box2 = Box(() => "hello");
-box2();
-// @ts-expect-error below because box2 is read-only
-box2("world");
-const box3 = Box(() => 3, console.log);
-box3();
-box3(4);
+// // quick test
+// const box1 = Box(1);
+// box1();
+// box1(2);
+// const box2 = Box(() => "hello");
+// box2();
+// // @ts-expect-error below because box2 is read-only
+// box2("world");
+// const toUpperCase = (str: string) => str.toUpperCase();
+// // @ts-expect-error same as above
+// box2(toUpperCase);
+// const box3 = Box(() => "foo", console.log);
+// box3();
+// // @ts-expect-error below because of type mismatch
+// box3(4);
+// box3(toUpperCase); // ok, converts the box's value to uppercase
 
 export type Box<T, TWritable extends boolean> = ReturnType<typeof createBox<T, TWritable>>;
 
@@ -259,41 +282,38 @@ export function createMetabox<
   TValue,
   TWritable extends boolean,
 >(
-  getter: (subject: TSubject) => TValue,
-  setter?: TWritable extends true ? (subject: TSubject) => (value: TValue) => void : undefined
+  initializer: (subject: TSubject) => CreateBoxArgs<TValue, TWritable>
 ) {
-  return Metadata((subject: TSubject) => createBox(() => getter(subject), setter?.(subject)));
+
+  const metadata = Metadata<TSubject, Box<TValue, TWritable>>(subject => {
+    const [ getter, setter ] = initializer(subject);
+    return createBox(getter, setter);
+  });
+  
+  function metabox(subject: TSubject): TValue;
+  function metabox(subject: TSubject, setValue: EnsureWritable<TValue, TWritable>): Defined<TValue>;
+  function metabox(subject: TSubject, setValue: (value: TValue) => EnsureWritable<TValue, TWritable>): TValue;
+  function metabox(subject: TSubject, setValue?: any) {
+    return metadata(subject)(setValue);
+  };
+
+  return metabox;
+
 };
 
-export type Metabox<
-  TSubject extends WeakKey,
-  TValue,
-  TWritable extends boolean,
-> = ReturnType<typeof createMetabox<TSubject, TValue, TWritable>>;
+export type Metabox<TSubject extends WeakKey, TValue, TWritable extends boolean> = ReturnType<typeof createMetabox<TSubject, TValue, TWritable>>;
 
 export function Metabox<TSubject extends WeakKey, TValue>(
-  getter: (subject: TSubject) => TValue, setter: (subject: TSubject) => (value: TValue) => void
-): Metabox<TSubject, TValue, true>;
+  initializer: (subject: TSubject) => TValue
+): Metabox<TSubject, TValue, true> {
+  return createMetabox((subject: TSubject) => [ initializer(subject) ]);
+  // TODO: Implement complex (getter/setter) Metaboxes
+};
 
-export function Metabox<TSubject extends WeakKey, TValue>(
-  initializer: (subject: TSubject) => TValue,
-): Metabox<TSubject, TValue, true>;
+export function inc(value: number) {
+  return value + 1;
+};
 
-export function Metabox<TSubject extends WeakKey, TValue>(
-  getter: (subject: TSubject) => TValue,
-  readonly: true
-): Metabox<TSubject, TValue, false>;
-
-export function Metabox<TSubject extends WeakKey, TValue>(
-  getter: (subject: TSubject) => TValue,
-  setterOrReadonlyFlag?: true | ((subject: TSubject) => (value: TValue) => void)
-) {
-  if ( setterOrReadonlyFlag !== true ) {
-    return createMetabox(getter, setterOrReadonlyFlag);
-  } else {
-    return (subject: TSubject) => {
-      let value = getter(subject);
-      return createBox(() => value, setValue => value = setValue);
-    };
-  };
+export function dec(value: number) {
+  return value - 1;
 };
