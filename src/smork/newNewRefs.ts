@@ -1,7 +1,6 @@
-import { forEach, isFunction, uniqueId } from "../lodashish";
-import { Defined, Func, Inferable, NonFunction, NOT_SET, NotSet, TypingError, Undefined } from "../types";
-import { Undefinable } from "../types";
-import { addAccessor, DataRegister, getOrSet, Register } from "../utils";
+import { isFunction, uniqueId } from "../lodashish";
+import { Defined, Inferable, NonFunction, NOT_SET, NotSet, Primitive, TypingError, Undefinable, Undefined } from "../types";
+import { Metabox, Metadata } from "../utils";
 
 export const NonWritableRefError = () => new TypingError('Cannot write to a non-writable ref');
 export type NonWritableRefError = ReturnType<typeof NonWritableRefError>;
@@ -19,29 +18,49 @@ export type Ref<T, Options extends RefOptions> = {
 
 export type AnyRef = Ref<any, RefOptions>;
 
-type Target = [
+type Target = readonly [
   ref: AnyRef,
   iteration: number,
 ];
 
-// let currentComputee = Undefined<Target>();
-const computeeStack = [] as Target[];
+// // let currentComputee = Undefined<Target>();
+// const computeeStack = [] as Target[];
 
-const refData = DataRegister(Ref<any>, {
-  dirtySources: 0,
-  iteration: 0,
-  targets: () => new Set<Target>(),
-});
+// const metadata = Metadata((ref: AnyRef) => ({
+//   id: uniqueId('ref-'),
+//   dirtiness: 0,
+//   iteration: 0,
+//   targets: new Set<Target>(),
+//   alreadyTarnished: false,
+// }));
+
+const isClean = Metabox((ref: AnyRef) => false);
+// const isClean = Refbox(undefined as undefined | boolean);
+
+const someRef = Ref(3);
+isClean(someRef)(); // false
+isClean(someRef)(true); // true
+
+
 
 const [ tarnish, clean ] = [ +1, -1 ].map(
-  increment => (target: Target) => {
-    const [ ref, iteration ] = target;
-    const data = refData(ref);
-    if ( data.iteration !== iteration ) {
-      data.dirtySources += increment;
-      data.targets.forEach(increment === +1 ? tarnish : clean);
-    };
-  }
+  increment => ( target: Target ) => (
+    function handle(target: Target, handled = new WeakSet<Target>()) {
+      const [ targetRef, iteration ] = target;
+      const targetData = metadata(targetRef);
+      if ( targetData.iteration === iteration ) {
+        targetData.dirtiness += increment;
+        targetData.targets.forEach(target => {
+          if (!handled.has(target)) { // to prevent infinite loops for circularly dependent refs
+            handled.add(target);
+            handle(target, handled);
+          };
+        });
+      } else {
+        targetData.targets.delete(target);
+      };
+    }
+  )(target)
 );
 
 export function ref<T>(value: NonFunction<T>): Ref<T, { writable: true }>;
@@ -51,34 +70,45 @@ export function ref<T>(getterOrValue: T | (() => T), setter?: (value: T) => void
   return Ref(isFunction(getterOrValue) ? getterOrValue : () => getterOrValue, setter);
 };
 
+export class ComputeeStackMismatchError extends Error {
+  constructor(stack: Target[], expected: Target) {
+    super(`Computee stack mismatch. Expected ${metadata(expected[0]).id} but got ${stack.map(([ref]) => metadata(ref).id).join(', ')}`);
+  };
+};
+
 export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>) {
+
+  let cachedValue = NotSet<T>();
 
   const self = <Ref<T, RefOptions>>((
     value?: Defined<T>,
   ) => {
 
-    let cachedValue = NotSet<T>();
-
-    const data = refData(self);
+    const data = metadata(self);
     const { targets } = data;
 
     if ( value === undefined ) {
 
-      if ( cachedValue === NOT_SET || data.dirtySources ) {
+      if ( cachedValue === NOT_SET || data.dirtiness ) {
 
         const target = computeeStack.at(-1);
         target && targets.add(target);
 
-        computeeStack.push([ self, data.iteration++ ]);
+        const selfTarget = [ self, data.iteration++ ] as const;
+        computeeStack.push(selfTarget);
         try {
           const newValue = getter();
           if ( newValue === cachedValue ) {
             targets.forEach(clean); // i.e. this value isn't changed, no need to recompute the target at least as far as this source is concerned
+            data.alreadyTarnished = false;
           } else {
             cachedValue = newValue;
           };
+          data.dirtiness = 0;
         } finally {
-          computeeStack.pop();
+          if ( computeeStack.pop() !== selfTarget ) {
+            throw new ComputeeStackMismatchError(computeeStack, selfTarget);
+          };
         };
 
       };
@@ -90,7 +120,10 @@ export function Ref<T>(getter: () => T, setter: Undefinable<(value: T) => void>)
         throw NonWritableRefError();
       };
       setter(value);
-      targets.forEach(tarnish);
+      if ( !data.alreadyTarnished ) {
+        data.alreadyTarnished = true;
+        targets.forEach(tarnish);
+      };
       return value;
     };
 

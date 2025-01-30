@@ -1,6 +1,8 @@
 import { isFunction } from "./lodashish";
 import { mutated } from "./utils";
 
+export type Primitive = string | number | boolean | null | undefined;
+
 export const NOT_SET = Symbol('NOT_SET');
 export type NotSet = typeof NOT_SET;
 export function NotSet<T>() {
@@ -46,6 +48,12 @@ export function infer<TResult>(inferable: Inferable<TResult, void>): TResult;
 export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value: TArg): TResult;
 export function infer<TResult, TArg>(inferable: Inferable<TResult, TArg>, value?: TArg) {
   return isFunction(inferable) ? inferable(value as any) : inferable;
+};
+
+export function inferer<TResult>(inferable: Inferable<TResult, void>): (value: void) => TResult;
+export function inferer<TResult, TArg>(inferable: Inferable<TResult, TArg>): (value: TArg) => TResult;
+export function inferer<TResult, TArg>(inferable: Inferable<TResult, TArg>) {
+  return isFunction(inferable) ? inferable : () => inferable;
 };
 
 // const TypingErrorMarker = Symbol('typescript-error');

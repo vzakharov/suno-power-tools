@@ -2,7 +2,7 @@
 import { Callable } from "../callable";
 import { assign, identity, isFunction, mapValues, uniqueId, values } from "../lodashish";
 import { Defined, Func } from "../types";
-import { $with, FunctionalAccessor, mutated } from "../utils";
+import { $with, Box, mutated } from "../utils";
 import { Undefined } from "../types";
 import { allRefs, DEV_MODE } from "./devTools";
 
@@ -81,7 +81,7 @@ export class Ref<T> extends Callable<FunctionalAccessor<T, undefined>> {
     };
   };
 
-  call = FunctionalAccessor(() => this.get());
+  call = Box(() => this.get());
 
   protected tarnishTargets() {
     this.targets.forEach(target => target.tarnish());

@@ -1,6 +1,5 @@
-import { forEach, isFunction, mapKeys, mapValues } from "./lodashish";
-import { Singleton } from "./singletons";
-import { Defined, Func, infer, Inferable, StringKey, TypingError } from "./types";
+import { isFunction, mapKeys } from "./lodashish";
+import { Defined, Func, infer, Inferable, Primitive, StringKey, TypingError, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -17,10 +16,6 @@ export function Null<T>() {
 export function Nullable<T>(value?: T) {
   return value ?? null;
 }
-
-export function Undefinable<T>(value?: T) {
-  return value;
-};
 
 export function EmptyArray<T>() {
   return [] as T[];
@@ -199,60 +194,106 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
   return value;
 };
 
-export function FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)>(
+export function createBox<T, TWritable extends boolean>(
   getter: () => T,
-  setter?: Setter
+  setter?: TWritable extends true ? (value: T) => void : undefined
 ) {
 
-  function access(): T;
-  function access(setValue: 
-      Setter extends undefined 
-        ? TypingError<'Cannot set value on read-only accessor'>
-        : Defined<T>
-  ): T;
-  function access(value?: T | TypingError<any>) {
+  const CannotSetError = () => new TypingError('Cannot set value on a read-only box');
+  type CannotSetError = ReturnType<typeof CannotSetError>;
+
+  function box(): T;
+  function box(setValue:
+    TWritable extends true
+      ? Defined<T>
+      : CannotSetError
+  ): Defined<T>;
+  function box(value?: T | TypingError<any>) {
     if ( value === undefined ) {
       return getter();
     } else {
-      (
-        !(value instanceof TypingError)
-        && setter 
-        || $throw('Cannot set value on read-only accessor')
-      )(value as T);
+      if ( !setter || value instanceof TypingError ) {
+        throw CannotSetError();
+      };
+      setter(value);
       return value;
     };
   };
-  return access;
+  return box;
   
 };
 
-export type FunctionalAccessor<T, Setter extends undefined | ((value: T) => void)> = ReturnType<typeof FunctionalAccessor<T, Setter>>;
+export function Box<T>(getter: () => T, setter: (value: T) => void): Box<T, true>;
+export function Box<T>(getter: () => T): Box<T, false>;
+export function Box<T>(value: T): Box<T, true>;
 
-export function Register<TKey extends WeakKey, TValue>(keyFactory: Func<any[], TKey>, initValue: Inferable<TValue, TKey>) {
-  const map = new WeakMap<TKey, TValue>();
-
-  // return (key: TKey) => Singleton(() => addAccessor({}, 'value',
-  return (key: TKey) => Singleton.by(map, key)(() => addAccessor({}, 'value',
-    () => getOrSet(map, key, initValue),
-    (value: TValue) => map.set(key, value),
-  // ), { by: [ map, key ] });
-  ));
-
+export function Box<T>(getterOrValue: (() => T) | T, setter?: (value: T) => void) {
+  return isFunction(getterOrValue) 
+    ? createBox(getterOrValue, setter)
+    : $with(getterOrValue, value => createBox(() => value, setValue => value = setValue));
 };
 
-export type Register<TKey extends WeakKey, TValue> = ReturnType<typeof Register<TKey, TValue>>;
+// quick test
+const box1 = Box(1);
+box1();
+box1(2);
+const box2 = Box(() => "hello");
+box2();
+// @ts-expect-error below because box2 is read-only
+box2("world");
+const box3 = Box(() => 3, console.log);
+box3();
+box3(4);
 
-export function DataRegister<TKey extends WeakKey, TInits extends Record<string, any>>(keyFactory: Func<any[], TKey>, initializers: TInits) {
-  const registers = mapValues(initializers, initValue => Register(keyFactory, initValue));
-  return (key: TKey) => Singleton.by(registers, key)(() => {
-    const data = {};
-    forEach(initializers, (_initValue, propName) => {
-      addAccessor(data, propName, 
-        () => registers[propName](key).value,
-        (value) => registers[propName](key).value = value,
-      );
-    });
-    return data as { [K in keyof TInits]: TInits[K] extends Func<any[], infer V> ? V : TInits[K] };
-  });
+export type Box<T, TWritable extends boolean> = ReturnType<typeof createBox<T, TWritable>>;
+
+export function Metadata<TSubject extends WeakKey, TMetadata extends Record<string, any>>(initializer: (subject: TSubject) => TMetadata) {
+  const metadatas = new WeakMap<TSubject, TMetadata>();
+  return (subject: TSubject) => getOrSet(metadatas, subject, () => initializer(subject));
 };
-export type DataRegister<TKey extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof DataRegister<TKey, TInits>>;
+
+export type Metadata<TSubject extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof Metadata<TSubject, TInits>>;
+
+export function createMetabox<
+  TSubject extends WeakKey,
+  TValue,
+  TWritable extends boolean,
+>(
+  getter: (subject: TSubject) => TValue,
+  setter?: TWritable extends true ? (subject: TSubject) => (value: TValue) => void : undefined
+) {
+  return Metadata((subject: TSubject) => createBox(() => getter(subject), setter?.(subject)));
+};
+
+export type Metabox<
+  TSubject extends WeakKey,
+  TValue,
+  TWritable extends boolean,
+> = ReturnType<typeof createMetabox<TSubject, TValue, TWritable>>;
+
+export function Metabox<TSubject extends WeakKey, TValue>(
+  getter: (subject: TSubject) => TValue, setter: (subject: TSubject) => (value: TValue) => void
+): Metabox<TSubject, TValue, true>;
+
+export function Metabox<TSubject extends WeakKey, TValue>(
+  initializer: (subject: TSubject) => TValue,
+): Metabox<TSubject, TValue, true>;
+
+export function Metabox<TSubject extends WeakKey, TValue>(
+  getter: (subject: TSubject) => TValue,
+  readonly: true
+): Metabox<TSubject, TValue, false>;
+
+export function Metabox<TSubject extends WeakKey, TValue>(
+  getter: (subject: TSubject) => TValue,
+  setterOrReadonlyFlag?: true | ((subject: TSubject) => (value: TValue) => void)
+) {
+  if ( setterOrReadonlyFlag !== true ) {
+    return createMetabox(getter, setterOrReadonlyFlag);
+  } else {
+    return (subject: TSubject) => {
+      let value = getter(subject);
+      return createBox(() => value, setValue => value = setValue);
+    };
+  };
+};
