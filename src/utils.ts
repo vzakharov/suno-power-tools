@@ -317,3 +317,35 @@ export function inc(value: number) {
 export function dec(value: number) {
   return value - 1;
 };
+
+export function WeakM2MMap<T extends object, U extends object>() {
+
+  const nodeRelatives = new WeakMap<T|U, Set<T> | Set<U>>();
+
+  function self(node: T): Set<U>;
+  function self(node: U): Set<T>;
+  function self(node: T, addOrRemoveRelative: U, remove?: null): Set<U>;
+  function self(node: U, addOrRemoveRelative: T, remove?: null): Set<T>;
+
+  function self(node: T|U, relative?: U|T, remove?: null) {
+    const relatives = getOrSet(nodeRelatives, node, new Set());
+    if ( relative )
+      ([
+        [ relatives,                                    relative  ],
+        [ getOrSet(nodeRelatives, relative, new Set()), node      ]
+      ] as const).forEach(([ relatives, relative ]) =>
+        (
+          remove === null
+            ? relatives.delete
+            : relatives.add
+        )(relative)
+      );
+    return relatives;
+  };
+
+  return self;
+
+
+};
+
+export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;

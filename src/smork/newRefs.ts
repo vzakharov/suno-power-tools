@@ -1,6 +1,6 @@
 import { maxOf } from "../lodashish";
 import { NOT_SET, NotSet } from "../types";
-import { Box, inc, Metabox } from "../utils";
+import { Box, inc, Metabox, WeakM2MMap } from "../utils";
 
 
 const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
@@ -15,10 +15,6 @@ export function RootRef<T>(value: T) {
     () => {
       computees.forEach(computee => {
         sourceRoots(computee).add(self);
-        // if ( lastMaxRootIteration(computee) < iteration(self) ) {
-        //   lastMaxRootIteration(computee, iteration(self));
-        // };
-        // No need to update here — it'll have been already updated by the ComputedRef
       });
       return value
     },
