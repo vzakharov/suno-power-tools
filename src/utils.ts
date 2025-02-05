@@ -335,7 +335,6 @@ export function WeakM2MMap<T extends object, U extends object>() {
 
   return self;
 
-
 };
 
 export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
