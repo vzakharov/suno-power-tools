@@ -1,6 +1,6 @@
 import { maxOf } from "../lodashish";
 import { NOT_SET, NotSet } from "../types";
-import { $factory, Box, inc, isMadeWith, MadeWith, Metabox, WeakM2MMap } from "../utils";
+import { Box, createTypeMarker, inc, Metabox, WeakM2MMap } from "../utils";
 
 
 const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
@@ -9,9 +9,12 @@ let maxIteration = 0;
 const iteration = Metabox((root: RootRef<any>) => maxIteration++);
 const computees = new Set<ComputedRef<any>>();
 
+const RootRefType = createTypeMarker('RootRef');
+export const isRootRef = RootRefType.test;
+
 export function RootRef<T>(value: T) {
 
-  const self = MadeWith(RootRef, Box(
+  const self = RootRefType.mark(Box(
     () => {
       computees.forEach(computee => {
         computeeRoots(computee).add(self);
@@ -29,11 +32,14 @@ export function RootRef<T>(value: T) {
 
 export type RootRef<T> = ReturnType<typeof RootRef<T>>;
 
+const ComputedRefType = createTypeMarker('ComputedRef');
+export const isComputedRef = ComputedRefType.test;
+
 export function ComputedRef<T>(getter: () => T) {
 
   let cachedValue = NotSet<T>();
 
-  const self = MadeWith(ComputedRef, Box(
+  const self = ComputedRefType.mark(Box(
     () => {
       if ( 
         cachedValue === NOT_SET

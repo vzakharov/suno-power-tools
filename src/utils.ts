@@ -247,7 +247,8 @@ export type ParametricBox<T, TWritable extends boolean> =
 
 export type ReadonlyBox<T> = () => T;
 
-export type Box<T> = ReadonlyBox<T> & {
+export type Box<T> = {
+  (): T,
   (setValue: T | ((value: T) => T)): T,
 };
 
@@ -339,16 +340,18 @@ export function WeakM2MMap<T extends object, U extends object>() {
 
 export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
 
-export const $factory = Symbol('factory');
+const TYPE_MARKER = Symbol('typeMarker');
 
-export type MadeWith<TFactory extends Func, TObject extends object> = { readonly [$factory]: TFactory } & TObject;
+export function createTypeMarker<TDescription extends string>(description: TDescription) {
 
-export function MadeWith<TFactory extends Func, TObject extends object>(factory: TFactory, object: TObject) {
-  return Object.defineProperty(object, $factory, { value: factory }) as MadeWith<TFactory, TObject>;
-};
+  function mark<T>(value: T) {
+    return Object.defineProperty(value, TYPE_MARKER, { value: description }) as { readonly [TYPE_MARKER]: TDescription } & T;
+  };
 
-export function isMadeWith<TFactory extends Func, TObject extends object>(factory: TFactory, object: TObject):
-  object is MadeWith<TFactory, TObject>
- {
-  return object[$factory] === factory;
+  function test<T>(value: any): value is { readonly [TYPE_MARKER]: TDescription } & T {
+    return value[TYPE_MARKER] === description;
+  };
+
+  return { mark, test } as const;
+
 };
