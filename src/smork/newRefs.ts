@@ -13,7 +13,7 @@ export function RootRef<T>(value: T) {
   const ref = typeMark($RootRef, Box(
     () => {
       computees.forEach(computee => {
-        computees_roots(computee).add(ref);
+        computees_roots(computee, ref);
       });
       return value
     },
@@ -67,7 +67,7 @@ export function ComputedRef<T>(getter: () => T) {
         // Even if we don't recompute, we must still make sure that the computees' roots are up to date
         computees.forEach(computee => {
           computees_roots(ref).forEach(root => {
-            computees_roots(computee).add(root);
+            computees_roots(computee, root);
           });
         });
       }
@@ -87,7 +87,7 @@ export const isComputedRef = typeMarkTester($ComputedRef);
 
 type AnyRef = RootRef<any> | ComputedRef<any>;
 
-const refs_effects = WeakM2MMap<AnyRef, Effect>();
+const effects_sources = WeakM2MMap<Effect, AnyRef>();
 const $Effect = Symbol('Effect');
 
 let currentEffect = Undefined<Effect>();
@@ -96,10 +96,16 @@ const valueChanged = Metabox((ref: ComputedRef<any>) => Undefined<boolean>());
 
 export type Effect = ReturnType<typeof Effect>;
 
-export function Effect(callback: () => void) {
+export function Effect(callback: () => void, fixedSources?: AnyRef[]) {
+
   const effect = typeMark($Effect, () => {
-    refs_effects(effect).forEach(ref =>
-      isComputedRef(ref) && valueChanged(ref, false) // Reset the valueChanged
+    
+    if ( fixedSources ) return callback();
+
+    const sources = [...effects_sources(effect)];
+    effects_sources(effect).clear();
+    sources.forEach(source =>
+      isComputedRef(source) && valueChanged(source, false) // Reset the valueChanged
     );
     currentEffect = effect;
     try {
@@ -107,9 +113,15 @@ export function Effect(callback: () => void) {
     } finally {
       currentEffect = undefined;
     };
+
   });
-  effect();
+
+  fixedSources
+    ? fixedSources.forEach(source => effects_sources(effect, source)) 
+    : effect();
+
   return effect;
+
 };
 
 export const isEffect = typeMarkTester($Effect);
@@ -126,7 +138,7 @@ function scheduleEffects(ref: AnyRef) {
         : changed
     )
   ) {
-    refs_effects(ref).forEach(effect => {
+    effects_sources(ref).forEach(effect => {
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           try {
