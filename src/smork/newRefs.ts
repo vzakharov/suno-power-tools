@@ -1,6 +1,6 @@
 import { maxOf } from "../lodashish";
 import { NOT_SET, NotSet } from "../types";
-import { Box, inc, Metabox, typeMark, typeMarkTester, WeakM2MMap } from "../utils";
+import { $with, Box, inc, Metabox, typeMark, typeMarkTester, WeakM2MMap } from "../utils";
 
 
 const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
@@ -38,28 +38,34 @@ export function ComputedRef<T>(getter: () => T) {
 
   const self = typeMark($ComputedRef, Box(
     () => {
+
       if ( 
         cachedValue === NOT_SET
+        || $with(maxOf(computeeRoots(self), iteration), maxRootIteration => {
+          if ( maxRootIteration > lastMaxRootIteration(self) ) {
+            lastMaxRootIteration(self, maxRootIteration);
+            return true;
+          };
+        })
       ) {
-        return recompute()
-      } else {
-        const maxRootIteration = maxOf(computeeRoots(self), iteration);
-        if ( maxRootIteration > lastMaxRootIteration(self) ) {
-          lastMaxRootIteration(self, maxRootIteration);
-          return recompute();
-        };
-        return cachedValue;
-      };
-
-      function recompute() {
         computeeRoots(self).clear();
         computees.add(self);
         try {
-          return cachedValue = getter();
+          cachedValue = getter();
         } finally {
           computees.delete(self);
         };
-      };
+      } else {
+        // Even if we don't recompute, we must still make sure that the computees' roots are up to date
+        computees.forEach(computee => {
+          computeeRoots(self).forEach(root => {
+            computeeRoots(computee).add(root);
+          });
+        });
+      }
+
+      return cachedValue;
+
     }
   ));
 
