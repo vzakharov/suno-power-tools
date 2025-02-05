@@ -50,7 +50,7 @@ export function atLeast(milliseconds: number): Promise<void> {
   });
 };
 
-export function $throw(message: string): never {
+export function $throw(message?: string): never {
   throw new Error(message);
 };
 
@@ -126,8 +126,8 @@ export function debug(arg?: any) {
   };
 };
 
-export function doAndReturn<T>(target: T, fn: (target: T) => void) {
-  fn(target);
+export function beforeReturning<T>(target: T, preprocess: (target: T) => void) {
+  preprocess(target);
   return target;
 };
 
@@ -139,9 +139,18 @@ export function findInSet<T>(set: Set<T>, predicate: (value: T) => boolean) {
   };
 };
 
-export function nextTick() {
-  return new Promise<void>(resolve => {
-    setTimeout(resolve, 0);
+// export function nextTick() {
+//   return new Promise<void>(resolve => {
+//     setTimeout(resolve, 0);
+//   });
+// };
+export function nextTick(): Promise<void>;
+export function nextTick<T>(callback: () => T): Promise<T>;
+export function nextTick<T>(callback?: () => T) {
+  return new Promise<T | void>(resolve => {
+    setTimeout(() => {
+      resolve(callback?.());
+    }, 0);
   });
 };
 
@@ -341,16 +350,18 @@ export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
 
 const TYPE_MARKER = Symbol('typeMarker');
 
-export type TypeMarked<TDescription extends string | symbol, T> = {
+export type TypeMarked<TDescription extends string | symbol> = {
   readonly [TYPE_MARKER]: TDescription;
-} & T;
+};
 
 export function typeMark<TDescription extends string | symbol, T>(description: TDescription, value: T) {
-  return Object.defineProperty(value, TYPE_MARKER, { value: description }) as TypeMarked<TDescription, T>;
+  return Object.defineProperty(value, TYPE_MARKER, { value: description }) as T & TypeMarked<TDescription>;
 };
 
 export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
-  return function test<T>(value: any): value is TypeMarked<TDescription, T> {
+
+  return function test<T extends object>(value: T): value is T & TypeMarked<TDescription> {
     return TYPE_MARKER in value && value[TYPE_MARKER] === description;
   };
+  
 };
