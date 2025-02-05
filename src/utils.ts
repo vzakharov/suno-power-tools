@@ -232,9 +232,9 @@ export function createBox<T, TWritable extends boolean>(...[ getterOrValue, sett
 
 export type GetSetTuple<T> = [ getter: () => T, setter: (value: T) => void ]
 
-export function Box<T>(...args: CreateBoxArgs<T, true>): Box<T>;
 export function Box<T>(getter: () => T): ReadonlyBox<T>;
 export function Box<T>(value: T): Box<T>;
+export function Box<T>(...args: CreateBoxArgs<T, true>): Box<T>;
 
 export function Box<T>(...args: CreateBoxArgs<T, boolean>) {
   return createBox(...args);
@@ -342,14 +342,14 @@ export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
 
 const TYPE_MARKER = Symbol('typeMarker');
 
-export function createTypeMarker<TDescription extends string>(description: TDescription) {
+export function createTypeMarker<TDescriptions extends string[]>(...descriptions: TDescriptions) {
 
   function mark<T>(value: T) {
-    return Object.defineProperty(value, TYPE_MARKER, { value: description }) as { readonly [TYPE_MARKER]: TDescription } & T;
+    return Object.defineProperty(value, TYPE_MARKER, { value: descriptions }) as { readonly [TYPE_MARKER]: TDescriptions } & T;
   };
 
-  function test<T>(value: any): value is { readonly [TYPE_MARKER]: TDescription } & T {
-    return value[TYPE_MARKER] === description;
+  function test<T>(value: any): value is { readonly [TYPE_MARKER]: TDescriptions } & T {
+    return TYPE_MARKER in value && descriptions.every(description => value[TYPE_MARKER].includes(description));
   };
 
   return { mark, test } as const;
