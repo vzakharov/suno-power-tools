@@ -342,16 +342,16 @@ export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
 
 const TYPE_MARKER = Symbol('typeMarker');
 
-export function createTypeMarker<TDescriptions extends string[]>(...descriptions: TDescriptions) {
+export type TypeMarked<TDescription extends string | symbol, T> = {
+  readonly [TYPE_MARKER]: TDescription;
+} & T;
 
-  function mark<T>(value: T) {
-    return Object.defineProperty(value, TYPE_MARKER, { value: descriptions }) as { readonly [TYPE_MARKER]: TDescriptions } & T;
+export function typeMark<TDescription extends string | symbol, T>(description: TDescription, value: T) {
+  return Object.defineProperty(value, TYPE_MARKER, { value: description }) as TypeMarked<TDescription, T>;
+};
+
+export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
+  return function test<T>(value: any): value is TypeMarked<TDescription, T> {
+    return TYPE_MARKER in value && value[TYPE_MARKER] === description;
   };
-
-  function test<T>(value: any): value is { readonly [TYPE_MARKER]: TDescriptions } & T {
-    return TYPE_MARKER in value && descriptions.every(description => value[TYPE_MARKER].includes(description));
-  };
-
-  return { mark, test } as const;
-
 };
