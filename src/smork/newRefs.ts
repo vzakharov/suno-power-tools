@@ -1,20 +1,20 @@
 import { maxOf } from "../lodashish";
 import { NOT_SET, NotSet } from "../types";
-import { Box, inc, Metabox, WeakM2MMap } from "../utils";
+import { $factory, Box, inc, isMadeWith, MadeWith, Metabox, WeakM2MMap } from "../utils";
 
 
 const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
-const sourceRoots = Metabox((ref: ComputedRef<any>) => new Set<RootRef<any>>())
+const computeeRoots = WeakM2MMap<RootRef<any>, ComputedRef<any>>();
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef<any>) => maxIteration++);
 const computees = new Set<ComputedRef<any>>();
 
 export function RootRef<T>(value: T) {
 
-  const self = Box(
+  const self = MadeWith(RootRef, Box(
     () => {
       computees.forEach(computee => {
-        sourceRoots(computee).add(self);
+        computeeRoots(computee).add(self);
       });
       return value
     },
@@ -22,7 +22,7 @@ export function RootRef<T>(value: T) {
       value = setValue;
       iteration(self, inc);
     },
-  );
+  ));
 
   return self;
 };
@@ -33,14 +33,14 @@ export function ComputedRef<T>(getter: () => T) {
 
   let cachedValue = NotSet<T>();
 
-  const self = Box(
+  const self = MadeWith(ComputedRef, Box(
     () => {
       if ( 
         cachedValue === NOT_SET
       ) {
         return recompute()
       } else {
-        const maxRootIteration = maxOf(sourceRoots(self), iteration);
+        const maxRootIteration = maxOf(computeeRoots(self), iteration);
         if ( maxRootIteration > lastMaxRootIteration(self) ) {
           lastMaxRootIteration(self, maxRootIteration);
           return recompute();
@@ -49,7 +49,7 @@ export function ComputedRef<T>(getter: () => T) {
       };
 
       function recompute() {
-        sourceRoots(self).clear();
+        computeeRoots(self).clear();
         computees.add(self);
         try {
           return cachedValue = getter();
@@ -58,7 +58,7 @@ export function ComputedRef<T>(getter: () => T) {
         };
       };
     }
-  );
+  ));
 
   return self;
 };

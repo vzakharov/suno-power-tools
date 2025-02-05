@@ -196,7 +196,8 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
 
 export type CreateBoxArgs<T, TWritable extends boolean> = [
   getterOrValue: T | (() => T),
-  setter?: (value: T) => void
+  // setter?: (value: T) => void
+  setter?: TWritable extends true ? (value: T) => void : never
 ];
 
 
@@ -349,3 +350,17 @@ export function WeakM2MMap<T extends object, U extends object>() {
 };
 
 export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
+
+export const $factory = Symbol('factory');
+
+export type MadeWith<TFactory extends Func, TObject extends object> = { readonly [$factory]: TFactory } & TObject;
+
+export function MadeWith<TFactory extends Func, TObject extends object>(factory: TFactory, object: TObject) {
+  return Object.defineProperty(object, $factory, { value: factory }) as MadeWith<TFactory, TObject>;
+};
+
+export function isMadeWith<TFactory extends Func, TObject extends object>(factory: TFactory, object: TObject):
+  object is MadeWith<TFactory, TObject>
+ {
+  return object[$factory] === factory;
+};
