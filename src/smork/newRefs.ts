@@ -1,15 +1,13 @@
 import { maxOf } from "../lodashish";
-import { NOT_SET, NotSet } from "../types";
+import { NOT_SET, NotSet, Undefined } from "../types";
 import { $with, Box, inc, Metabox, typeMark, typeMarkTester, WeakM2MMap } from "../utils";
 
-
-const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
-const computeeRoots = WeakM2MMap<RootRef<any>, ComputedRef<any>>();
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef<any>) => maxIteration++);
-const computees = new Set<ComputedRef<any>>();
 
-export const $RootRef = Symbol('RootRef');
+// Roots
+
+const $RootRef = Symbol('RootRef');
 export function RootRef<T>(value: T) {
 
   const self = typeMark($RootRef, Box(
@@ -31,7 +29,13 @@ export function RootRef<T>(value: T) {
 export type RootRef<T> = ReturnType<typeof RootRef<T>>;
 export const isRootRef = typeMarkTester($RootRef);
 
-export const $ComputedRef = Symbol('ComputedRef');
+// Computeds
+
+const computees = new Set<ComputedRef<any>>();
+const computeeRoots = WeakM2MMap<RootRef<any>, ComputedRef<any>>();
+const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
+
+const $ComputedRef = Symbol('ComputedRef');
 export function ComputedRef<T>(getter: () => T) {
 
   let cachedValue = NotSet<T>();
