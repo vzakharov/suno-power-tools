@@ -13,6 +13,8 @@ export function Null<T>() {
   return null as T | null;
 };
 
+export type Null<T> = T | null;
+
 export function Nullable<T>(value?: T) {
   return value ?? null;
 }
@@ -256,7 +258,7 @@ export type ParametricBox<T, TWritable extends boolean> =
 
 export type ReadonlyBox<T> = () => T;
 
-export type Box<T> = {
+export type Box<T = unknown> = {
   (): T,
   (setValue: T | ((value: T) => T)): T,
 };
@@ -319,7 +321,7 @@ export function dec(value: number) {
 
 export function WeakBiMap<T extends object, U extends object>() {
 
-  const nodeRelatives = new WeakMap<T|U, Set<T> | Set<U>>();
+  const relations = new WeakMap<T|U, Set<T> | Set<U>>();
 
   function self(node: T): readonly U[];
   function self(node: U): readonly T[];
@@ -327,20 +329,20 @@ export function WeakBiMap<T extends object, U extends object>() {
   function self(node: U, removeNode: null): void;
   function self(node: T, addOrRemoveRelative: U, remove?: null): readonly U[];
   function self(node: U, addOrRemoveRelative: T, remove?: null): readonly T[];
-  function self(...args: Parameters<typeof updateNodeRelations>) {
-    return updateNodeRelations(...args);
+  function self(...args: Parameters<typeof updateRelations>) {
+    return updateRelations(...args);
   };
 
-  function updateNodeRelations(node: T|U, relative?: U|T|null, remove?: null) {
-    const relatives = getOrSet(nodeRelatives, node, new Set());
+  function updateRelations(node: T|U, relative?: U|T|null, remove?: null) {
+    const relatives = getOrSet(relations, node, new Set());
     if ( relative === null ) {
       relatives.forEach(relative =>
-        updateNodeRelations(relative, node, null)
+        updateRelations(relative, node, null)
       );
     } else if ( relative )
       ([
         [ relatives,                                    relative  ],
-        [ getOrSet(nodeRelatives, relative, new Set()), node      ]
+        [ getOrSet(relations, relative, new Set()), node      ]
       ] as const).forEach(([ relatives, relative ]) =>
         remove === null
           ? relatives.delete(relative)

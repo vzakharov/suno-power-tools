@@ -22,6 +22,9 @@
   }
 
   // src/utils.ts
+  function Null() {
+    return null;
+  }
   function $with(obj, fn) {
     return fn(obj);
   }
@@ -103,21 +106,21 @@
     return value + 1;
   }
   function WeakBiMap() {
-    const nodeRelatives = /* @__PURE__ */ new WeakMap();
+    const relations = /* @__PURE__ */ new WeakMap();
     function self(...args) {
-      return updateNodeRelations(...args);
+      return updateRelations(...args);
     }
     ;
-    function updateNodeRelations(node, relative, remove) {
-      const relatives = getOrSet(nodeRelatives, node, /* @__PURE__ */ new Set());
+    function updateRelations(node, relative, remove) {
+      const relatives = getOrSet(relations, node, /* @__PURE__ */ new Set());
       if (relative === null) {
         relatives.forEach(
-          (relative2) => updateNodeRelations(relative2, node, null)
+          (relative2) => updateRelations(relative2, node, null)
         );
       } else if (relative)
         [
           [relatives, relative],
-          [getOrSet(nodeRelatives, relative, /* @__PURE__ */ new Set()), node]
+          [getOrSet(relations, relative, /* @__PURE__ */ new Set()), node]
         ].forEach(
           ([relatives2, relative2]) => remove === null ? relatives2.delete(relative2) : relatives2.add(relative2)
         );
@@ -144,9 +147,7 @@
     const ref = typeMark($RootRef, Box(
       () => {
         detectEffect(ref);
-        computees.forEach((computee) => {
-          computees_roots(computee, ref);
-        });
+        detectComputees(ref);
         return value;
       },
       (setValue) => {
@@ -162,8 +163,18 @@
   var computees = /* @__PURE__ */ new Set();
   var computees_roots = WeakBiMap();
   var lastMaxRootIteration = Metabox((ref) => 0);
+  var fixedComputeeSources = Metabox((ref) => Null());
   var $ComputedRef = Symbol("ComputedRef");
-  function ComputedRef(getter) {
+  function detectComputees(ref) {
+    computees.forEach((computee) => {
+      const fixedSources = fixedComputeeSources(computee);
+      if (!fixedSources || fixedSources.some((source) => isRootRef(source) ? source === ref : computees.has(source))) {
+        computees_roots(computee, ref);
+      }
+      ;
+    });
+  }
+  function ComputedRef(getter, fixedSources) {
     let cachedValue = NotSet();
     const ref = typeMark($ComputedRef, Box(
       () => {
@@ -196,6 +207,7 @@
         return cachedValue;
       }
     ));
+    fixedSources && fixedComputeeSources(ref, fixedSources);
     return ref;
   }
   var isComputedRef = typeMarkTester($ComputedRef);
