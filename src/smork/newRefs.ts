@@ -114,6 +114,7 @@ let currentEffect = Undefined<Effect>();
 const scheduledEffects = new Set<Effect>();
 const valueChanged = Metabox((ref: ComputedRef<any>) => Undefined<boolean>());
 const pausedEffects = new WeakSet<Effect>();
+const destroyedEffects = new WeakSet<Effect>();
 
 enum EffectCommand {
   PAUSE, RESUME, DESTROY
@@ -125,15 +126,18 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
-    switch ( command ) {
-      case EffectCommand.PAUSE:
-        pausedEffects.add(effect);
-        return;
-      case EffectCommand.RESUME:
-        pausedEffects.delete(effect);
-      case EffectCommand.DESTROY:
-        effects_sources(effect, null);
-        return;
+    if ( destroyedEffects.has(effect) )
+      throw "This effect has been destroyed and cannot be used anymore.";
+    
+    if ( command === EffectCommand.PAUSE ) {
+      pausedEffects.add(effect);
+      return;
+    } else if ( command === EffectCommand.RESUME ) {
+      pausedEffects.delete(effect);
+    } else if ( command === EffectCommand.DESTROY ) {
+      effects_sources(effect, null);
+      destroyedEffects.add(effect);
+      return;
     };
 
     if ( fixedSources ) return callback();

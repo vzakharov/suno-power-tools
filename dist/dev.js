@@ -217,17 +217,20 @@
   var scheduledEffects = /* @__PURE__ */ new Set();
   var valueChanged = Metabox((ref) => Undefined());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
+  var destroyedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSources) {
     const effect = typeMark($Effect, (command) => {
-      switch (command) {
-        case 0 /* PAUSE */:
-          pausedEffects.add(effect);
-          return;
-        case 1 /* RESUME */:
-          pausedEffects.delete(effect);
-        case 2 /* DESTROY */:
-          effects_sources(effect, null);
-          return;
+      if (destroyedEffects.has(effect))
+        throw "This effect has been destroyed and cannot be used anymore.";
+      if (command === 0 /* PAUSE */) {
+        pausedEffects.add(effect);
+        return;
+      } else if (command === 1 /* RESUME */) {
+        pausedEffects.delete(effect);
+      } else if (command === 2 /* DESTROY */) {
+        effects_sources(effect, null);
+        destroyedEffects.add(effect);
+        return;
       }
       ;
       if (fixedSources) return callback();
