@@ -317,18 +317,27 @@ export function dec(value: number) {
   return value - 1;
 };
 
-export function WeakM2MMap<T extends object, U extends object>() {
+export function WeakBiMap<T extends object, U extends object>() {
 
   const nodeRelatives = new WeakMap<T|U, Set<T> | Set<U>>();
 
-  function self(node: T): Set<U>;
-  function self(node: U): Set<T>;
-  function self(node: T, addOrRemoveRelative: U, remove?: null): Set<U>;
-  function self(node: U, addOrRemoveRelative: T, remove?: null): Set<T>;
+  function self(node: T): readonly U[];
+  function self(node: U): readonly T[];
+  function self(node: T, removeNode: null): void;
+  function self(node: U, removeNode: null): void;
+  function self(node: T, addOrRemoveRelative: U, remove?: null): readonly U[];
+  function self(node: U, addOrRemoveRelative: T, remove?: null): readonly T[];
+  function self(...args: Parameters<typeof updateNodeRelations>) {
+    return updateNodeRelations(...args);
+  };
 
-  function self(node: T|U, relative?: U|T, remove?: null) {
+  function updateNodeRelations(node: T|U, relative?: U|T|null, remove?: null) {
     const relatives = getOrSet(nodeRelatives, node, new Set());
-    if ( relative )
+    if ( relative === null ) {
+      relatives.forEach(relative =>
+        updateNodeRelations(relative, node, null)
+      );
+    } else if ( relative )
       ([
         [ relatives,                                    relative  ],
         [ getOrSet(nodeRelatives, relative, new Set()), node      ]
@@ -339,14 +348,14 @@ export function WeakM2MMap<T extends object, U extends object>() {
             : relatives.add
         )(relative)
       );
-    return relatives;
+    return [ ...relatives ] as const;
   };
 
   return self;
 
 };
 
-export type WeakM2MMap = ReturnType<typeof WeakM2MMap>;
+export type WeakBiMap = ReturnType<typeof WeakBiMap>;
 
 const TYPE_MARKER = Symbol('typeMarker');
 

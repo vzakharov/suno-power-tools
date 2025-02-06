@@ -1,4 +1,3 @@
-import { ComputedRef, RootRef } from "../smork/newRefs";
-import { mutate } from "../utils";
+import { WeakBiMap } from "../utils";
 
-mutate(window, { RootRef, ComputedRef });
+console.log(WeakBiMap);

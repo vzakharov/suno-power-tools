@@ -3,7 +3,7 @@ import { compact } from '../../lodashish';
 import { Colony, ColonyGraphData, ColonyLink, ColonyNode } from "../../scripts/colony";
 import { $import, audio, button, Checkbox, div, h3, If, Labeled, p, style, TextInput } from '../../smork/dom';
 import { assignTo, ref } from '../../smork/refs';
-import { $throw, doAndReturn, jsonClone, sortByDate } from '../../utils';
+import { $throw, beforeReturning, jsonClone, sortByDate } from '../../utils';
 import { Undefined } from "../../types";
 import { ClipCard } from './ClipCard';
 import { colonyCss } from './css';
@@ -37,7 +37,7 @@ export async function render(
 
   const nodesById = new Map<string, ColonyNode>();
   function nodeById(id: string) {
-    return nodesById.get(id) ?? doAndReturn(
+    return nodesById.get(id) ?? beforeReturning(
       fullData?.nodes.find(node => node.id === id) ?? $throw(`Node with ID ${id} not found.`),
       node => nodesById.set(id, node)
     );

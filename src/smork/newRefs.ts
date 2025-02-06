@@ -1,6 +1,6 @@
 import { maxOf } from "../lodashish";
 import { infer, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakM2MMap } from "../utils";
+import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap } from "../utils";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef<any>) => maxIteration++);
@@ -34,7 +34,7 @@ export const isRootRef = typeMarkTester($RootRef);
 // Computeds
 
 const computees = new Set<ComputedRef<any>>();
-const computees_roots = WeakM2MMap<RootRef<any>, ComputedRef<any>>();
+const computees_roots = WeakBiMap<RootRef<any>, ComputedRef<any>>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef<any>) => 0);
 
 const $ComputedRef = Symbol('ComputedRef');
@@ -54,7 +54,7 @@ export function ComputedRef<T>(getter: () => T) {
           };
         })
       ) {
-        computees_roots(ref).clear();
+        computees_roots(ref, null);
         computees.add(ref);
         try {
           cachedValue = beforeReturning(getter(), newValue =>
@@ -87,7 +87,7 @@ export const isComputedRef = typeMarkTester($ComputedRef);
 
 type AnyRef = RootRef<any> | ComputedRef<any>;
 
-const effects_sources = WeakM2MMap<Effect, AnyRef>();
+const effects_sources = WeakBiMap<Effect, AnyRef>();
 const $Effect = Symbol('Effect');
 
 let currentEffect = Undefined<Effect>();
@@ -103,7 +103,7 @@ export function Effect(callback: () => void, fixedSources?: AnyRef[]) {
     if ( fixedSources ) return callback();
 
     const sources = [...effects_sources(effect)];
-    effects_sources(effect).clear();
+    effects_sources(effect, null);
     sources.forEach(source =>
       isComputedRef(source) && valueChanged(source, false) // Reset the valueChanged
     );
