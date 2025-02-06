@@ -1,6 +1,6 @@
-import { maxOf } from "../lodashish";
-import { infer, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard } from "../utils";
+import { isFunction, maxOf } from "../lodashish";
+import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
+import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs } from "../utils";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
@@ -126,6 +126,7 @@ export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => vo
 export const isWritableComputedRef = typeMarkTester($WritableComputedRef);
 
 export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
+export const isRef = combinedTypeguard(isRootRef, isComputedRef);
 
 // Effects
 
@@ -218,4 +219,39 @@ function scheduleEffects(ref: Ref) {
       scheduledEffects.add(effect);
     });
   };
+};
+
+// Shorthands
+
+export function ref<T>(): RootRef<T | undefined>;
+export function ref<T>(value: NonFunction<T>): RootRef<T>;
+export function ref<T>(getter: () => T): ReadonlyComputedRef<T>;
+export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
+export function ref<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+
+export function ref<T, U>(first?: T | (() => T) | Ref<T>, second?: (value: T) => U, third?: (value: U) => T) {
+  return isRef(first)
+    ? second
+      ? third
+        ? WritableComputedRef(() => second(first()), value => first(third(value)), [first])
+        : ReadonlyComputedRef(() => second(first()), [first])
+      : $throw('A mapper function must be provided when the first argument is a ref.')
+    : isFunction(first)
+      ? second
+        ? WritableComputedRef(first, second)
+        : ReadonlyComputedRef(first)
+      : RootRef(first);
+};
+
+export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
+  return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
+};
+
+export function effect(callback: () => void) {
+  return Effect(callback);
+};
+
+export function watch<T>(source: Ref<T> | (() => T), callback: (value: T) => void) {
+  return Effect(() => callback(toref(source)()));
 };

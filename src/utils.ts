@@ -1,5 +1,5 @@
 import { isFunction, mapKeys } from "./lodashish";
-import { Defined, Func, infer, Inferable, MaybeNotSet, NotSet, Primitive, StringKey, TypingError, Undefinable } from "./types";
+import { Func, infer, Inferable, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -369,8 +369,8 @@ export function typeMark<TDescription extends string | symbol, T>(description: T
 
 export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
 
-  return function test<T extends object>(value: T): value is T & TypeMarked<TDescription> {
-    return TYPE_MARKER in value && value[TYPE_MARKER] === description;
+  return function test(value: any): value is TypeMarked<TDescription> {
+    return value && typeof value === 'object' && TYPE_MARKER in value && value[TYPE_MARKER] === description;
   };
   
 };
