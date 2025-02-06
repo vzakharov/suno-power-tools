@@ -10,9 +10,9 @@ export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>;
 // Roots
 
 const $RootRef = Symbol('RootRef');
-export function RootRef<T>(value: T): RootRef<T> {
+export function RootRef<T>(value: T) {
 
-  const ref = typeMark($RootRef, Box(
+  const ref: RootRef<T> = typeMark($RootRef, Box(
     () => {
       detectEffect(ref);
       detectComputees(ref);
@@ -113,13 +113,29 @@ const $Effect = Symbol('Effect');
 let currentEffect = Undefined<Effect>();
 const scheduledEffects = new Set<Effect>();
 const valueChanged = Metabox((ref: ComputedRef<any>) => Undefined<boolean>());
+const pausedEffects = new WeakSet<Effect>();
+
+enum EffectCommand {
+  PAUSE, RESUME, DESTROY
+};
 
 export type Effect = ReturnType<typeof Effect>;
 
 export function Effect(callback: () => void, fixedSources?: Ref[]) {
 
-  const effect = typeMark($Effect, () => {
-    
+  const effect = typeMark($Effect, (command?: EffectCommand) => {
+
+    switch ( command ) {
+      case EffectCommand.PAUSE:
+        pausedEffects.add(effect);
+        return;
+      case EffectCommand.RESUME:
+        pausedEffects.delete(effect);
+      case EffectCommand.DESTROY:
+        effects_sources(effect, null);
+        return;
+    };
+
     if ( fixedSources ) return callback();
 
     const sources = [...effects_sources(effect)];
@@ -163,6 +179,7 @@ function scheduleEffects(ref: Ref) {
     )
   ) {
     effects_sources(ref).forEach(effect => {
+      if ( pausedEffects.has(effect) ) return;
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           try {

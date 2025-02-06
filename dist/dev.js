@@ -216,8 +216,20 @@
   var currentEffect = Undefined();
   var scheduledEffects = /* @__PURE__ */ new Set();
   var valueChanged = Metabox((ref) => Undefined());
+  var pausedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSources) {
-    const effect = typeMark($Effect, () => {
+    const effect = typeMark($Effect, (command) => {
+      switch (command) {
+        case 0 /* PAUSE */:
+          pausedEffects.add(effect);
+          return;
+        case 1 /* RESUME */:
+          pausedEffects.delete(effect);
+        case 2 /* DESTROY */:
+          effects_sources(effect, null);
+          return;
+      }
+      ;
       if (fixedSources) return callback();
       const sources = [...effects_sources(effect)];
       effects_sources(effect, null);
@@ -247,6 +259,7 @@
       valueChanged(ref) ?? $throw("valueChanged not updated")) : changed
     )) {
       effects_sources(ref).forEach((effect) => {
+        if (pausedEffects.has(effect)) return;
         if (!scheduledEffects.size) {
           nextTick(() => {
             try {
