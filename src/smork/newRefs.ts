@@ -12,6 +12,7 @@ export function RootRef<T>(value: T) {
 
   const ref = typeMark($RootRef, Box(
     () => {
+      detectEffect(ref);
       computees.forEach(computee => {
         computees_roots(computee, ref);
       });
@@ -44,7 +45,7 @@ export function ComputedRef<T>(getter: () => T) {
 
   const ref = typeMark($ComputedRef, Box(
     () => {
-
+      detectEffect(ref);
       if ( 
         cachedValue === NOT_SET
         || $with(maxOf(computees_roots(ref), iteration), maxRootIteration => {
@@ -125,6 +126,10 @@ export function Effect(callback: () => void, fixedSources?: AnyRef[]) {
 };
 
 export const isEffect = typeMarkTester($Effect);
+
+function detectEffect(ref: AnyRef) {
+  currentEffect && effects_sources(currentEffect, ref);
+};
 
 function scheduleEffects(ref: AnyRef) {
   if ( 

@@ -1,3 +1,3 @@
-import { WeakBiMap } from "../utils";
+import { ComputedRef, Effect, RootRef } from "../smork/newRefs";
 
-console.log(WeakBiMap);
+Object.assign(window, { RootRef, ComputedRef, Effect });

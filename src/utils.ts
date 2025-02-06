@@ -342,11 +342,9 @@ export function WeakBiMap<T extends object, U extends object>() {
         [ relatives,                                    relative  ],
         [ getOrSet(nodeRelatives, relative, new Set()), node      ]
       ] as const).forEach(([ relatives, relative ]) =>
-        (
-          remove === null
-            ? relatives.delete
-            : relatives.add
-        )(relative)
+        remove === null
+          ? relatives.delete(relative)
+          : relatives.add(relative)
       );
     return [ ...relatives ] as const;
   };
