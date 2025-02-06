@@ -1,15 +1,17 @@
 import { maxOf } from "../lodashish";
 import { infer, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null } from "../utils";
+import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard } from "../utils";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
 
-export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>;
+export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 
 // Roots
 
 const $RootRef = Symbol('RootRef');
+export type RootRef<T = unknown> = Box<T> & TypeMarked<typeof $RootRef>;
+
 export function RootRef<T>(value: T) {
 
   const ref: RootRef<T> = typeMark($RootRef, Box(
@@ -29,17 +31,18 @@ export function RootRef<T>(value: T) {
   return ref;
 };
 
-export type RootRef<T = unknown> = Box<T> & TypeMarked<typeof $RootRef>;
 export const isRootRef = typeMarkTester($RootRef);
 
 // Computeds
+
+export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
 const computees = new Set<ComputedRef>();
 const computees_roots = WeakBiMap<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
 const fixedComputeeSources = Metabox((ref: ComputedRef) => Null<Ref[]>());
 
-const $ComputedRef = Symbol('ComputedRef');
+const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
 function detectComputees(ref: Box & TypeMarked<typeof $RootRef>) {
   computees.forEach(computee => {
@@ -58,11 +61,12 @@ function detectComputees(ref: Box & TypeMarked<typeof $RootRef>) {
   });
 };
 
-export function ComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
+export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & TypeMarked<typeof $ReadonlyComputedRef>;
+export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
 
   let cachedValue = NotSet<T>();
 
-  const ref: ComputedRef<T> = typeMark($ComputedRef, Box(
+  const ref: ReadonlyComputedRef<T> = typeMark($ReadonlyComputedRef, Box(
     () => {
       detectEffect(ref);
       if ( 
@@ -102,8 +106,26 @@ export function ComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
   return ref;
 };
 
-export type ComputedRef<T = unknown> = ReadonlyBox<T> & TypeMarked<typeof $ComputedRef>;
-export const isComputedRef = typeMarkTester($ComputedRef);
+export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
+
+// Writable computeds
+
+const $WritableComputedRef = Symbol('WritableComputedRef');
+export type WritableComputedRef<T> = Box<T> & TypeMarked<typeof $WritableComputedRef>;
+
+export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => void, fixedSources?: Ref[]) {
+
+  const ref: WritableComputedRef<T> = typeMark($WritableComputedRef, Box(
+    ReadonlyComputedRef(getter, fixedSources),
+    setter
+  ));
+
+  return ref;
+};
+
+export const isWritableComputedRef = typeMarkTester($WritableComputedRef);
+
+export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
 
 // Effects
 
@@ -128,7 +150,7 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
 
     if ( destroyedEffects.has(effect) )
       throw "This effect has been destroyed and cannot be used anymore.";
-    
+
     if ( command === EffectCommand.PAUSE ) {
       pausedEffects.add(effect);
       return;
@@ -145,7 +167,7 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
     const sources = [...effects_sources(effect)];
     effects_sources(effect, null);
     sources.forEach(source =>
-      isComputedRef(source) && valueChanged(source, false) // Reset the valueChanged
+      isReadonlyComputedRef(source) && valueChanged(source, false) // Reset the valueChanged
     );
     currentEffect = effect;
     try {

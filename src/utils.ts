@@ -374,3 +374,7 @@ export function typeMarkTester<TDescription extends string | symbol>(description
   };
   
 };
+
+export function combinedTypeguard<T, G1 extends T, G2 extends T>(guard1: (value: T) => value is G1, guard2: (value: T) => value is G2) {
+  return (value: T): value is G1 | G2 => guard1(value) || guard2(value);
+};

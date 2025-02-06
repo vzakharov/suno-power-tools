@@ -138,6 +138,9 @@
       return TYPE_MARKER in value && value[TYPE_MARKER] === description;
     };
   }
+  function combinedTypeguard(guard1, guard2) {
+    return (value) => guard1(value) || guard2(value);
+  }
 
   // src/smork/newRefs.ts
   var maxIteration = 0;
@@ -164,7 +167,7 @@
   var computees_roots = WeakBiMap();
   var lastMaxRootIteration = Metabox((ref) => 0);
   var fixedComputeeSources = Metabox((ref) => Null());
-  var $ComputedRef = Symbol("ComputedRef");
+  var $ReadonlyComputedRef = Symbol("ReadonlyComputedRef");
   function detectComputees(ref) {
     computees.forEach((computee) => {
       const fixedSources = fixedComputeeSources(computee);
@@ -174,9 +177,9 @@
       ;
     });
   }
-  function ComputedRef(getter, fixedSources) {
+  function ReadonlyComputedRef(getter, fixedSources) {
     let cachedValue = NotSet();
-    const ref = typeMark($ComputedRef, Box(
+    const ref = typeMark($ReadonlyComputedRef, Box(
       () => {
         detectEffect(ref);
         if (cachedValue === NOT_SET || $with(maxOf(computees_roots(ref), iteration), (maxRootIteration) => {
@@ -210,7 +213,10 @@
     fixedSources && fixedComputeeSources(ref, fixedSources);
     return ref;
   }
-  var isComputedRef = typeMarkTester($ComputedRef);
+  var isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
+  var $WritableComputedRef = Symbol("WritableComputedRef");
+  var isWritableComputedRef = typeMarkTester($WritableComputedRef);
+  var isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
   var effects_sources = WeakBiMap();
   var $Effect = Symbol("Effect");
   var currentEffect = Undefined();
@@ -237,7 +243,7 @@
       const sources = [...effects_sources(effect)];
       effects_sources(effect, null);
       sources.forEach(
-        (source) => isComputedRef(source) && valueChanged(source, false)
+        (source) => isReadonlyComputedRef(source) && valueChanged(source, false)
         // Reset the valueChanged
       );
       currentEffect = effect;
@@ -281,6 +287,6 @@
   }
 
   // src/scripts/dev.ts
-  Object.assign(window, { RootRef, ComputedRef, Effect });
+  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect });
 })();
 }}).main();
