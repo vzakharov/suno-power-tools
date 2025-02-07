@@ -245,6 +245,8 @@ export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOr
       : RootRef(getterValueOrSource);
 };
 
+export const ref = Ref;
+
 export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
   return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
 };
@@ -268,19 +270,19 @@ type RefMethods<T> = {
 
 };
 
-function RefMethods<T>(ref: Ref<T>): RefMethods<T> {
+function RefMethods<T>(r: Ref<T>): RefMethods<T> {
 
   function to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
   function to<U>(mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
   function to<U>(mapper: (value: T) => U, backMapper?: (value: U) => T) {
     return backMapper
-      ? Ref(ref, mapper, backMapper)
-      : Ref(ref, mapper);
+      ? Ref(r, mapper, backMapper)
+      : Ref(r, mapper);
   };
 
   return {
     to,
-    watch: (callback: (value: T) => void) => watch(ref, callback)
+    watch: (callback: (value: T) => void) => watch(r, callback)
   };
 };
 

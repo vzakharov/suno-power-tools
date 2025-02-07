@@ -154,63 +154,63 @@
   var iteration = Metabox((root) => maxIteration++);
   var $RootRef = Symbol("RootRef");
   function RootRef(value) {
-    const ref = addRefMethods(typeMark($RootRef, Box(
+    const ref2 = addRefMethods(typeMark($RootRef, Box(
       () => {
-        detectEffect(ref);
-        detectComputees(ref);
+        detectEffect(ref2);
+        detectComputees(ref2);
         return value;
       },
       (setValue) => {
         if (value === setValue) return;
-        valueChanged(ref, true);
-        [ref, ...computees_roots(ref)].forEach(scheduleEffects);
+        valueChanged(ref2, true);
+        [ref2, ...computees_roots(ref2)].forEach(scheduleEffects);
         value = setValue;
-        iteration(ref, inc);
+        iteration(ref2, inc);
       }
     )));
-    return ref;
+    return ref2;
   }
   var isRootRef = typeMarkTester($RootRef);
   var computees = /* @__PURE__ */ new Set();
   var computees_roots = WeakBiMap();
-  var lastMaxRootIteration = Metabox((ref) => 0);
-  var fixedComputeeSources = Metabox((ref) => Null());
+  var lastMaxRootIteration = Metabox((ref2) => 0);
+  var fixedComputeeSources = Metabox((ref2) => Null());
   var $ReadonlyComputedRef = Symbol("ReadonlyComputedRef");
-  function detectComputees(ref) {
+  function detectComputees(ref2) {
     computees.forEach((computee) => {
       const fixedSources = fixedComputeeSources(computee);
-      if (!fixedSources || fixedSources.some((source) => isRootRef(source) ? source === ref : computees.has(source))) {
-        computees_roots(computee, ref);
+      if (!fixedSources || fixedSources.some((source) => isRootRef(source) ? source === ref2 : computees.has(source))) {
+        computees_roots(computee, ref2);
       }
       ;
     });
   }
   function ReadonlyComputedRef(getter, fixedSources) {
     let cachedValue = NotSet();
-    const ref = addRefMethods(typeMark($ReadonlyComputedRef, Box(
+    const ref2 = addRefMethods(typeMark($ReadonlyComputedRef, Box(
       () => {
-        detectEffect(ref);
-        if (cachedValue === NOT_SET || $with(maxOf(computees_roots(ref), iteration), (maxRootIteration) => {
-          if (maxRootIteration > lastMaxRootIteration(ref)) {
-            lastMaxRootIteration(ref, maxRootIteration);
+        detectEffect(ref2);
+        if (cachedValue === NOT_SET || $with(maxOf(computees_roots(ref2), iteration), (maxRootIteration) => {
+          if (maxRootIteration > lastMaxRootIteration(ref2)) {
+            lastMaxRootIteration(ref2, maxRootIteration);
             return true;
           }
           ;
         })) {
-          computees_roots(ref, null);
-          computees.add(ref);
+          computees_roots(ref2, null);
+          computees.add(ref2);
           try {
             cachedValue = beforeReturning(
               getter(),
-              (newValue) => valueChanged(ref, cachedValue !== newValue)
+              (newValue) => valueChanged(ref2, cachedValue !== newValue)
             );
           } finally {
-            computees.delete(ref);
+            computees.delete(ref2);
           }
           ;
         } else {
           computees.forEach((computee) => {
-            computees_roots(ref).forEach((root) => {
+            computees_roots(ref2).forEach((root) => {
               computees_roots(computee, root);
             });
           });
@@ -218,17 +218,17 @@
         return cachedValue;
       }
     )));
-    fixedSources && fixedComputeeSources(ref, fixedSources);
-    return ref;
+    fixedSources && fixedComputeeSources(ref2, fixedSources);
+    return ref2;
   }
   var isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
   var $WritableComputedRef = Symbol("WritableComputedRef");
   function WritableComputedRef(getter, setter, fixedSources) {
-    const ref = addRefMethods(typeMark($WritableComputedRef, Box(
+    const ref2 = addRefMethods(typeMark($WritableComputedRef, Box(
       ReadonlyComputedRef(getter, fixedSources),
       setter
     )));
-    return ref;
+    return ref2;
   }
   var isWritableComputedRef = typeMarkTester($WritableComputedRef);
   var isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
@@ -237,7 +237,7 @@
   var $Effect = Symbol("Effect");
   var currentEffect = Undefined();
   var scheduledEffects = /* @__PURE__ */ new Set();
-  var valueChanged = Metabox((ref) => Undefined());
+  var valueChanged = Metabox((ref2) => Undefined());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
   var destroyedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSources) {
@@ -274,16 +274,16 @@
     return effect2;
   }
   var isEffect = typeMarkTester($Effect);
-  function detectEffect(ref) {
-    currentEffect && effects_sources(currentEffect, ref);
+  function detectEffect(ref2) {
+    currentEffect && effects_sources(currentEffect, ref2);
   }
-  function scheduleEffects(ref) {
-    if (isRootRef(ref) || $with(
-      valueChanged(ref),
-      (changed) => changed === void 0 ? (ref(), // This will update the valueChanged
-      valueChanged(ref) ?? $throw("valueChanged not updated")) : changed
+  function scheduleEffects(ref2) {
+    if (isRootRef(ref2) || $with(
+      valueChanged(ref2),
+      (changed) => changed === void 0 ? (ref2(), // This will update the valueChanged
+      valueChanged(ref2) ?? $throw("valueChanged not updated")) : changed
     )) {
-      effects_sources(ref).forEach((effect2) => {
+      effects_sources(ref2).forEach((effect2) => {
         if (pausedEffects.has(effect2)) return;
         if (!scheduledEffects.size) {
           nextTick(() => {
@@ -304,6 +304,7 @@
   function Ref(getterValueOrSource, setterOrMapper, backMapper) {
     return isRef(getterValueOrSource) ? setterOrMapper ? backMapper ? WritableComputedRef(() => setterOrMapper(getterValueOrSource()), (value) => getterValueOrSource(backMapper(value)), [getterValueOrSource]) : ReadonlyComputedRef(() => setterOrMapper(getterValueOrSource()), [getterValueOrSource]) : $throw("A mapper function must be provided when the first argument is a ref.") : isFunction(getterValueOrSource) ? setterOrMapper ? WritableComputedRef(getterValueOrSource, setterOrMapper) : ReadonlyComputedRef(getterValueOrSource) : RootRef(getterValueOrSource);
   }
+  var ref = Ref;
   function toref(source) {
     return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
   }
@@ -311,21 +312,21 @@
     return Effect(callback ? () => callback(toref(sourceOrCallback)()) : sourceOrCallback);
   }
   var effect = watch;
-  function RefMethods(ref) {
+  function RefMethods(r) {
     function to(mapper, backMapper) {
-      return backMapper ? Ref(ref, mapper, backMapper) : Ref(ref, mapper);
+      return backMapper ? Ref(r, mapper, backMapper) : Ref(r, mapper);
     }
     ;
     return {
       to,
-      watch: (callback) => watch(ref, callback)
+      watch: (callback) => watch(r, callback)
     };
   }
-  function addRefMethods(ref) {
-    return Object.assign(ref, RefMethods(ref));
+  function addRefMethods(ref2) {
+    return Object.assign(ref2, RefMethods(ref2));
   }
 
   // src/scripts/dev.ts
-  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, effect, watch });
+  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch });
 })();
 }}).main();
