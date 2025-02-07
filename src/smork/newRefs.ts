@@ -1,6 +1,6 @@
 import { isFunction, maxOf } from "../lodashish";
 import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
+import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
@@ -82,7 +82,7 @@ export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
         computees_roots(ref, null);
         computees.add(ref);
         try {
-          cachedValue = beforeReturning(getter(), newValue =>
+          cachedValue = tap(getter(), newValue =>
             valueChanged(ref, cachedValue !== newValue)
           );
         } finally {

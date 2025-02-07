@@ -128,7 +128,7 @@ export function debug(arg?: any) {
   };
 };
 
-export function beforeReturning<T>(target: T, preprocess: (target: T) => void) {
+export function tap<T>(target: T, preprocess: (target: T) => void) {
   preprocess(target);
   return target;
 };
