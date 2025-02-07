@@ -28,6 +28,13 @@
   function $with(obj, fn) {
     return fn(obj);
   }
+  function mutate(obj, partial) {
+    Object.assign(obj, partial);
+  }
+  function mutated(obj, partial) {
+    mutate(obj, partial);
+    return obj;
+  }
   function $throw(message) {
     throw new Error(message);
   }
@@ -131,11 +138,11 @@
   }
   var TYPE_MARKER = Symbol("typeMarker");
   function typeMark(description, value) {
-    return Object.defineProperty(value, TYPE_MARKER, { value: description });
+    return mutated(value, { [TYPE_MARKER]: description });
   }
   function typeMarkTester(description) {
     return function test(value) {
-      return value && typeof value === "object" && TYPE_MARKER in value && value[TYPE_MARKER] === description;
+      return value && TYPE_MARKER in value && value[TYPE_MARKER] === description;
     };
   }
   function combinedTypeguard(guard1, guard2) {
@@ -319,6 +326,6 @@
   }
 
   // src/scripts/dev.ts
-  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, ref: Ref, effect, watch });
+  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, effect, watch });
 })();
 }}).main();

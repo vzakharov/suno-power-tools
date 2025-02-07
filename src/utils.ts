@@ -363,14 +363,15 @@ export type TypeMarked<TDescription extends string | symbol> = {
   readonly [TYPE_MARKER]: TDescription;
 };
 
-export function typeMark<TDescription extends string | symbol, T>(description: TDescription, value: T) {
-  return Object.defineProperty(value, TYPE_MARKER, { value: description }) as T & TypeMarked<TDescription>;
+export function typeMark<TDescription extends string | symbol, T extends {}>(description: TDescription, value: T) {
+  // return Object.defineProperty(value, TYPE_MARKER, { value: description }) as T & TypeMarked<TDescription>;
+  return mutated(value, { [TYPE_MARKER]: description });
 };
 
 export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
 
-  return function test(value: any): value is TypeMarked<TDescription> {
-    return value && typeof value === 'object' && TYPE_MARKER in value && value[TYPE_MARKER] === description;
+  return function test(value: object): value is TypeMarked<TDescription> {
+    return value && TYPE_MARKER in value && value[TYPE_MARKER] === description;
   };
   
 };
