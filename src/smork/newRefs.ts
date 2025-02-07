@@ -1,6 +1,6 @@
 import { isFunction, maxOf } from "../lodashish";
 import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs } from "../utils";
+import { $throw, $with, Box, beforeReturning, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
@@ -10,11 +10,11 @@ export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 // Roots
 
 const $RootRef = Symbol('RootRef');
-export type RootRef<T = unknown> = Box<T> & TypeMarked<typeof $RootRef>;
+export type RootRef<T = unknown> = Box<T> & RefMethods<T> & TypeMarked<typeof $RootRef>;
 
 export function RootRef<T>(value: T) {
 
-  const ref: RootRef<T> = typeMark($RootRef, Box(
+  const ref = addRefMethods(typeMark($RootRef, Box(
     () => {
       detectEffect(ref);
       detectComputees(ref);
@@ -22,16 +22,17 @@ export function RootRef<T>(value: T) {
     },
     setValue => {
       if ( value === setValue ) return;
+      valueChanged(ref, true);
       [ ref, ...computees_roots(ref) ].forEach(scheduleEffects);
       value = setValue;
       iteration(ref, inc);
     },
-  ));
+  ))) as RootRef<T>;
 
   return ref;
 };
 
-export const isRootRef = typeMarkTester($RootRef);
+export const isRootRef = typeMarkTester($RootRef) as (value: any) => value is RootRef;
 
 // Computeds
 
@@ -44,7 +45,7 @@ const fixedComputeeSources = Metabox((ref: ComputedRef) => Null<Ref[]>());
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
-function detectComputees(ref: Box & TypeMarked<typeof $RootRef>) {
+function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
     const fixedSources = fixedComputeeSources(computee);
     if (
@@ -61,12 +62,12 @@ function detectComputees(ref: Box & TypeMarked<typeof $RootRef>) {
   });
 };
 
-export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & TypeMarked<typeof $ReadonlyComputedRef>;
+export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & RefMethods<T> & TypeMarked<typeof $ReadonlyComputedRef>;
 export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
 
   let cachedValue = NotSet<T>();
 
-  const ref: ReadonlyComputedRef<T> = typeMark($ReadonlyComputedRef, Box(
+  const ref = addRefMethods(typeMark($ReadonlyComputedRef, Box(
     () => {
       detectEffect(ref);
       if ( 
@@ -99,34 +100,34 @@ export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
       return cachedValue;
 
     }
-  ));
+  ))) as ReadonlyComputedRef<T>;
 
   fixedSources && fixedComputeeSources(ref, fixedSources);
 
   return ref;
 };
 
-export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
+export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (value: any) => value is ReadonlyComputedRef;
 
 // Writable computeds
 
 const $WritableComputedRef = Symbol('WritableComputedRef');
-export type WritableComputedRef<T> = Box<T> & TypeMarked<typeof $WritableComputedRef>;
+export type WritableComputedRef<T = unknown> = Box<T> & RefMethods<T> & TypeMarked<typeof $WritableComputedRef>;
 
 export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => void, fixedSources?: Ref[]) {
 
-  const ref: WritableComputedRef<T> = typeMark($WritableComputedRef, Box(
+  const ref = addRefMethods(typeMark($WritableComputedRef, Box(
     ReadonlyComputedRef(getter, fixedSources),
     setter
-  ));
+  ))) as WritableComputedRef<T>;
 
   return ref;
 };
 
-export const isWritableComputedRef = typeMarkTester($WritableComputedRef);
+export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as (value: any) => value is WritableComputedRef;
 
-export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
-export const isRef = combinedTypeguard(isRootRef, isComputedRef);
+export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef) as (value: any) => value is ComputedRef;
+export const isRef = combinedTypeguard(isRootRef, isComputedRef) as (value: any) => value is Ref;
 
 // Effects
 
@@ -135,7 +136,7 @@ const $Effect = Symbol('Effect');
 
 let currentEffect = Undefined<Effect>();
 const scheduledEffects = new Set<Effect>();
-const valueChanged = Metabox((ref: ComputedRef<any>) => Undefined<boolean>());
+const valueChanged = Metabox((ref: Ref) => Undefined<boolean>());
 const pausedEffects = new WeakSet<Effect>();
 const destroyedEffects = new WeakSet<Effect>();
 
@@ -223,35 +224,66 @@ function scheduleEffects(ref: Ref) {
 
 // Shorthands
 
-export function ref<T>(): RootRef<T | undefined>;
-export function ref<T>(value: NonFunction<T>): RootRef<T>;
-export function ref<T>(getter: () => T): ReadonlyComputedRef<T>;
-export function ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
-export function ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-export function ref<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
+export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function Ref<T>(getter: () => T): ReadonlyComputedRef<T>;
+export function Ref<T>(value: T): RootRef<T>;
+export function Ref<T>(): RootRef<T | undefined>;
 
-export function ref<T, U>(first?: T | (() => T) | Ref<T>, second?: (value: T) => U, third?: (value: U) => T) {
-  return isRef(first)
-    ? second
-      ? third
-        ? WritableComputedRef(() => second(first()), value => first(third(value)), [first])
-        : ReadonlyComputedRef(() => second(first()), [first])
+export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => T) {
+  return isRef(getterValueOrSource)
+    ? setterOrMapper
+      ? backMapper
+        ? WritableComputedRef(() => setterOrMapper(getterValueOrSource()), value => getterValueOrSource(backMapper(value)), [getterValueOrSource])
+        : ReadonlyComputedRef(() => setterOrMapper(getterValueOrSource()), [getterValueOrSource])
       : $throw('A mapper function must be provided when the first argument is a ref.')
-    : isFunction(first)
-      ? second
-        ? WritableComputedRef(first, second)
-        : ReadonlyComputedRef(first)
-      : RootRef(first);
+    : isFunction(getterValueOrSource)
+      ? setterOrMapper
+        ? WritableComputedRef(getterValueOrSource, setterOrMapper)
+        : ReadonlyComputedRef(getterValueOrSource)
+      : RootRef(getterValueOrSource);
 };
 
 export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
   return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
 };
 
-export function effect(callback: () => void) {
-  return Effect(callback);
+export function watch(callback: () => void): Effect;
+export function watch<T>(source: Ref<T>, callback: (value: T) => void): Effect;
+export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T) => void) {
+  return Effect(callback ? () => callback(toref(sourceOrCallback)()) : sourceOrCallback);
 };
 
-export function watch<T>(source: Ref<T> | (() => T), callback: (value: T) => void) {
-  return Effect(() => callback(toref(source)()));
+export const effect = watch;
+
+// Methods
+
+type RefMethods<T> = {
+  
+  to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
+  to<U>(mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+
+  watch(callback: (value: T) => void): Effect;
+
+};
+
+function RefMethods<T>(ref: Ref<T>): RefMethods<T> {
+
+  function to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
+  function to<U>(mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+  function to<U>(mapper: (value: T) => U, backMapper?: (value: U) => T) {
+    return backMapper
+      ? Ref(ref, mapper, backMapper)
+      : Ref(ref, mapper);
+  };
+
+  return {
+    to,
+    watch: (callback: (value: T) => void) => watch(ref, callback)
+  };
+};
+
+function addRefMethods<T>(ref: Box<T>) {
+  return Object.assign(ref, RefMethods(ref as Ref<T>));
 };
