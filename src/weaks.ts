@@ -1,12 +1,15 @@
 import { getOrSet } from "./utils";
 
+export const BREAK = Symbol('BREAK');
+
 export type PhantomSet<T> = { 
   add(value: T): PhantomSet<T>, 
   has(value: T): boolean, 
   clear(): void, 
   delete(value: T): boolean, 
   readonly size: number, 
-  forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void): void, 
+  forEach(callback: (value: T) => unknown): void,
+  map<U>(callback: (value: T) => U): U[],
   [Symbol.iterator](): SetIterator<T> 
 };
 
@@ -17,12 +20,13 @@ export function PhantomSet<T extends object>(): PhantomSet<T> {
 
   const set = new Set<WeakRef<T>>();
 
-  const removeStales = () => (
-    set.forEach(ref => !ref.deref() && set.delete(ref)),
-    set
-  );
-
-  const snapshot = () => new Set([...removeStales()].map(ref => ref.deref()).filter(Boolean) as T[]);
+  const iterator = function* () {
+    for (const ref of set) {
+      const value = ref.deref();
+      if ( value ) yield [value, ref] as const;
+      else set.delete(ref);
+    };
+  };
 
   const self = {
 
@@ -32,7 +36,10 @@ export function PhantomSet<T extends object>(): PhantomSet<T> {
     },
 
     has(value: T) {
-      return snapshot().has(value);
+      for (const v of self) {
+        if (v === value) return true;
+      };
+      return false;
     },
 
     clear() {
@@ -40,9 +47,8 @@ export function PhantomSet<T extends object>(): PhantomSet<T> {
     },
 
     delete(value: T) {
-      removeStales();
-      for (const ref of set) {
-        if (ref.deref() === value) {
+      for (const [v, ref] of iterator()) {
+        if (v === value) {
           set.delete(ref);
           return true;
         };
@@ -51,15 +57,26 @@ export function PhantomSet<T extends object>(): PhantomSet<T> {
     },
 
     get size() {
-      return snapshot().size;
+      return [...self].length;
     },
 
-    forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void) {
-      snapshot().forEach(callbackfn);
+    forEach(callbackfn: (value: T) => unknown) {
+      for (const value of self) {
+        if (callbackfn(value) === BREAK) break;
+      };
     },
+
+    map<U>(callback: (value: T) => U) {
+      return [...self].map(callback);
+    },
+
 
     [Symbol.iterator]() {
-      return snapshot()[Symbol.iterator]();
+      return function* () {
+        for (const [value] of iterator()) {
+          yield value;
+        };
+      }();
     },
 
   };
@@ -85,8 +102,7 @@ export function WeakBiMap<T extends object, U extends object>() {
   function updateRelations(node: T | U, relative?: U | T | null, remove?: null) {
     const relatives = getOrSet(relations, node, PhantomSet());
     if (relative === null) {
-      relatives.forEach(relative => updateRelations(relative, node, null)
-      );
+      relatives.forEach(relative => updateRelations(relative, node, null));
     } else if (relative)
       ([
         [relatives, relative],
