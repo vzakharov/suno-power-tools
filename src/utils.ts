@@ -210,9 +210,10 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
 
 export type CreateBoxArgs<T, TWritable extends boolean> = [
   getterOrValue: T | (() => T),
-  setter?: TWritable extends true ? (value: T) => void : never
+  setter?: TWritable extends true ? (value: Defined<T>) => void : never
 ];
 
+export type ValueSetter<T> = Defined<T> | ((value: T) => Defined<T>);
 
 export function createBox<T, TWritable extends boolean>(...[ getterOrValue, setter ]: CreateBoxArgs<T, TWritable>) {
 
@@ -223,10 +224,10 @@ export function createBox<T, TWritable extends boolean>(...[ getterOrValue, sett
     return createBoxWithGetter(getterOrValue, setter);
   };
 
-  function createBoxWithGetter(getter: () => T, setter?: (value: T) => void) {
+  function createBoxWithGetter(getter: () => T, setter?: (value: Defined<T>) => void) {
 
     return (
-      function box(setValue?: T | ((value: T) => T)) {
+      function box(setValue?: ValueSetter<T>) {
         if ( setValue === undefined ) {
           return getter();
         } else {
@@ -265,7 +266,7 @@ export type ReadonlyBox<T> = () => T;
 
 export type Box<T = unknown> = {
   (): T,
-  (setValue: Defined<T> | ((value: T) => T)): T,
+  (setValue: Defined<T> | ((value: T) => Defined<T>)): T,
 };
 
 export function Metadata<TSubject extends WeakKey, TMetadata extends Record<string, any>>(initializer: (subject: TSubject) => TMetadata) {
@@ -288,9 +289,9 @@ export function createMetabox<
     return createBox(getter, setter);
   });
   
-  function metabox(subject: TSubject): TValue;
-  function metabox(subject: TSubject, setValue: Defined<TValue> | ((value: TValue) => TValue)): TValue;
-  function metabox(subject: TSubject, setValue?: Defined<TValue> | ((value: TValue) => TValue)) {
+  function metabox<T extends TValue>(subject: TSubject): T;
+  function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
+  function metabox(subject: TSubject, setValue?: ValueSetter<TValue>) {
     return setValue ? metadata(subject)(setValue) : metadata(subject)();
   };
 
@@ -304,11 +305,11 @@ export type ParametricMetabox<TSubject extends WeakKey, TValue, TWritable extend
     : ReadonlyMetabox<TSubject, TValue>;
 
 export interface ReadonlyMetabox<TSubject extends WeakKey, TValue> {
-  (subject: TSubject): TValue;
+  <T extends TValue>(subject: TSubject): T;
 };
 
 export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject, TValue> & {
-  (subject: TSubject, setValue: Defined<TValue> | ((value: TValue) => TValue)): TValue;
+  <T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
 };
 
 export function Metabox<TSubject extends WeakKey, TValue>(

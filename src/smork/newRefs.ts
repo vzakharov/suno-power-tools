@@ -1,5 +1,5 @@
 import { isFunction, maxOf } from "../lodashish";
-import { Defined, Func, infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
+import { Defined, Func, infer, isDefined, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
 import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated, $try } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
@@ -25,6 +25,7 @@ export function RootRef<T>(value: T) {
     setValue => {
       if ( value === setValue ) return;
       valueChanged(ref, true);
+      isDefined(value) && oldValue(ref, value);
       [ ref, ...computees_roots(ref) ].forEach(scheduleEffects);
       value = setValue;
       iteration(ref, inc);
@@ -69,13 +70,13 @@ export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & ReadonlyRefMetho
 
 export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>) {
 
-  let cachedValue = NotSet<T>();
+  let cachedValue = Undefined<T>();
 
   const ref = addRefMethods(typeMark($ReadonlyComputedRef, Box(
     () => {
       detectEffect(ref);
       if ( 
-        cachedValue === NOT_SET
+        cachedValue === undefined
         || $with(maxOf(computees_roots(ref), iteration), maxRootIteration => {
           if ( maxRootIteration > lastMaxRootIteration(ref) ) {
             lastMaxRootIteration(ref, maxRootIteration);
@@ -87,7 +88,12 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
         computees.add(ref);
         try {
           cachedValue = tap(getter(), newValue =>
-            valueChanged(ref, cachedValue !== newValue)
+            valueChanged(
+              ref, 
+              tap(cachedValue !== newValue, changed =>
+                changed && cachedValue && oldValue(ref, cachedValue)
+              )
+            )
           );
         } finally {
           computees.delete(ref);
@@ -158,6 +164,7 @@ const $Effect = Symbol('Effect');
 let currentEffect = Undefined<Effect>();
 const scheduledEffects = new Set<Effect>();
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
+const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
 const pausedEffects = new WeakSet<Effect>();
 const destroyedEffects = new WeakSet<Effect>();
 
@@ -169,8 +176,8 @@ export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => 
 
 // export function Effect(callback: () => void, fixedSource?: Ref) {
 export function Effect(callback: () => void): Effect;
-export function Effect<T>(callback: (value: T) => void, fixedSource: Ref<T>): Effect;
-export function Effect<T>(callback: ((value: T) => void) | (() => void), fixedSource?: Ref<T>) {
+export function Effect<T>(callback: (value: T, oldValue: T | undefined) => void, fixedSource: Ref<T>): Effect;
+export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void) | (() => void), fixedSource?: Ref<T>) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
@@ -188,7 +195,9 @@ export function Effect<T>(callback: ((value: T) => void) | (() => void), fixedSo
       return;
     };
 
-    if ( fixedSource ) return callback(fixedSource());
+    if ( fixedSource ) return callback(
+      fixedSource(), oldValue(fixedSource)
+    );
 
     const sources = [...effects_sources(effect)];
     effects_sources(effect, null);
@@ -293,8 +302,8 @@ export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
 };
 
 export function watch(callback: () => void): Effect;
-export function watch<T>(source: Ref<T>, callback: (value: T) => void): Effect;
-export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T) => void) {
+export function watch<T>(source: Ref<T>, callback: (value: T, oldValue: T | undefined ) => void): Effect;
+export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T, oldValue: T | undefined ) => void) {
   return isRef(sourceOrCallback)
     ? Effect(
       callback ?? $throw('A callback must be provided when the first argument is a ref.'),

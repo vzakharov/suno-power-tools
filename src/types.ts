@@ -11,6 +11,10 @@ export function NotSet<T>() {
 export type MaybeNotSet<T> = T | NotSet;
 
 export type Defined<T> = Exclude<T, undefined>;
+export function isDefined<T>(value: T): value is Defined<T> {
+  return value !== undefined;
+};
+
 export type Undefinable<T> = T | undefined;
 export function Undefined<T>(value?: T) {
   return value;
