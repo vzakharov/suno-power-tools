@@ -1,6 +1,7 @@
 import { isFunction, maxOf } from "../lodashish";
 import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, WeakBiMap, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
+import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
+import { WeakBiMap } from "../weaks";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);

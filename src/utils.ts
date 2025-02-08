@@ -319,44 +319,6 @@ export function dec(value: number) {
   return value - 1;
 };
 
-export function WeakBiMap<T extends object, U extends object>() {
-
-  const relations = new WeakMap<T|U, Set<T> | Set<U>>();
-
-  function self(node: T): readonly U[];
-  function self(node: U): readonly T[];
-  function self(node: T, removeNode: null): void;
-  function self(node: U, removeNode: null): void;
-  function self(node: T, addOrRemoveRelative: U, remove?: null): readonly U[];
-  function self(node: U, addOrRemoveRelative: T, remove?: null): readonly T[];
-  function self(...args: Parameters<typeof updateRelations>) {
-    return updateRelations(...args);
-  };
-
-  function updateRelations(node: T|U, relative?: U|T|null, remove?: null) {
-    const relatives = getOrSet(relations, node, new Set());
-    if ( relative === null ) {
-      relatives.forEach(relative =>
-        updateRelations(relative, node, null)
-      );
-    } else if ( relative )
-      ([
-        [ relatives,                                    relative  ],
-        [ getOrSet(relations, relative, new Set()), node      ]
-      ] as const).forEach(([ relatives, relative ]) =>
-        remove === null
-          ? relatives.delete(relative)
-          : relatives.add(relative)
-      );
-    return [ ...relatives ] as const;
-  };
-
-  return self;
-
-};
-
-export type WeakBiMap = ReturnType<typeof WeakBiMap>;
-
 const TYPE_MARKER = Symbol('typeMarker');
 
 export type TypeMarked<TDescription extends string | symbol> = {
