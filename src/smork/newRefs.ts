@@ -1,12 +1,13 @@
 import { isFunction, maxOf } from "../lodashish";
 import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
 import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
-import { WeakBiMap } from "../weaks";
+import { PhantomSet, WeakBiMap } from "../weaks";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
 
 export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
+export const allRefs = new PhantomSet<Ref>();
 
 // Roots
 
@@ -30,6 +31,7 @@ export function RootRef<T>(value: T) {
     },
   ))) as RootRef<T>;
 
+  allRefs.add(ref);
   return ref;
 };
 
@@ -104,6 +106,7 @@ export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
   ))) as ReadonlyComputedRef<T>;
 
   fixedSources && fixedComputeeSources(ref, fixedSources);
+  allRefs.add(ref);
 
   return ref;
 };
@@ -121,6 +124,8 @@ export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => vo
     ReadonlyComputedRef(getter, fixedSources),
     setter
   ))) as WritableComputedRef<T>;
+
+  allRefs.add(ref);
 
   return ref;
 };

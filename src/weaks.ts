@@ -2,6 +2,9 @@ import { getOrSet } from "./utils";
 
 export const BREAK = Symbol('BREAK');
 
+/**
+ * A set-like object that does not prevent garbage collection of its elements. Unlike the usual `WeakSet`, this class is iterable, the iteration going over the then-current elements of the set at the time of the iteration.
+ */
 export class PhantomSet<T extends object> {
   private set = new Set<WeakRef<T>>();
 
@@ -10,26 +13,26 @@ export class PhantomSet<T extends object> {
       const value = ref.deref();
       if (value) yield [value, ref] as const;
       else this.set.delete(ref);
-    }
-  }
+    };
+  };
 
-  add(value: T): this {
+  add(value: T) {
     this.set.add(new WeakRef(value));
     return this;
   }
 
-  has(value: T): boolean {
+  has(value: T) {
     for (const v of this) {
       if (v === value) return true;
     }
     return false;
   }
 
-  clear(): void {
+  clear() {
     this.set.clear();
   }
 
-  delete(value: T): boolean {
+  delete(value: T) {
     for (const [v, ref] of this.iterator()) {
       if (v === value) {
         this.set.delete(ref);
@@ -39,21 +42,26 @@ export class PhantomSet<T extends object> {
     return false;
   }
 
-  get size(): number {
+  get size() {
     return [...this].length;
   }
 
-  forEach(callbackfn: (value: T) => unknown): void {
+  forEach(callback: (value: T) => void): void
+  /**
+   * This overload allows the callback to return the `BREAK` symbol to break the loop and stop the iteration, similar to the `break` statement in a `for` loop.
+   */
+  forEach(callback: (value: T) => void | typeof BREAK): void
+  forEach(callback: (value: T) => void | typeof BREAK) {
     for (const value of this) {
-      if (callbackfn(value) === BREAK) break;
+      if (callback(value) === BREAK) break;
     }
   }
 
-  map<U>(callback: (value: T) => U): U[] {
+  map<U>(callback: (value: T) => U) {
     return [...this].map(callback);
   }
 
-  [Symbol.iterator](): Iterator<T> {
+  [Symbol.iterator]() {
     return (function* (this: PhantomSet<T>) {
       for (const [value] of this.iterator()) {
         yield value;
