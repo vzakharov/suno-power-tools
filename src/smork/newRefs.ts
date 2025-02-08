@@ -1,6 +1,6 @@
 import { isFunction, maxOf } from "../lodashish";
 import { Defined, infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
-import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
+import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated, $try } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
 let maxIteration = 0;
@@ -346,8 +346,10 @@ function addRefMethods<T>(ref: Box<T>) {
 
 const number = RootRef(0);
 const string = number.to(String);
-// @ts-expect-error because `string` is a readonly ref, hence we can’t use a backMapper
-const upper = string.to(s => s.toUpperCase(), s => s.toLowerCase());
+$try(() => {
+  // @ts-expect-error because `string` is a readonly ref, hence we can’t use a backMapper
+  const upper = string.to(s => s.toUpperCase(), s => s.toLowerCase());
+}, console.warn);
 const twoWayString = number.to(String, Number);
 const twoWayUpper = twoWayString.to(s => s.toUpperCase(), s => s.toLowerCase());
 // ok because `twoWayString` is a writable ref

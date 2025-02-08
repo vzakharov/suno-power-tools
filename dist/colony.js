@@ -52,8 +52,8 @@
   function EmptyArray() {
     return [];
   }
-  function $with(obj, fn) {
-    return fn(obj);
+  function $with(...args) {
+    return args.pop()(...args);
   }
   function jsonClone(obj) {
     return JSON.parse(JSON.stringify(obj));
@@ -75,8 +75,8 @@
       }, timeToWait);
     });
   }
-  function $throw(message) {
-    throw new Error(message);
+  function $throw(messageOrError) {
+    throw messageOrError instanceof Error ? messageOrError : new Error(messageOrError);
   }
   async function uploadTextFile() {
     const input2 = document.createElement("input");
@@ -116,7 +116,7 @@
     }
     ;
   }
-  function beforeReturning(target, preprocess) {
+  function tap(target, preprocess) {
     preprocess(target);
     return target;
   }
@@ -900,7 +900,7 @@
     );
     const nodesById = /* @__PURE__ */ new Map();
     function nodeById(id2) {
-      return nodesById.get(id2) ?? beforeReturning(
+      return nodesById.get(id2) ?? tap(
         fullData?.nodes.find((node) => node.id === id2) ?? $throw(`Node with ID ${id2} not found.`),
         (node) => nodesById.set(id2, node)
       );

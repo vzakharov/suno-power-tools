@@ -25,8 +25,8 @@
   function Null() {
     return null;
   }
-  function $with(obj, fn) {
-    return fn(obj);
+  function $with(...args) {
+    return args.pop()(...args);
   }
   function mutate(obj, partial) {
     Object.assign(obj, partial);
@@ -35,10 +35,10 @@
     mutate(obj, partial);
     return obj;
   }
-  function $throw(message) {
-    throw new Error(message);
+  function $throw(messageOrError) {
+    throw messageOrError instanceof Error ? messageOrError : new Error(messageOrError);
   }
-  function beforeReturning(target, preprocess) {
+  function tap(target, preprocess) {
     preprocess(target);
     return target;
   }
@@ -112,6 +112,79 @@
   function inc(value) {
     return value + 1;
   }
+  var TYPE_MARKER = Symbol("typeMarker");
+  function typeMark(description, value) {
+    return mutated(value, { [TYPE_MARKER]: description });
+  }
+  function typeMarkTester(description) {
+    return function test(value) {
+      return value && ["object", "function"].includes(typeof value) && TYPE_MARKER in value && value[TYPE_MARKER] === description;
+    };
+  }
+  function combinedTypeguard(guard1, guard2) {
+    return (value) => guard1(value) || guard2(value);
+  }
+  function $try(fn, fallback) {
+    try {
+      return fn();
+    } catch (e) {
+      return fallback ? infer(fallback, e) : $throw(e);
+    }
+  }
+
+  // src/weaks.ts
+  var BREAK = Symbol("BREAK");
+  var PhantomSet = class {
+    set = /* @__PURE__ */ new Set();
+    *iterator() {
+      for (const ref2 of this.set) {
+        const value = ref2.deref();
+        if (value) yield [value, ref2];
+        else this.set.delete(ref2);
+      }
+      ;
+    }
+    add(value) {
+      this.set.add(new WeakRef(value));
+      return this;
+    }
+    has(value) {
+      for (const v of this) {
+        if (v === value) return true;
+      }
+      return false;
+    }
+    clear() {
+      this.set.clear();
+    }
+    delete(value) {
+      for (const [v, ref2] of this.iterator()) {
+        if (v === value) {
+          this.set.delete(ref2);
+          return true;
+        }
+      }
+      return false;
+    }
+    get size() {
+      return [...this].length;
+    }
+    forEach(callback) {
+      for (const value of this) {
+        if (callback(value) === BREAK) break;
+      }
+    }
+    map(callback) {
+      return [...this].map(callback);
+    }
+    [Symbol.iterator]() {
+      return function* () {
+        for (const [value] of this.iterator()) {
+          yield value;
+        }
+      }.call(this);
+    }
+  };
   function WeakBiMap() {
     const relations = /* @__PURE__ */ new WeakMap();
     function self(...args) {
@@ -119,15 +192,13 @@
     }
     ;
     function updateRelations(node, relative, remove) {
-      const relatives = getOrSet(relations, node, /* @__PURE__ */ new Set());
+      const relatives = getOrSet(relations, node, new PhantomSet());
       if (relative === null) {
-        relatives.forEach(
-          (relative2) => updateRelations(relative2, node, null)
-        );
+        relatives.forEach((relative2) => updateRelations(relative2, node, null));
       } else if (relative)
         [
           [relatives, relative],
-          [getOrSet(relations, relative, /* @__PURE__ */ new Set()), node]
+          [getOrSet(relations, relative, new PhantomSet()), node]
         ].forEach(
           ([relatives2, relative2]) => remove === null ? relatives2.delete(relative2) : relatives2.add(relative2)
         );
@@ -136,22 +207,11 @@
     ;
     return self;
   }
-  var TYPE_MARKER = Symbol("typeMarker");
-  function typeMark(description, value) {
-    return mutated(value, { [TYPE_MARKER]: description });
-  }
-  function typeMarkTester(description) {
-    return function test(value) {
-      return value && TYPE_MARKER in value && value[TYPE_MARKER] === description;
-    };
-  }
-  function combinedTypeguard(guard1, guard2) {
-    return (value) => guard1(value) || guard2(value);
-  }
 
   // src/smork/newRefs.ts
   var maxIteration = 0;
   var iteration = Metabox((root) => maxIteration++);
+  var allRefs = new PhantomSet();
   var $RootRef = Symbol("RootRef");
   function RootRef(value) {
     const ref2 = addRefMethods(typeMark($RootRef, Box(
@@ -168,6 +228,7 @@
         iteration(ref2, inc);
       }
     )));
+    allRefs.add(ref2);
     return ref2;
   }
   var isRootRef = typeMarkTester($RootRef);
@@ -200,7 +261,7 @@
           computees_roots(ref2, null);
           computees.add(ref2);
           try {
-            cachedValue = beforeReturning(
+            cachedValue = tap(
               getter(),
               (newValue) => valueChanged(ref2, cachedValue !== newValue)
             );
@@ -219,6 +280,7 @@
       }
     )));
     fixedSources && fixedComputeeSources(ref2, fixedSources);
+    allRefs.add(ref2);
     return ref2;
   }
   var isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
@@ -228,16 +290,21 @@
       ReadonlyComputedRef(getter, fixedSources),
       setter
     )));
+    allRefs.add(ref2);
     return ref2;
   }
   var isWritableComputedRef = typeMarkTester($WritableComputedRef);
   var isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef);
   var isRef = combinedTypeguard(isRootRef, isComputedRef);
+  var isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef);
+  function ComputedRef(getter, setter) {
+    return setter ? WritableComputedRef(getter, setter) : ReadonlyComputedRef(getter);
+  }
   var effects_sources = WeakBiMap();
   var $Effect = Symbol("Effect");
   var currentEffect = Undefined();
   var scheduledEffects = /* @__PURE__ */ new Set();
-  var valueChanged = Metabox((ref2) => Undefined());
+  var valueChanged = Metabox((ref2) => Null());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
   var destroyedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSources) {
@@ -259,7 +326,7 @@
       const sources = [...effects_sources(effect2)];
       effects_sources(effect2, null);
       sources.forEach(
-        (source) => isReadonlyComputedRef(source) && valueChanged(source, false)
+        (source) => isReadonlyComputedRef(source) && valueChanged(source, null)
         // Reset the valueChanged
       );
       currentEffect = effect2;
@@ -280,7 +347,7 @@
   function scheduleEffects(ref2) {
     if (isRootRef(ref2) || $with(
       valueChanged(ref2),
-      (changed) => changed === void 0 ? (ref2(), // This will update the valueChanged
+      (changed) => changed === null ? (ref2(), // This will update the valueChanged
       valueChanged(ref2) ?? $throw("valueChanged not updated")) : changed
     )) {
       effects_sources(ref2).forEach((effect2) => {
@@ -301,8 +368,19 @@
     }
     ;
   }
+  function DependentRef(source, mapper, backMapper) {
+    return backMapper ? WritableComputedRef(
+      () => mapper(source()),
+      isWritableRef(source) ? (value) => source(backMapper(value)) : $throw("Cannot use a backMapper with a readonly ref."),
+      [source]
+    ) : ReadonlyComputedRef(() => mapper(source()), [source]);
+  }
   function Ref(getterValueOrSource, setterOrMapper, backMapper) {
-    return isRef(getterValueOrSource) ? setterOrMapper ? backMapper ? WritableComputedRef(() => setterOrMapper(getterValueOrSource()), (value) => getterValueOrSource(backMapper(value)), [getterValueOrSource]) : ReadonlyComputedRef(() => setterOrMapper(getterValueOrSource()), [getterValueOrSource]) : $throw("A mapper function must be provided when the first argument is a ref.") : isFunction(getterValueOrSource) ? setterOrMapper ? WritableComputedRef(getterValueOrSource, setterOrMapper) : ReadonlyComputedRef(getterValueOrSource) : RootRef(getterValueOrSource);
+    return isRef(getterValueOrSource) ? DependentRef(
+      getterValueOrSource,
+      setterOrMapper ?? $throw("A mapper function must be provided when the first argument is a ref."),
+      backMapper
+    ) : isFunction(getterValueOrSource) ? ComputedRef(getterValueOrSource, setterOrMapper) : RootRef(getterValueOrSource);
   }
   var ref = Ref;
   function toref(source) {
@@ -314,7 +392,7 @@
   var effect = watch;
   function RefMethods(r) {
     function to(mapper, backMapper) {
-      return backMapper ? Ref(r, mapper, backMapper) : Ref(r, mapper);
+      return backMapper ? isWritableRef(r) ? Ref(r, mapper, backMapper) : $throw("Cannot use a backMapper with a readonly ref.") : Ref(r, mapper);
     }
     ;
     return {
@@ -325,8 +403,15 @@
   function addRefMethods(ref2) {
     return Object.assign(ref2, RefMethods(ref2));
   }
+  var number = RootRef(0);
+  var string = number.to(String);
+  $try(() => {
+    const upper = string.to((s) => s.toUpperCase(), (s) => s.toLowerCase());
+  }, console.warn);
+  var twoWayString = number.to(String, Number);
+  var twoWayUpper = twoWayString.to((s) => s.toUpperCase(), (s) => s.toLowerCase());
 
   // src/scripts/dev.ts
-  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch });
+  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs });
 })();
 }}).main();

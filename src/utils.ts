@@ -60,8 +60,10 @@ export function atLeast(milliseconds: number): Promise<void> {
   });
 };
 
-export function $throw(message?: string): never {
-  throw new Error(message);
+export function $throw(message?: string): never;
+export function $throw(error: Error): never;
+export function $throw(messageOrError?: string | Error) {
+  throw messageOrError instanceof Error ? messageOrError : new Error(messageOrError);
 };
 
 export async function uploadTextFile() {
@@ -337,12 +339,26 @@ export function typeMark<TDescription extends string | symbol, T extends {}>(des
 
 export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
 
-  return function test(value: object): value is TypeMarked<TDescription> {
-    return value && TYPE_MARKER in value && value[TYPE_MARKER] === description;
+  return function test(value: any): value is TypeMarked<TDescription> {
+    return value 
+      && ['object', 'function'].includes(typeof value)
+      && TYPE_MARKER in value 
+      && value[TYPE_MARKER] === description;
   };
   
 };
 
 export function combinedTypeguard<T, G1 extends T, G2 extends T>(guard1: (value: T) => value is G1, guard2: (value: T) => value is G2) {
   return (value: T): value is G1 | G2 => guard1(value) || guard2(value);
+};
+
+export function $try<T>(fn: () => T): T;
+export function $try<T>(fn: () => T, fallback: (e: Error) => void): T | undefined;
+export function $try<T>(fn: () => T, fallback: Inferable<T, Error>): T;
+export function $try<T>(fn: () => T, fallback?: Inferable<T | undefined, Error>) {
+  try {
+    return fn();
+  } catch ( e: any ) {
+    return fallback ? infer(fallback, e) : $throw(e);
+  }
 };

@@ -34,8 +34,8 @@
   function mutate(obj, partial) {
     Object.assign(obj, partial);
   }
-  function $throw(message) {
-    throw new Error(message);
+  function $throw(messageOrError) {
+    throw messageOrError instanceof Error ? messageOrError : new Error(messageOrError);
   }
   var TYPE_MARKER = Symbol("typeMarker");
 
