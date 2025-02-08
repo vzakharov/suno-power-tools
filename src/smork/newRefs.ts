@@ -1,5 +1,5 @@
 import { isFunction, maxOf } from "../lodashish";
-import { infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
+import { Defined, infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
 import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
@@ -135,6 +135,9 @@ export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as (va
 export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef) as (value: any) => value is ComputedRef;
 export const isRef = combinedTypeguard(isRootRef, isComputedRef) as (value: any) => value is Ref;
 
+export type WritableRef<T = unknown> = WritableComputedRef<T> | RootRef<T>;
+export const isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef) as (value: any) => value is WritableRef;
+
 // Effects
 
 const effects_sources = WeakBiMap<Effect, Ref>();
@@ -142,7 +145,7 @@ const $Effect = Symbol('Effect');
 
 let currentEffect = Undefined<Effect>();
 const scheduledEffects = new Set<Effect>();
-const valueChanged = Metabox((ref: Ref) => Undefined<boolean>());
+const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const pausedEffects = new WeakSet<Effect>();
 const destroyedEffects = new WeakSet<Effect>();
 
@@ -175,7 +178,7 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
     const sources = [...effects_sources(effect)];
     effects_sources(effect, null);
     sources.forEach(source =>
-      isReadonlyComputedRef(source) && valueChanged(source, false) // Reset the valueChanged
+      isReadonlyComputedRef(source) && valueChanged(source, null) // Reset the valueChanged
     );
     currentEffect = effect;
     try {
@@ -204,7 +207,7 @@ function scheduleEffects(ref: Ref) {
   if ( 
     isRootRef(ref) 
     || $with(valueChanged(ref), changed =>
-      changed === undefined
+      changed === null
         ? (
           ref(), // This will update the valueChanged
           valueChanged(ref) ?? $throw('valueChanged not updated')
@@ -230,18 +233,24 @@ function scheduleEffects(ref: Ref) {
 
 // Shorthands
 
-export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
+export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
 export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
 export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 export function Ref<T>(getter: () => T): ReadonlyComputedRef<T>;
 export function Ref<T>(value: T): RootRef<T>;
 export function Ref<T>(): RootRef<T | undefined>;
 
-export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => T) {
+export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
   return isRef(getterValueOrSource)
     ? setterOrMapper
       ? backMapper
-        ? WritableComputedRef(() => setterOrMapper(getterValueOrSource()), value => getterValueOrSource(backMapper(value)), [getterValueOrSource])
+        ? WritableComputedRef(
+          () => setterOrMapper(getterValueOrSource()),
+          isWritableRef(getterValueOrSource)
+            ? value => getterValueOrSource(backMapper(value))
+            : $throw('Cannot use a backMapper with a readonly ref.'),
+          [getterValueOrSource]
+        )
         : ReadonlyComputedRef(() => setterOrMapper(getterValueOrSource()), [getterValueOrSource])
       : $throw('A mapper function must be provided when the first argument is a ref.')
     : isFunction(getterValueOrSource)

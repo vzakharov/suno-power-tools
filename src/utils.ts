@@ -1,5 +1,5 @@
 import { isFunction, mapKeys } from "./lodashish";
-import { Func, infer, Inferable, StringKey } from "./types";
+import { Defined, Func, infer, Inferable, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -141,11 +141,6 @@ export function findInSet<T>(set: Set<T>, predicate: (value: T) => boolean) {
   };
 };
 
-// export function nextTick() {
-//   return new Promise<void>(resolve => {
-//     setTimeout(resolve, 0);
-//   });
-// };
 export function nextTick(): Promise<void>;
 export function nextTick<T>(callback: () => T): Promise<T>;
 export function nextTick<T>(callback?: () => T) {
@@ -260,7 +255,7 @@ export type ReadonlyBox<T> = () => T;
 
 export type Box<T = unknown> = {
   (): T,
-  (setValue: T | ((value: T) => T)): T,
+  (setValue: Defined<T> | ((value: T) => T)): T,
 };
 
 export function Metadata<TSubject extends WeakKey, TMetadata extends Record<string, any>>(initializer: (subject: TSubject) => TMetadata) {
@@ -283,7 +278,9 @@ export function createMetabox<
     return createBox(getter, setter);
   });
   
-  function metabox(subject: TSubject, setValue?: TValue | ((value: TValue) => TValue)) {
+  function metabox(subject: TSubject): TValue;
+  function metabox(subject: TSubject, setValue: Defined<TValue> | ((value: TValue) => TValue)): TValue;
+  function metabox(subject: TSubject, setValue?: Defined<TValue> | ((value: TValue) => TValue)) {
     return setValue ? metadata(subject)(setValue) : metadata(subject)();
   };
 
@@ -301,7 +298,7 @@ export interface ReadonlyMetabox<TSubject extends WeakKey, TValue> {
 };
 
 export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject, TValue> & {
-  (subject: TSubject, setValue: TValue | ((value: TValue) => TValue)): TValue;
+  (subject: TSubject, setValue: Defined<TValue> | ((value: TValue) => TValue)): TValue;
 };
 
 export function Metabox<TSubject extends WeakKey, TValue>(
