@@ -1,5 +1,5 @@
 import { isFunction, maxOf } from "../lodashish";
-import { Defined, infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
+import { Defined, Func, infer, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
 import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated, $try } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
@@ -66,7 +66,8 @@ function detectComputees(ref: RootRef) {
 };
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & ReadonlyRefMethods<T> & TypeMarked<typeof $ReadonlyComputedRef>;
-export function ReadonlyComputedRef<T>(getter: () => T, fixedSource?: Ref) {
+
+export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>) {
 
   let cachedValue = NotSet<T>();
 
@@ -118,7 +119,7 @@ export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (va
 const $WritableComputedRef = Symbol('WritableComputedRef');
 export type WritableComputedRef<T = unknown> = Box<T> & WritableRefMethods<T> & TypeMarked<typeof $WritableComputedRef>;
 
-export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref) {
+export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref<U>) {
 
   const ref = addRefMethods(typeMark($WritableComputedRef, Box(
     ReadonlyComputedRef(getter, fixedSource),
@@ -164,9 +165,12 @@ enum EffectCommand {
   PAUSE, RESUME, DESTROY
 };
 
-export type Effect = ReturnType<typeof Effect>;
+export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
 
-export function Effect(callback: () => void, fixedSource?: Ref) {
+// export function Effect(callback: () => void, fixedSource?: Ref) {
+export function Effect(callback: () => void): Effect;
+export function Effect<T>(callback: (value: T) => void, fixedSource: Ref<T>): Effect;
+export function Effect<T>(callback: ((value: T) => void) | (() => void), fixedSource?: Ref<T>) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
@@ -184,7 +188,7 @@ export function Effect(callback: () => void, fixedSource?: Ref) {
       return;
     };
 
-    if ( fixedSource ) return callback();
+    if ( fixedSource ) return callback(fixedSource());
 
     const sources = [...effects_sources(effect)];
     effects_sources(effect, null);
@@ -193,7 +197,9 @@ export function Effect(callback: () => void, fixedSource?: Ref) {
     );
     currentEffect = effect;
     try {
-      callback();
+      (
+        callback as () => void
+      )();
     } finally {
       currentEffect = undefined;
     };
@@ -289,7 +295,12 @@ export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
 export function watch(callback: () => void): Effect;
 export function watch<T>(source: Ref<T>, callback: (value: T) => void): Effect;
 export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T) => void) {
-  return Effect(callback ? () => callback(toref(sourceOrCallback)()) : sourceOrCallback);
+  return isRef(sourceOrCallback)
+    ? Effect(
+      callback ?? $throw('A callback must be provided when the first argument is a ref.'),
+      sourceOrCallback
+    )
+    : Effect(sourceOrCallback);
 };
 
 export const effect = watch;
