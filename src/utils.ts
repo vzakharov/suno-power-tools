@@ -1,5 +1,5 @@
 import { isFunction, mapKeys } from "./lodashish";
-import { Defined, Func, infer, Inferable, StringKey } from "./types";
+import { Defined, Func, infer, Inferable, isDefined, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -292,7 +292,7 @@ export function createMetabox<
   function metabox<T extends TValue>(subject: TSubject): T;
   function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
   function metabox(subject: TSubject, setValue?: ValueSetter<TValue>) {
-    return setValue ? metadata(subject)(setValue) : metadata(subject)();
+    return isDefined(setValue) ? metadata(subject)(setValue) : metadata(subject)();
   };
 
   return metabox as ParametricMetabox<TSubject, TValue, TWritable>;
