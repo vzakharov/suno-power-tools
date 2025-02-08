@@ -2,88 +2,65 @@ import { getOrSet } from "./utils";
 
 export const BREAK = Symbol('BREAK');
 
-export type PhantomSet<T> = { 
-  add(value: T): PhantomSet<T>, 
-  has(value: T): boolean, 
-  clear(): void, 
-  delete(value: T): boolean, 
-  readonly size: number, 
-  forEach(callback: (value: T) => unknown): void,
-  map<U>(callback: (value: T) => U): U[],
-  [Symbol.iterator](): SetIterator<T> 
-};
+export class PhantomSet<T extends object> {
+  private set = new Set<WeakRef<T>>();
 
-/**
- * Creates a set-like object whose values can be garbage collected if they are not strongly referenced elsewhere. Unlike a regular `WeakSet`, this set is iterable.
- */
-export function PhantomSet<T extends object>(): PhantomSet<T> {
-
-  const set = new Set<WeakRef<T>>();
-
-  const iterator = function* () {
-    for (const ref of set) {
+  private *iterator() {
+    for (const ref of this.set) {
       const value = ref.deref();
-      if ( value ) yield [value, ref] as const;
-      else set.delete(ref);
-    };
-  };
+      if (value) yield [value, ref] as const;
+      else this.set.delete(ref);
+    }
+  }
 
-  const self = {
+  add(value: T): this {
+    this.set.add(new WeakRef(value));
+    return this;
+  }
 
-    add(value: T) {
-      set.add(new WeakRef(value));
-      return self;
-    },
+  has(value: T): boolean {
+    for (const v of this) {
+      if (v === value) return true;
+    }
+    return false;
+  }
 
-    has(value: T) {
-      for (const v of self) {
-        if (v === value) return true;
-      };
-      return false;
-    },
+  clear(): void {
+    this.set.clear();
+  }
 
-    clear() {
-      set.clear();
-    },
+  delete(value: T): boolean {
+    for (const [v, ref] of this.iterator()) {
+      if (v === value) {
+        this.set.delete(ref);
+        return true;
+      }
+    }
+    return false;
+  }
 
-    delete(value: T) {
-      for (const [v, ref] of iterator()) {
-        if (v === value) {
-          set.delete(ref);
-          return true;
-        };
-      };
-      return false;
-    },
+  get size(): number {
+    return [...this].length;
+  }
 
-    get size() {
-      return [...self].length;
-    },
+  forEach(callbackfn: (value: T) => unknown): void {
+    for (const value of this) {
+      if (callbackfn(value) === BREAK) break;
+    }
+  }
 
-    forEach(callbackfn: (value: T) => unknown) {
-      for (const value of self) {
-        if (callbackfn(value) === BREAK) break;
-      };
-    },
+  map<U>(callback: (value: T) => U): U[] {
+    return [...this].map(callback);
+  }
 
-    map<U>(callback: (value: T) => U) {
-      return [...self].map(callback);
-    },
-
-
-    [Symbol.iterator]() {
-      return function* () {
-        for (const [value] of iterator()) {
-          yield value;
-        };
-      }();
-    },
-
-  };
-
-  return self;
-
-};
+  [Symbol.iterator](): Iterator<T> {
+    return (function* (this: PhantomSet<T>) {
+      for (const [value] of this.iterator()) {
+        yield value;
+      }
+    }).call(this);
+  }
+}
 
 export function WeakBiMap<T extends object, U extends object>() {
 
@@ -100,13 +77,13 @@ export function WeakBiMap<T extends object, U extends object>() {
   };
 
   function updateRelations(node: T | U, relative?: U | T | null, remove?: null) {
-    const relatives = getOrSet(relations, node, PhantomSet());
+    const relatives = getOrSet(relations, node, new PhantomSet());
     if (relative === null) {
       relatives.forEach(relative => updateRelations(relative, node, null));
     } else if (relative)
       ([
         [relatives, relative],
-        [getOrSet(relations, relative, PhantomSet()), node]
+        [getOrSet(relations, relative, new PhantomSet()), node]
       ] as const).forEach(([relatives, relative]) => remove === null
         ? relatives.delete(relative)
         : relatives.add(relative)
