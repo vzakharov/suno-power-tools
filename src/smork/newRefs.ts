@@ -44,16 +44,16 @@ export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputed
 const computees = new Set<ComputedRef>();
 const computees_roots = WeakBiMap<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
-const fixedComputeeSources = Metabox((ref: ComputedRef) => Null<Ref[]>());
+const fixedComputeeSource = Metabox((ref: ComputedRef) => Null<Ref>());
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
 function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
-    const fixedSources = fixedComputeeSources(computee);
+    const source = fixedComputeeSource(computee);
     if (
-      !fixedSources 
-      || fixedSources.some(source => isRootRef(source) ? source === ref : computees.has(source))
+      !source 
+      || isRootRef(source) ? source === ref : computees.has(source)
       /* 
       In other words, we are checking if any of the fixed sources:
       - are the current root ref, or
@@ -66,7 +66,7 @@ function detectComputees(ref: RootRef) {
 };
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & ReadonlyRefMethods<T> & TypeMarked<typeof $ReadonlyComputedRef>;
-export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
+export function ReadonlyComputedRef<T>(getter: () => T, fixedSource?: Ref) {
 
   let cachedValue = NotSet<T>();
 
@@ -105,7 +105,7 @@ export function ReadonlyComputedRef<T>(getter: () => T, fixedSources?: Ref[]) {
     }
   ))) as ReadonlyComputedRef<T>;
 
-  fixedSources && fixedComputeeSources(ref, fixedSources);
+  fixedSource && fixedComputeeSource(ref, fixedSource);
   allRefs.add(ref);
 
   return ref;
@@ -118,10 +118,10 @@ export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (va
 const $WritableComputedRef = Symbol('WritableComputedRef');
 export type WritableComputedRef<T = unknown> = Box<T> & WritableRefMethods<T> & TypeMarked<typeof $WritableComputedRef>;
 
-export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => void, fixedSources?: Ref[]) {
+export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref) {
 
   const ref = addRefMethods(typeMark($WritableComputedRef, Box(
-    ReadonlyComputedRef(getter, fixedSources),
+    ReadonlyComputedRef(getter, fixedSource),
     setter
   ))) as WritableComputedRef<T>;
 
@@ -166,7 +166,7 @@ enum EffectCommand {
 
 export type Effect = ReturnType<typeof Effect>;
 
-export function Effect(callback: () => void, fixedSources?: Ref[]) {
+export function Effect(callback: () => void, fixedSource?: Ref) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
@@ -184,7 +184,7 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
       return;
     };
 
-    if ( fixedSources ) return callback();
+    if ( fixedSource ) return callback();
 
     const sources = [...effects_sources(effect)];
     effects_sources(effect, null);
@@ -200,8 +200,8 @@ export function Effect(callback: () => void, fixedSources?: Ref[]) {
 
   });
 
-  fixedSources
-    ? fixedSources.forEach(source => effects_sources(effect, source)) 
+  fixedSource
+    ? effects_sources(effect, fixedSource)
     : effect();
 
   return effect;
@@ -254,9 +254,9 @@ export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, back
       isWritableRef(source)
         ? value => source(backMapper(value))
         : $throw('Cannot use a backMapper with a readonly ref.'),
-      [source]
+      source
     )
-    : ReadonlyComputedRef(() => mapper(source()), [source])
+    : ReadonlyComputedRef(() => mapper(source()), source)
 };
 
 export type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
@@ -295,15 +295,6 @@ export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value
 export const effect = watch;
 
 // Methods
-
-// type RefMethods<T> = {
-  
-//   to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
-//   to<U>(mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
-
-//   watch(callback: (value: T) => void): Effect;
-
-// };
 
 type ReadonlyRefMethods<T> = {
   to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
