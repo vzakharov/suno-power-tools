@@ -23,9 +23,17 @@ export function EmptyArray<T>() {
   return [] as T[];
 };
 
-export function $with<T, U>(obj: T, fn: (obj: T) => U): U {
-  return fn(obj);
-};
+// export function $with<T, U>(obj: T, fn: (obj: T) => U): U;
+// export function $with<T1, T2, U>(obj1: T1, obj2: T2, fn: (obj1: T1, obj2: T2) => U): U;
+// export function $with<T1, T2, T3, U>(obj1: T1, obj2: T2, obj3: T3, fn: (obj1: T1, obj2: T2, obj3: T3) => U): U;
+// export function $with<T1, T2, T3, T4, U>(obj1: T1, obj2: T2, obj3: T3, obj4: T4, fn: (obj1: T1, obj2: T2, obj3: T3, obj4: T4) => U): U;
+
+// export function $with(...args: any[]) {
+//   return args.pop()(...args);
+// };
+export function $with<TArgs extends any[], TResult>(...args: [...args: TArgs, fn: (...args: TArgs) => TResult]) {
+  return ( args.pop() as (...args: TArgs) => TResult )(...args as unknown as TArgs);
+}
 
 export function jsonClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));

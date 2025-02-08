@@ -130,6 +130,8 @@ export function WritableComputedRef<T>(getter: () => T, setter: (value: T) => vo
   return ref;
 };
 
+// Computed overalls
+
 export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as (value: any) => value is WritableComputedRef;
 
 export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef) as (value: any) => value is ComputedRef;
@@ -137,6 +139,15 @@ export const isRef = combinedTypeguard(isRootRef, isComputedRef) as (value: any)
 
 export type WritableRef<T = unknown> = WritableComputedRef<T> | RootRef<T>;
 export const isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef) as (value: any) => value is WritableRef;
+
+export function ComputedRef<T>(getter: () => T): ReadonlyComputedRef<T>;
+export function ComputedRef<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void): ComputedRef<T>;
+export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
+  return setter
+    ? WritableComputedRef(getter, setter)
+    : ReadonlyComputedRef(getter);
+};
 
 // Effects
 
@@ -233,6 +244,20 @@ function scheduleEffects(ref: Ref) {
 
 // Shorthands
 
+export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+  return backMapper
+    ? WritableComputedRef(
+      () => mapper(source()),
+      isWritableRef(source)
+        ? value => source(backMapper(value))
+        : $throw('Cannot use a backMapper with a readonly ref.'),
+      [source]
+    )
+    : ReadonlyComputedRef(() => mapper(source()), [source])
+};
+
+export type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
+
 export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
 export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
 export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
@@ -242,21 +267,13 @@ export function Ref<T>(): RootRef<T | undefined>;
 
 export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
   return isRef(getterValueOrSource)
-    ? setterOrMapper
-      ? backMapper
-        ? WritableComputedRef(
-          () => setterOrMapper(getterValueOrSource()),
-          isWritableRef(getterValueOrSource)
-            ? value => getterValueOrSource(backMapper(value))
-            : $throw('Cannot use a backMapper with a readonly ref.'),
-          [getterValueOrSource]
-        )
-        : ReadonlyComputedRef(() => setterOrMapper(getterValueOrSource()), [getterValueOrSource])
-      : $throw('A mapper function must be provided when the first argument is a ref.')
+    ? DependentRef(
+      getterValueOrSource, 
+      setterOrMapper ?? $throw('A mapper function must be provided when the first argument is a ref.'),
+      backMapper
+    )
     : isFunction(getterValueOrSource)
-      ? setterOrMapper
-        ? WritableComputedRef(getterValueOrSource, setterOrMapper)
-        : ReadonlyComputedRef(getterValueOrSource)
+      ? ComputedRef(getterValueOrSource, setterOrMapper)
       : RootRef(getterValueOrSource);
 };
 
