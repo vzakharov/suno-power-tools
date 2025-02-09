@@ -124,13 +124,6 @@
   function combinedTypeguard(guard1, guard2) {
     return (value) => guard1(value) || guard2(value);
   }
-  function $try(fn, fallback) {
-    try {
-      return fn();
-    } catch (e) {
-      return fallback ? infer(fallback, e) : $throw(e);
-    }
-  }
 
   // src/weaks.ts
   var BREAK = Symbol("BREAK");
@@ -309,7 +302,7 @@
   }
   var effects_sources = WeakBiMap();
   var $Effect = Symbol("Effect");
-  var currentEffect = Undefined();
+  var effectStack = [];
   var scheduledEffects = /* @__PURE__ */ new Set();
   var valueChanged = Metabox((ref2) => Null());
   var oldValue = Metabox((ref2) => Undefined());
@@ -324,7 +317,7 @@
         return;
       } else if (command === 1 /* RESUME */) {
         pausedEffects.delete(effect2);
-      } else if (command === 2 /* DESTROY */) {
+      } else if (command === -1 /* DESTROY */) {
         effects_sources(effect2, null);
         destroyedEffects.add(effect2);
         return;
@@ -340,11 +333,15 @@
         (source) => isReadonlyComputedRef(source) && valueChanged(source, null)
         // Reset the valueChanged
       );
-      currentEffect = effect2;
+      effectStack.push(effect2);
       try {
         callback();
       } finally {
-        currentEffect = void 0;
+        const lastEffect = effectStack.pop();
+        if (lastEffect !== effect2) {
+          console.warn("Effect stack mismatch:", { effect: effect2, lastEffect, effectStack });
+        }
+        ;
       }
       ;
     });
@@ -353,7 +350,10 @@
   }
   var isEffect = typeMarkTester($Effect);
   function detectEffect(ref2) {
-    currentEffect && effects_sources(currentEffect, ref2);
+    $with(
+      effectStack.at(-1),
+      (currentEffect) => currentEffect && effects_sources(currentEffect, ref2)
+    );
   }
   function scheduleEffects(ref2) {
     if (isRootRef(ref2) || $with(
@@ -363,6 +363,11 @@
     )) {
       effects_sources(ref2).forEach((effect2) => {
         if (pausedEffects.has(effect2)) return;
+        if (effectStack.includes(effect2)) {
+          console.warn("Circular effect detected, ignoring effect to prevent infinite loop:", { effect: effect2, effectStack });
+          return;
+        }
+        ;
         if (!scheduledEffects.size) {
           nextTick(() => {
             try {
@@ -414,13 +419,6 @@
   function addRefMethods(ref2) {
     return Object.assign(ref2, RefMethods(ref2));
   }
-  var number = RootRef(0);
-  var string = number.to(String);
-  $try(() => {
-    const upper = string.to((s) => s.toUpperCase(), (s) => s.toLowerCase());
-  }, console.warn);
-  var twoWayString = number.to(String, Number);
-  var twoWayUpper = twoWayString.to((s) => s.toUpperCase(), (s) => s.toLowerCase());
 
   // src/scripts/dev.ts
   Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs });

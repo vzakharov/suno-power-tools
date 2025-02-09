@@ -161,7 +161,7 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 const effects_sources = WeakBiMap<Effect, Ref>();
 const $Effect = Symbol('Effect');
 
-let currentEffect = Undefined<Effect>();
+const effectStack = [] as Effect[];
 const scheduledEffects = new Set<Effect>();
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
@@ -169,7 +169,7 @@ const pausedEffects = new WeakSet<Effect>();
 const destroyedEffects = new WeakSet<Effect>();
 
 enum EffectCommand {
-  PAUSE, RESUME, DESTROY
+  PAUSE, RESUME, DESTROY = -1
 };
 
 export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
@@ -204,13 +204,16 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
     sources.forEach(source =>
       isReadonlyComputedRef(source) && valueChanged(source, null) // Reset the valueChanged
     );
-    currentEffect = effect;
+    effectStack.push(effect);
     try {
       (
         callback as () => void
       )();
     } finally {
-      currentEffect = undefined;
+      const lastEffect = effectStack.pop();
+      if ( lastEffect !== effect ) {
+        console.warn('Effect stack mismatch:', { effect, lastEffect, effectStack });
+      };
     };
 
   });
@@ -226,7 +229,9 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  currentEffect && effects_sources(currentEffect, ref);
+  $with(effectStack.at(-1), 
+    currentEffect => currentEffect && effects_sources(currentEffect, ref)
+  );
 };
 
 function scheduleEffects(ref: Ref) {
@@ -243,6 +248,10 @@ function scheduleEffects(ref: Ref) {
   ) {
     effects_sources(ref).forEach(effect => {
       if ( pausedEffects.has(effect) ) return;
+      if ( effectStack.includes(effect) ) {
+        console.warn('Circular effect detected, ignoring effect to prevent infinite loop:', { effect, effectStack });
+        return;
+      };
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           try {
@@ -353,14 +362,14 @@ function addRefMethods<T>(ref: Box<T>) {
   return Object.assign(ref, RefMethods(ref as Ref<T>));
 };
 
-// tests
+// // tests
 
-const number = RootRef(0);
-const string = number.to(String);
-$try(() => {
-  // @ts-expect-error because `string` is a readonly ref, hence we can’t use a backMapper
-  const upper = string.to(s => s.toUpperCase(), s => s.toLowerCase());
-}, console.warn);
-const twoWayString = number.to(String, Number);
-const twoWayUpper = twoWayString.to(s => s.toUpperCase(), s => s.toLowerCase());
-// ok because `twoWayString` is a writable ref
+// const number = RootRef(0);
+// const string = number.to(String);
+// $try(() => {
+//   // @ts-expect-error because `string` is a readonly ref, hence we can’t use a backMapper
+//   const upper = string.to(s => s.toUpperCase(), s => s.toLowerCase());
+// }, console.warn);
+// const twoWayString = number.to(String, Number);
+// const twoWayUpper = twoWayString.to(s => s.toUpperCase(), s => s.toLowerCase());
+// // ok because `twoWayString` is a writable ref
