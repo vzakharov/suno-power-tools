@@ -305,7 +305,6 @@
   }
   var allEffects = new PhantomSet();
   var effects_sources = WeakBiMap();
-  var fixedEffectSource = Metabox((ref2) => Null());
   var $Effect = Symbol("Effect");
   var scheduledEffects = /* @__PURE__ */ new Set();
   var effectCascade = [];
@@ -339,7 +338,7 @@
       }
       ;
       if (fixedSource) {
-        fixedEffectSource(effect2, [fixedSource]);
+        effects_sources(effect2, fixedSource);
         callback(
           fixedSource(),
           oldValue(fixedSource)

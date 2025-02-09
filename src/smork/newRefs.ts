@@ -160,12 +160,11 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 
 export const allEffects = new PhantomSet<Effect>();
 const effects_sources = WeakBiMap<Effect, Ref>();
-const fixedEffectSource = Metabox((ref: Effect) => Null<Oneple<Ref>>());
 const $Effect = Symbol('Effect');
 
 const scheduledEffects = new Set<Effect>();
 const effectCascade: Effect[] = [];
-let currentEffect = Null<Effect>();
+let trackableEffect = Null<Effect>();
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
 const pausedEffects = new WeakSet<Effect>();
@@ -207,7 +206,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
     };
 
     if ( fixedSource ) {
-      fixedEffectSource(effect, [fixedSource] );
+      effects_sources(effect, fixedSource);
       callback(
         fixedSource(), oldValue(fixedSource)
       );
@@ -216,13 +215,13 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
         valueChanged(source, null) // Reset the valueChanged
       );
       effects_sources(effect, null);
-      if ( currentEffect )
+      if ( trackableEffect )
         throw "Effects cannot be nested.";
-      currentEffect = effect;
+      trackableEffect = effect;
       try {
         (callback as () => void)();
       } finally {
-        currentEffect = null;
+        trackableEffect = null;
       };
 
     };
@@ -241,7 +240,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  currentEffect && effects_sources(currentEffect, ref)
+  trackableEffect && effects_sources(trackableEffect, ref)
 };
 
 function scheduleEffects(ref: Ref) {
