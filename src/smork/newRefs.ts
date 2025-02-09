@@ -163,8 +163,7 @@ const effects_sources = WeakBiMap<Effect, Ref>();
 const fixedEffectSource = Metabox((ref: Effect) => Null<Oneple<Ref>>());
 const $Effect = Symbol('Effect');
 
-const effectStack = [] as Effect[];
-// const scheduledEffects = new Set<Effect>();
+const effectChain: Effect[] = [];
 const schedulerIteration = Box(Oneple(0)); // we need an object to be able to pass by reference
 const scheduledEffects = Metabox((iteration: Oneple<number>) => new Set<Effect>());
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
@@ -185,6 +184,11 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
+    if ( effectChain.includes(effect) ) {
+      console.warn('Circular effect detected, ignoring to prevent infinite loop:', { effect, effectStack: effectChain });
+      return;
+    };
+
     if ( destroyedEffects.has(effect) )
       throw "This effect has been destroyed and cannot be used anymore.";
 
@@ -199,10 +203,9 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
       return;
     };
 
-    // if ( fixedSource ) return callback(
-    //   fixedSource(), oldValue(fixedSource)
-    // );
-    // // TODO: Prevent infinite loops for fixed sources
+    if ( pausedEffects.has(effect) ) {
+      return;
+    };
 
     fixedSource
       ? fixedEffectSource(effect, [fixedSource] )
@@ -212,21 +215,14 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
         ),
         effects_sources(effect, null)
       );
-    effectStack.push(effect);
-    try {
-      fixedSource
-        ? callback(
-          fixedSource(), oldValue(fixedSource)
-        )
-        : (
-          callback as () => void
-        )();
-    } finally {
-      const lastEffect = effectStack.pop();
-      if ( lastEffect !== effect ) {
-        console.warn('Effect stack mismatch:', { effect, lastEffect, effectStack });
-      };
-    };
+    effectChain.push(effect);
+    fixedSource
+      ? callback(
+        fixedSource(), oldValue(fixedSource)
+      )
+      : (
+        callback as () => void
+      )();
 
   });
 
@@ -242,7 +238,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  $with(effectStack.at(-1), 
+  $with(effectChain.at(-1), 
     currentEffect =>
         currentEffect
         && !fixedEffectSource(currentEffect)
@@ -262,18 +258,15 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
+    const iteration = schedulerIteration();
+    const nextUpEffects = scheduledEffects(iteration);
     effects_sources(ref).forEach(effect => {
-      if ( pausedEffects.has(effect) ) return;
-      if ( effectStack.includes(effect) ) {
-        console.warn('Circular effect detected, ignoring effect to prevent infinite loop:', { effect, effectStack });
-        return;
-      };
-      const iteration = schedulerIteration();
-      const nextUpEffects = scheduledEffects(iteration);
       if ( !nextUpEffects.size ) {
         nextTick(() => {
-          schedulerIteration(([iteration]) => [iteration + 1]);
+          const newIteration = schedulerIteration(([iteration]) => [iteration + 1]);
           nextUpEffects.forEach(infer);
+          !scheduledEffects(newIteration).size 
+            && effectChain.splice(0); // if no more effects are scheduled, clear the stack
         });
       };
       nextUpEffects.add(effect);

@@ -232,11 +232,11 @@
   var computees = /* @__PURE__ */ new Set();
   var computees_roots = WeakBiMap();
   var lastMaxRootIteration = Metabox((ref2) => 0);
-  var fixedComputeeSource = Metabox((ref2) => ({ source: Null() }));
+  var fixedComputeeSource = Metabox((ref2) => Oneple(Null()));
   var $ReadonlyComputedRef = Symbol("ReadonlyComputedRef");
   function detectComputees(ref2) {
     computees.forEach((computee) => {
-      const { source } = fixedComputeeSource(computee);
+      const [source] = fixedComputeeSource(computee) ?? [];
       if (!source || isRootRef(source) ? source === ref2 : computees.has(source)) {
         computees_roots(computee, ref2);
       }
@@ -282,7 +282,7 @@
         return cachedValue;
       }
     )));
-    fixedSource && fixedComputeeSource(ref2, { source: fixedSource });
+    fixedSource && fixedComputeeSource(ref2, [fixedSource]);
     allRefs.add(ref2);
     return ref2;
   }
@@ -305,9 +305,9 @@
   }
   var allEffects = new PhantomSet();
   var effects_sources = WeakBiMap();
-  var fixedEffectSource = Metabox((ref2) => ({ source: Null() }));
+  var fixedEffectSource = Metabox((ref2) => Null());
   var $Effect = Symbol("Effect");
-  var effectStack = [];
+  var effectChain = [];
   var schedulerIteration = Box(Oneple(0));
   var scheduledEffects = Metabox((iteration2) => /* @__PURE__ */ new Set());
   var valueChanged = Metabox((ref2) => Null());
@@ -316,6 +316,11 @@
   var destroyedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSource) {
     const effect2 = typeMark($Effect, (command) => {
+      if (effectChain.includes(effect2)) {
+        console.warn("Circular effect detected, ignoring to prevent infinite loop:", { effect: effect2, effectStack: effectChain });
+        return;
+      }
+      ;
       if (destroyedEffects.has(effect2))
         throw "This effect has been destroyed and cannot be used anymore.";
       if (command === 0 /* PAUSE */) {
@@ -329,24 +334,19 @@
         return;
       }
       ;
-      fixedSource ? fixedEffectSource(effect2, { source: fixedSource }) : (effects_sources(effect2).forEach(
+      if (pausedEffects.has(effect2)) {
+        return;
+      }
+      ;
+      fixedSource ? fixedEffectSource(effect2, [fixedSource]) : (effects_sources(effect2).forEach(
         (source) => valueChanged(source, null)
         // Reset the valueChanged
       ), effects_sources(effect2, null));
-      effectStack.push(effect2);
-      try {
-        fixedSource ? callback(
-          fixedSource(),
-          oldValue(fixedSource)
-        ) : callback();
-      } finally {
-        const lastEffect = effectStack.pop();
-        if (lastEffect !== effect2) {
-          console.warn("Effect stack mismatch:", { effect: effect2, lastEffect, effectStack });
-        }
-        ;
-      }
-      ;
+      effectChain.push(effect2);
+      fixedSource ? callback(
+        fixedSource(),
+        oldValue(fixedSource)
+      ) : callback();
     });
     fixedSource ? effects_sources(effect2, fixedSource) : effect2();
     allEffects.add(effect2);
@@ -355,8 +355,8 @@
   var isEffect = typeMarkTester($Effect);
   function detectEffect(ref2) {
     $with(
-      effectStack.at(-1),
-      (currentEffect) => currentEffect && !fixedEffectSource(currentEffect).source && effects_sources(currentEffect, ref2)
+      effectChain.at(-1),
+      (currentEffect) => currentEffect && !fixedEffectSource(currentEffect) && effects_sources(currentEffect, ref2)
     );
   }
   function scheduleEffects(ref2) {
@@ -365,19 +365,14 @@
       (changed) => changed === null ? (ref2(), // This will update the valueChanged
       valueChanged(ref2) ?? $throw("valueChanged not updated")) : changed
     )) {
+      const iteration2 = schedulerIteration();
+      const nextUpEffects = scheduledEffects(iteration2);
       effects_sources(ref2).forEach((effect2) => {
-        if (pausedEffects.has(effect2)) return;
-        if (effectStack.includes(effect2)) {
-          console.warn("Circular effect detected, ignoring effect to prevent infinite loop:", { effect: effect2, effectStack });
-          return;
-        }
-        ;
-        const iteration2 = schedulerIteration();
-        const nextUpEffects = scheduledEffects(iteration2);
         if (!nextUpEffects.size) {
           nextTick(() => {
-            schedulerIteration(([iteration3]) => [iteration3 + 1]);
+            const newIteration = schedulerIteration(([iteration3]) => [iteration3 + 1]);
             nextUpEffects.forEach(infer);
+            !scheduledEffects(newIteration).size && effectChain.splice(0);
           });
         }
         ;
