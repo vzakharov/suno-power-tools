@@ -163,9 +163,8 @@ const effects_sources = WeakBiMap<Effect, Ref>();
 const fixedEffectSource = Metabox((ref: Effect) => Null<Oneple<Ref>>());
 const $Effect = Symbol('Effect');
 
-const effectChain: Effect[] = [];
-const schedulerIteration = Box(Oneple(0)); // we need an object to be able to pass by reference
-const scheduledEffects = Metabox((iteration: Oneple<number>) => new Set<Effect>());
+const scheduledEffects = [new Set<Effect>()];
+let currentEffect = Null<Effect>();
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
 const pausedEffects = new WeakSet<Effect>();
@@ -177,15 +176,14 @@ enum EffectCommand {
 
 export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
 
-// export function Effect(callback: () => void, fixedSource?: Ref) {
 export function Effect(callback: () => void): Effect;
 export function Effect<T>(callback: (value: T, oldValue: T | undefined) => void, fixedSource: Ref<T>): Effect;
 export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void) | (() => void), fixedSource?: Ref<T>) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
-    if ( effectChain.includes(effect) ) {
-      console.warn('Circular effect detected, ignoring to prevent infinite loop:', { effect, effectStack: effectChain });
+    if ( scheduledEffects.slice(0, -1).some(effects => effects.has(effect)) ) {
+      console.warn('Effect already scheduled, skipping to prevent infinite loop.');
       return;
     };
 
@@ -215,7 +213,6 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
         ),
         effects_sources(effect, null)
       );
-    effectChain.push(effect);
     fixedSource
       ? callback(
         fixedSource(), oldValue(fixedSource)
@@ -238,12 +235,9 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  $with(effectChain.at(-1), 
-    currentEffect =>
-        currentEffect
-        && !fixedEffectSource(currentEffect)
-        && effects_sources(currentEffect, ref)
-  );
+  currentEffect
+  && !fixedEffectSource(currentEffect)
+  && effects_sources(currentEffect, ref)
 };
 
 function scheduleEffects(ref: Ref) {
@@ -258,15 +252,14 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
-    const iteration = schedulerIteration();
-    const nextUpEffects = scheduledEffects(iteration);
+    const nextUpEffects = scheduledEffects[scheduledEffects.length];
     effects_sources(ref).forEach(effect => {
       if ( !nextUpEffects.size ) {
         nextTick(() => {
-          const newIteration = schedulerIteration(([iteration]) => [iteration + 1]);
+          const numScheduledEffects = scheduledEffects.push(new Set());
           nextUpEffects.forEach(infer);
-          !scheduledEffects(newIteration).size 
-            && effectChain.splice(0); // if no more effects are scheduled, clear the stack
+          ( numScheduledEffects === scheduledEffects.length )               // length not changed => no new effects were scheduled
+            && scheduledEffects.splice(0, numScheduledEffects, new Set());  // so we can stop checking for infinite loops
         });
       };
       nextUpEffects.add(effect);
