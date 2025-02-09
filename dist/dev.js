@@ -308,7 +308,7 @@
   var $Effect = Symbol("Effect");
   var scheduledEffects = /* @__PURE__ */ new Set();
   var effectCascade = [];
-  var currentEffect = Null();
+  var trackableEffect = Null();
   var valueChanged = Metabox((ref2) => Null());
   var oldValue = Metabox((ref2) => Undefined());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
@@ -339,25 +339,21 @@
       ;
       if (fixedSource) {
         effects_sources(effect2, fixedSource);
-        callback(
-          fixedSource(),
-          oldValue(fixedSource)
-        );
       } else {
         effects_sources(effect2).forEach(
           (source) => valueChanged(source, null)
           // Reset the valueChanged
         );
         effects_sources(effect2, null);
-        if (currentEffect)
+        if (trackableEffect)
           throw "Effects cannot be nested.";
-        currentEffect = effect2;
-        try {
-          callback();
-        } finally {
-          currentEffect = null;
-        }
-        ;
+        trackableEffect = effect2;
+      }
+      ;
+      try {
+        callback();
+      } finally {
+        trackableEffect = null;
       }
       ;
     });
@@ -367,7 +363,7 @@
   }
   var isEffect = typeMarkTester($Effect);
   function detectEffect(ref2) {
-    currentEffect && effects_sources(currentEffect, ref2);
+    trackableEffect && effects_sources(trackableEffect, ref2);
   }
   function scheduleEffects(ref2) {
     if (isRootRef(ref2) || $with(
@@ -407,7 +403,7 @@
   var ref = Ref;
   function watch(sourceOrCallback, callback) {
     return isRef(sourceOrCallback) ? Effect(
-      callback ?? $throw("A callback must be provided when the first argument is a ref."),
+      () => (callback ?? $throw("A callback must be provided when the first argument is a ref."))(sourceOrCallback(), oldValue(sourceOrCallback)),
       sourceOrCallback
     ) : Effect(sourceOrCallback);
   }

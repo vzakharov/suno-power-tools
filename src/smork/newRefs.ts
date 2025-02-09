@@ -176,9 +176,9 @@ enum EffectCommand {
 
 export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
 
-export function Effect(callback: () => void): Effect;
-export function Effect<T>(callback: (value: T, oldValue: T | undefined) => void, fixedSource: Ref<T>): Effect;
-export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void) | (() => void), fixedSource?: Ref<T>) {
+// export function Effect(callback: () => void): Effect;
+// export function Effect<T>(callback: (value: T, oldValue: T | undefined) => void, fixedSource: Ref<T>): Effect;
+export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
@@ -207,9 +207,6 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 
     if ( fixedSource ) {
       effects_sources(effect, fixedSource);
-      callback(
-        fixedSource(), oldValue(fixedSource)
-      );
     } else {
       effects_sources(effect).forEach(source =>
         valueChanged(source, null) // Reset the valueChanged
@@ -218,12 +215,12 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
       if ( trackableEffect )
         throw "Effects cannot be nested.";
       trackableEffect = effect;
-      try {
-        (callback as () => void)();
-      } finally {
-        trackableEffect = null;
-      };
+    };
 
+    try {
+      callback();
+    } finally {
+      trackableEffect = null;
     };
 
   });
@@ -320,7 +317,9 @@ export function watch<T>(source: Ref<T>, callback: (value: T, oldValue: T | unde
 export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T, oldValue: T | undefined ) => void) {
   return isRef(sourceOrCallback)
     ? Effect(
-      callback ?? $throw('A callback must be provided when the first argument is a ref.'),
+      () => (
+        callback ?? $throw('A callback must be provided when the first argument is a ref.')
+      )(sourceOrCallback(), oldValue(sourceOrCallback)),
       sourceOrCallback
     )
     : Effect(sourceOrCallback);
