@@ -1,5 +1,5 @@
 import { isFunction, maxOf } from "../lodashish";
-import { Defined, Func, infer, isDefined, NonFunction, NOT_SET, NotSet, Undefined } from "../types";
+import { Defined, Func, infer, isDefined, NonFunction, NOT_SET, NotSet, Oneple, Undefined } from "../types";
 import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated, $try } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
@@ -164,7 +164,9 @@ const fixedEffectSource = Metabox((ref: Effect) => ({ source: Null<Ref>() }));
 const $Effect = Symbol('Effect');
 
 const effectStack = [] as Effect[];
-const scheduledEffects = new Set<Effect>();
+// const scheduledEffects = new Set<Effect>();
+const schedulerIteration = Box(Oneple(0)); // we need an object to be able to pass by reference
+const scheduledEffects = Metabox((iteration: Oneple<number>) => new Set<Effect>());
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
 const pausedEffects = new WeakSet<Effect>();
@@ -266,16 +268,15 @@ function scheduleEffects(ref: Ref) {
         console.warn('Circular effect detected, ignoring effect to prevent infinite loop:', { effect, effectStack });
         return;
       };
-      if ( !scheduledEffects.size ) {
+      const iteration = schedulerIteration();
+      const nextUpEffects = scheduledEffects(iteration);
+      if ( !nextUpEffects.size ) {
         nextTick(() => {
-          try {
-            scheduledEffects.forEach(infer);
-          } finally {
-            scheduledEffects.clear();
-          };
+          schedulerIteration(([iteration]) => [iteration + 1]);
+          nextUpEffects.forEach(infer);
         });
       };
-      scheduledEffects.add(effect);
+      nextUpEffects.add(effect);
     });
   };
 };

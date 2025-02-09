@@ -16,6 +16,9 @@
   function Undefined(value) {
     return value;
   }
+  function Oneple(value) {
+    return [value];
+  }
   var BRAND = Symbol("brand");
   function infer(inferable, value) {
     return isFunction(inferable) ? inferable(value) : inferable;
@@ -305,7 +308,8 @@
   var fixedEffectSource = Metabox((ref2) => ({ source: Null() }));
   var $Effect = Symbol("Effect");
   var effectStack = [];
-  var scheduledEffects = /* @__PURE__ */ new Set();
+  var schedulerIteration = Box(Oneple(0));
+  var scheduledEffects = Metabox((iteration2) => /* @__PURE__ */ new Set());
   var valueChanged = Metabox((ref2) => Null());
   var oldValue = Metabox((ref2) => Undefined());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
@@ -368,18 +372,16 @@
           return;
         }
         ;
-        if (!scheduledEffects.size) {
+        const iteration2 = schedulerIteration();
+        const nextUpEffects = scheduledEffects(iteration2);
+        if (!nextUpEffects.size) {
           nextTick(() => {
-            try {
-              scheduledEffects.forEach(infer);
-            } finally {
-              scheduledEffects.clear();
-            }
-            ;
+            schedulerIteration(([iteration3]) => [iteration3 + 1]);
+            nextUpEffects.forEach(infer);
           });
         }
         ;
-        scheduledEffects.add(effect2);
+        nextUpEffects.add(effect2);
       });
     }
     ;

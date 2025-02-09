@@ -22,6 +22,11 @@ export function Undefined<T>(value?: T) {
 export type Undefined<T> = Undefinable<T>;
 export const Undefinable = Undefined;
 
+export type Oneple<T> = [T];
+export function Oneple<T>(value: T): [T] {
+  return [value];
+};
+
 const BRAND = Symbol('brand');
 
 export type Branded<Brand, T> = T & { [BRAND]: Brand };
