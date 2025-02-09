@@ -236,11 +236,11 @@
   var computees = /* @__PURE__ */ new Set();
   var computees_roots = WeakBiMap();
   var lastMaxRootIteration = Metabox((ref2) => 0);
-  var fixedComputeeSource = Metabox((ref2) => [null]);
+  var fixedComputeeSource = Metabox((ref2) => Null());
   var $ReadonlyComputedRef = Symbol("ReadonlyComputedRef");
   function detectComputees(ref2) {
     computees.forEach((computee) => {
-      const [source] = fixedComputeeSource(computee);
+      const source = fixedComputeeSource(computee)?.deref();
       if (!source || isRootRef(source) ? source === ref2 : computees.has(source)) {
         computees_roots(computee, ref2);
       }
@@ -286,7 +286,7 @@
         return cachedValue;
       }
     )));
-    fixedSource && fixedComputeeSource(ref2, [fixedSource]);
+    fixedSource && fixedComputeeSource(ref2, new WeakRef(fixedSource));
     allRefs.add(ref2);
     return ref2;
   }

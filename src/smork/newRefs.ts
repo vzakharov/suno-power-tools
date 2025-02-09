@@ -45,13 +45,13 @@ export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputed
 const computees = new Set<ComputedRef>();
 const computees_roots = WeakBiMap<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
-const fixedComputeeSource = Metabox((ref: ComputedRef) => [null] as [ref: Null<Ref>]);
+const fixedComputeeSource = Metabox((ref: ComputedRef) => Null<WeakRef<Ref>>());
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
 function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
-    const [source] = fixedComputeeSource(computee);
+    const source = fixedComputeeSource(computee)?.deref();
     if (
       !source 
       || isRootRef(source) ? source === ref : computees.has(source)
@@ -112,7 +112,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
     }
   ))) as ReadonlyComputedRef<T>;
 
-  fixedSource && fixedComputeeSource(ref, [fixedSource]);
+  fixedSource && fixedComputeeSource(ref, new WeakRef(fixedSource));
   allRefs.add(ref);
 
   return ref;
