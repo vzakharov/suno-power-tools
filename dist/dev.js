@@ -229,11 +229,11 @@
   var computees = /* @__PURE__ */ new Set();
   var computees_roots = WeakBiMap();
   var lastMaxRootIteration = Metabox((ref2) => 0);
-  var fixedComputeeSource = Metabox((ref2) => Null());
+  var fixedComputeeSource = Metabox((ref2) => ({ source: Null() }));
   var $ReadonlyComputedRef = Symbol("ReadonlyComputedRef");
   function detectComputees(ref2) {
     computees.forEach((computee) => {
-      const source = fixedComputeeSource(computee)?.deref();
+      const { source } = fixedComputeeSource(computee);
       if (!source || isRootRef(source) ? source === ref2 : computees.has(source)) {
         computees_roots(computee, ref2);
       }
@@ -279,7 +279,7 @@
         return cachedValue;
       }
     )));
-    fixedSource && fixedComputeeSource(ref2, new WeakRef(fixedSource));
+    fixedSource && fixedComputeeSource(ref2, { source: fixedSource });
     allRefs.add(ref2);
     return ref2;
   }
@@ -302,6 +302,7 @@
   }
   var allEffects = new PhantomSet();
   var effects_sources = WeakBiMap();
+  var fixedEffectSource = Metabox((ref2) => ({ source: Null() }));
   var $Effect = Symbol("Effect");
   var effectStack = [];
   var scheduledEffects = /* @__PURE__ */ new Set();
@@ -324,19 +325,16 @@
         return;
       }
       ;
-      if (fixedSource) return callback(
-        fixedSource(),
-        oldValue(fixedSource)
-      );
-      const sources = [...effects_sources(effect2)];
-      effects_sources(effect2, null);
-      sources.forEach(
-        (source) => isReadonlyComputedRef(source) && valueChanged(source, null)
+      fixedSource ? fixedEffectSource(effect2, { source: fixedSource }) : (effects_sources(effect2).forEach(
+        (source) => valueChanged(source, null)
         // Reset the valueChanged
-      );
+      ), effects_sources(effect2, null));
       effectStack.push(effect2);
       try {
-        callback();
+        fixedSource ? callback(
+          fixedSource(),
+          oldValue(fixedSource)
+        ) : callback();
       } finally {
         const lastEffect = effectStack.pop();
         if (lastEffect !== effect2) {
@@ -354,7 +352,7 @@
   function detectEffect(ref2) {
     $with(
       effectStack.at(-1),
-      (currentEffect) => currentEffect && effects_sources(currentEffect, ref2)
+      (currentEffect) => currentEffect && !fixedEffectSource(currentEffect).source && effects_sources(currentEffect, ref2)
     );
   }
   function scheduleEffects(ref2) {

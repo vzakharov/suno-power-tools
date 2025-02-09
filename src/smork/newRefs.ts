@@ -45,13 +45,13 @@ export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputed
 const computees = new Set<ComputedRef>();
 const computees_roots = WeakBiMap<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
-const fixedComputeeSource = Metabox((ref: ComputedRef) => Null<WeakRef<Ref>>());
+const fixedComputeeSource = Metabox((ref: ComputedRef) => ({ source: Null<Ref>() }));
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
 function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
-    const source = fixedComputeeSource(computee)?.deref();
+    const { source } = fixedComputeeSource(computee);
     if (
       !source 
       || isRootRef(source) ? source === ref : computees.has(source)
@@ -112,7 +112,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
     }
   ))) as ReadonlyComputedRef<T>;
 
-  fixedSource && fixedComputeeSource(ref, new WeakRef(fixedSource));
+  fixedSource && fixedComputeeSource(ref, { source: fixedSource });
   allRefs.add(ref);
 
   return ref;
@@ -160,6 +160,7 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 
 export const allEffects = new PhantomSet<Effect>();
 const effects_sources = WeakBiMap<Effect, Ref>();
+const fixedEffectSource = Metabox((ref: Effect) => ({ source: Null<Ref>() }));
 const $Effect = Symbol('Effect');
 
 const effectStack = [] as Effect[];
@@ -196,20 +197,28 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
       return;
     };
 
-    if ( fixedSource ) return callback(
-      fixedSource(), oldValue(fixedSource)
-    );
+    // if ( fixedSource ) return callback(
+    //   fixedSource(), oldValue(fixedSource)
+    // );
+    // // TODO: Prevent infinite loops for fixed sources
 
-    const sources = [...effects_sources(effect)];
-    effects_sources(effect, null);
-    sources.forEach(source =>
-      isReadonlyComputedRef(source) && valueChanged(source, null) // Reset the valueChanged
-    );
+    fixedSource
+      ? fixedEffectSource(effect, { source: fixedSource })
+      : (
+        effects_sources(effect).forEach(source =>
+          valueChanged(source, null) // Reset the valueChanged
+        ),
+        effects_sources(effect, null)
+      );
     effectStack.push(effect);
     try {
-      (
-        callback as () => void
-      )();
+      fixedSource
+        ? callback(
+          fixedSource(), oldValue(fixedSource)
+        )
+        : (
+          callback as () => void
+        )();
     } finally {
       const lastEffect = effectStack.pop();
       if ( lastEffect !== effect ) {
@@ -232,7 +241,10 @@ export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
   $with(effectStack.at(-1), 
-    currentEffect => currentEffect && effects_sources(currentEffect, ref)
+    currentEffect =>
+        currentEffect
+        && !fixedEffectSource(currentEffect).source
+        && effects_sources(currentEffect, ref)
   );
 };
 
