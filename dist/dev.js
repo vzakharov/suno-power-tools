@@ -300,6 +300,7 @@
   function ComputedRef(getter, setter) {
     return setter ? WritableComputedRef(getter, setter) : ReadonlyComputedRef(getter);
   }
+  var allEffects = new PhantomSet();
   var effects_sources = WeakBiMap();
   var $Effect = Symbol("Effect");
   var effectStack = [];
@@ -346,6 +347,7 @@
       ;
     });
     fixedSource ? effects_sources(effect2, fixedSource) : effect2();
+    allEffects.add(effect2);
     return effect2;
   }
   var isEffect = typeMarkTester($Effect);
@@ -421,6 +423,6 @@
   }
 
   // src/scripts/dev.ts
-  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs });
+  Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs, allEffects });
 })();
 }}).main();

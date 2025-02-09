@@ -158,6 +158,7 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 
 // Effects
 
+export const allEffects = new PhantomSet<Effect>();
 const effects_sources = WeakBiMap<Effect, Ref>();
 const $Effect = Symbol('Effect');
 
@@ -222,6 +223,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
     ? effects_sources(effect, fixedSource)
     : effect();
 
+  allEffects.add(effect);
   return effect;
 
 };
