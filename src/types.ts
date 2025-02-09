@@ -37,7 +37,9 @@ export type StringKey<T> = Extract<keyof T, string>;
 
 export type Func<TArgs extends any[] = any[], TReturn = any> = (...args: TArgs) => TReturn;
 
-export type NonFunction<T> = T extends Func ? never : T;
+export type NonFunction<T> = T extends Func 
+  ? TypingError<'Cannot be a function'>
+  : T;
 
 export type KeyWithValueOfType<TType, TRecord> = {
   [K in keyof TRecord]: TRecord[K] extends TType ? K : never;

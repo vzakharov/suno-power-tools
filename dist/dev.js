@@ -25,8 +25,8 @@
   function Null() {
     return null;
   }
-  function $with(...args) {
-    return args.pop()(...args);
+  function $with(...arg) {
+    return arg.pop()(...arg);
   }
   function mutate(obj, partial) {
     Object.assign(obj, partial);

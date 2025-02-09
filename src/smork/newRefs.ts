@@ -14,7 +14,7 @@ export const allRefs = new PhantomSet<Ref>();
 const $RootRef = Symbol('RootRef');
 export type RootRef<T = unknown> = Box<T> & WritableRefMethods<T> & TypeMarked<typeof $RootRef>;
 
-export function RootRef<T>(value: T) {
+export function RootRef<T>(value: NonFunction<T>) {
 
   const ref = addRefMethods(typeMark($RootRef, Box(
     () => {
@@ -276,14 +276,14 @@ export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, back
 
 export type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
 
-export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
-export function Ref<T>(getter: () => T): ReadonlyComputedRef<T>;
-export function Ref<T>(value: T): RootRef<T>;
+export function Ref<T>(value: NonFunction<T>): RootRef<T>;
 export function Ref<T>(): RootRef<T | undefined>;
+export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
+export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+export function Ref<T>(getter: () => T): ReadonlyComputedRef<T>;
+export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
 
-export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+export function Ref<T, U>(getterValueOrSource?: NonFunction<T> | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
   return isRef(getterValueOrSource)
     ? DependentRef(
       getterValueOrSource, 
@@ -292,7 +292,7 @@ export function Ref<T, U>(getterValueOrSource?: T | (() => T) | Ref<T>, setterOr
     )
     : isFunction(getterValueOrSource)
       ? ComputedRef(getterValueOrSource, setterOrMapper)
-      : RootRef(getterValueOrSource);
+      : RootRef<T | undefined>(getterValueOrSource)
 };
 
 export const ref = Ref;

@@ -52,8 +52,8 @@
   function EmptyArray() {
     return [];
   }
-  function $with(...args) {
-    return args.pop()(...args);
+  function $with(...arg) {
+    return arg.pop()(...arg);
   }
   function jsonClone(obj) {
     return JSON.parse(JSON.stringify(obj));

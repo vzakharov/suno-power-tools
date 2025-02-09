@@ -1,5 +1,5 @@
 import { isFunction, mapKeys } from "./lodashish";
-import { Defined, Func, infer, Inferable, isDefined, StringKey } from "./types";
+import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -23,17 +23,9 @@ export function EmptyArray<T>() {
   return [] as T[];
 };
 
-// export function $with<T, U>(obj: T, fn: (obj: T) => U): U;
-// export function $with<T1, T2, U>(obj1: T1, obj2: T2, fn: (obj1: T1, obj2: T2) => U): U;
-// export function $with<T1, T2, T3, U>(obj1: T1, obj2: T2, obj3: T3, fn: (obj1: T1, obj2: T2, obj3: T3) => U): U;
-// export function $with<T1, T2, T3, T4, U>(obj1: T1, obj2: T2, obj3: T3, obj4: T4, fn: (obj1: T1, obj2: T2, obj3: T3, obj4: T4) => U): U;
-
-// export function $with(...args: any[]) {
-//   return args.pop()(...args);
-// };
-export function $with<TArgs extends any[], TResult>(...args: [...args: TArgs, fn: (...args: TArgs) => TResult]) {
-  return ( args.pop() as (...args: TArgs) => TResult )(...args as unknown as TArgs);
-}
+export function $with<TArgs extends any[], TResult>(...arg: [...arg: TArgs, callback: (...arg: TArgs) => TResult]) {
+  return ( arg.pop() as (...args: TArgs) => TResult )(...arg as unknown as TArgs);
+};
 
 export function jsonClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
@@ -281,17 +273,17 @@ export function createMetabox<
   TValue,
   TWritable extends boolean,
 >(
-  initializer: (subject: TSubject) => CreateBoxArgs<TValue, TWritable>
+  initializer: (subject: TSubject) => CreateBoxArgs<NonFunction<TValue>, TWritable>
 ) {
 
-  const metadata = Metadata<TSubject, ParametricBox<TValue, TWritable>>(subject => {
+  const metadata = Metadata<TSubject, ParametricBox<NonFunction<TValue>, TWritable>>(subject => {
     const [ getter, setter ] = initializer(subject);
     return createBox(getter, setter);
   });
   
   function metabox<T extends TValue>(subject: TSubject): T;
-  function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
-  function metabox(subject: TSubject, setValue?: ValueSetter<TValue>) {
+  function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<NonFunction<T>>): T;
+  function metabox(subject: TSubject, setValue?: ValueSetter<NonFunction<TValue>>) {
     return isDefined(setValue) ? metadata(subject)(setValue) : metadata(subject)();
   };
 
@@ -313,7 +305,7 @@ export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject
 };
 
 export function Metabox<TSubject extends WeakKey, TValue>(
-  initializer: (subject: TSubject) => TValue
+  initializer: (subject: TSubject) => NonFunction<TValue>
 ): Metabox<TSubject, TValue> {
   return createMetabox((subject: TSubject) => [ initializer(subject) ]);
   // TODO: Implement complex (getter/setter) Metaboxes
