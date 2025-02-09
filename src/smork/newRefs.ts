@@ -45,13 +45,13 @@ export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputed
 const computees = new Set<ComputedRef>();
 const computees_roots = WeakBiMap<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
-const fixedComputeeSource = Metabox((ref: ComputedRef) => ({ source: Null<Ref>() }));
+const fixedComputeeSource = Metabox((ref: ComputedRef) => Oneple(Null<Ref>()));
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 
 function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
-    const { source } = fixedComputeeSource(computee);
+    const [ source ] = fixedComputeeSource(computee) ?? [];
     if (
       !source 
       || isRootRef(source) ? source === ref : computees.has(source)
@@ -112,7 +112,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
     }
   ))) as ReadonlyComputedRef<T>;
 
-  fixedSource && fixedComputeeSource(ref, { source: fixedSource });
+  fixedSource && fixedComputeeSource(ref, [fixedSource] );
   allRefs.add(ref);
 
   return ref;
@@ -160,7 +160,7 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 
 export const allEffects = new PhantomSet<Effect>();
 const effects_sources = WeakBiMap<Effect, Ref>();
-const fixedEffectSource = Metabox((ref: Effect) => ({ source: Null<Ref>() }));
+const fixedEffectSource = Metabox((ref: Effect) => Null<Oneple<Ref>>());
 const $Effect = Symbol('Effect');
 
 const effectStack = [] as Effect[];
@@ -205,7 +205,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
     // // TODO: Prevent infinite loops for fixed sources
 
     fixedSource
-      ? fixedEffectSource(effect, { source: fixedSource })
+      ? fixedEffectSource(effect, [fixedSource] )
       : (
         effects_sources(effect).forEach(source =>
           valueChanged(source, null) // Reset the valueChanged
@@ -245,7 +245,7 @@ function detectEffect(ref: Ref) {
   $with(effectStack.at(-1), 
     currentEffect =>
         currentEffect
-        && !fixedEffectSource(currentEffect).source
+        && !fixedEffectSource(currentEffect)
         && effects_sources(currentEffect, ref)
   );
 };
