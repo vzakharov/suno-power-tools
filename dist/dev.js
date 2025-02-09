@@ -307,17 +307,17 @@
   var effects_sources = WeakBiMap();
   var fixedEffectSource = Metabox((ref2) => Null());
   var $Effect = Symbol("Effect");
-  var effectChain = [];
-  var schedulerIteration = Box(Oneple(0));
-  var scheduledEffects = Metabox((iteration2) => /* @__PURE__ */ new Set());
+  var scheduledEffects = /* @__PURE__ */ new Set();
+  var effectCascade = [];
+  var currentEffect = Null();
   var valueChanged = Metabox((ref2) => Null());
   var oldValue = Metabox((ref2) => Undefined());
   var pausedEffects = /* @__PURE__ */ new WeakSet();
   var destroyedEffects = /* @__PURE__ */ new WeakSet();
   function Effect(callback, fixedSource) {
     const effect2 = typeMark($Effect, (command) => {
-      if (effectChain.includes(effect2)) {
-        console.warn("Circular effect detected, ignoring to prevent infinite loop:", { effect: effect2, effectStack: effectChain });
+      if (effectCascade.includes(effect2)) {
+        console.warn("Self-cascading effect detected, skipping to prevent infinite loop.");
         return;
       }
       ;
@@ -338,15 +338,29 @@
         return;
       }
       ;
-      fixedSource ? fixedEffectSource(effect2, [fixedSource]) : (effects_sources(effect2).forEach(
-        (source) => valueChanged(source, null)
-        // Reset the valueChanged
-      ), effects_sources(effect2, null));
-      effectChain.push(effect2);
-      fixedSource ? callback(
-        fixedSource(),
-        oldValue(fixedSource)
-      ) : callback();
+      if (fixedSource) {
+        fixedEffectSource(effect2, [fixedSource]);
+        callback(
+          fixedSource(),
+          oldValue(fixedSource)
+        );
+      } else {
+        effects_sources(effect2).forEach(
+          (source) => valueChanged(source, null)
+          // Reset the valueChanged
+        );
+        effects_sources(effect2, null);
+        if (currentEffect)
+          throw "Effects cannot be nested.";
+        currentEffect = effect2;
+        try {
+          callback();
+        } finally {
+          currentEffect = null;
+        }
+        ;
+      }
+      ;
     });
     fixedSource ? effects_sources(effect2, fixedSource) : effect2();
     allEffects.add(effect2);
@@ -354,10 +368,7 @@
   }
   var isEffect = typeMarkTester($Effect);
   function detectEffect(ref2) {
-    $with(
-      effectChain.at(-1),
-      (currentEffect) => currentEffect && !fixedEffectSource(currentEffect) && effects_sources(currentEffect, ref2)
-    );
+    currentEffect && effects_sources(currentEffect, ref2);
   }
   function scheduleEffects(ref2) {
     if (isRootRef(ref2) || $with(
@@ -365,18 +376,17 @@
       (changed) => changed === null ? (ref2(), // This will update the valueChanged
       valueChanged(ref2) ?? $throw("valueChanged not updated")) : changed
     )) {
-      const iteration2 = schedulerIteration();
-      const nextUpEffects = scheduledEffects(iteration2);
       effects_sources(ref2).forEach((effect2) => {
-        if (!nextUpEffects.size) {
+        if (!scheduledEffects.size) {
           nextTick(() => {
-            const newIteration = schedulerIteration(([iteration3]) => [iteration3 + 1]);
-            nextUpEffects.forEach(infer);
-            !scheduledEffects(newIteration).size && effectChain.splice(0);
+            const currentEffects = [...scheduledEffects];
+            scheduledEffects.clear();
+            currentEffects.forEach((effect3) => effect3());
+            scheduledEffects.size ? effectCascade.push(...currentEffects) : effectCascade.splice(0);
           });
         }
         ;
-        nextUpEffects.add(effect2);
+        scheduledEffects.add(effect2);
       });
     }
     ;

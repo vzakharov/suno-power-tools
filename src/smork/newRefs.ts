@@ -163,7 +163,8 @@ const effects_sources = WeakBiMap<Effect, Ref>();
 const fixedEffectSource = Metabox((ref: Effect) => Null<Oneple<Ref>>());
 const $Effect = Symbol('Effect');
 
-const scheduledEffects = [new Set<Effect>()];
+const scheduledEffects = new Set<Effect>();
+const effectCascade: Effect[] = [];
 let currentEffect = Null<Effect>();
 const valueChanged = Metabox((ref: Ref) => Null<boolean>());
 const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
@@ -182,8 +183,8 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 
   const effect = typeMark($Effect, (command?: EffectCommand) => {
 
-    if ( scheduledEffects.slice(0, -1).some(effects => effects.has(effect)) ) {
-      console.warn('Effect already scheduled, skipping to prevent infinite loop.');
+    if ( effectCascade.includes(effect) ) {
+      console.warn('Self-cascading effect detected, skipping to prevent infinite loop.');
       return;
     };
 
@@ -205,21 +206,26 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
       return;
     };
 
-    fixedSource
-      ? fixedEffectSource(effect, [fixedSource] )
-      : (
-        effects_sources(effect).forEach(source =>
-          valueChanged(source, null) // Reset the valueChanged
-        ),
-        effects_sources(effect, null)
-      );
-    fixedSource
-      ? callback(
+    if ( fixedSource ) {
+      fixedEffectSource(effect, [fixedSource] );
+      callback(
         fixedSource(), oldValue(fixedSource)
-      )
-      : (
-        callback as () => void
-      )();
+      );
+    } else {
+      effects_sources(effect).forEach(source =>
+        valueChanged(source, null) // Reset the valueChanged
+      );
+      effects_sources(effect, null);
+      if ( currentEffect )
+        throw "Effects cannot be nested.";
+      currentEffect = effect;
+      try {
+        (callback as () => void)();
+      } finally {
+        currentEffect = null;
+      };
+
+    };
 
   });
 
@@ -235,9 +241,7 @@ export function Effect<T>(callback: ((value: T, oldValue: T | undefined) => void
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  currentEffect
-  && !fixedEffectSource(currentEffect)
-  && effects_sources(currentEffect, ref)
+  currentEffect && effects_sources(currentEffect, ref)
 };
 
 function scheduleEffects(ref: Ref) {
@@ -252,17 +256,18 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
-    const nextUpEffects = scheduledEffects[scheduledEffects.length];
     effects_sources(ref).forEach(effect => {
-      if ( !nextUpEffects.size ) {
+      if ( !scheduledEffects.size ) {
         nextTick(() => {
-          const numScheduledEffects = scheduledEffects.push(new Set());
-          nextUpEffects.forEach(infer);
-          ( numScheduledEffects === scheduledEffects.length )               // length not changed => no new effects were scheduled
-            && scheduledEffects.splice(0, numScheduledEffects, new Set());  // so we can stop checking for infinite loops
+          const currentEffects = [...scheduledEffects];
+          scheduledEffects.clear();
+          currentEffects.forEach(effect => effect());
+          scheduledEffects.size                       // If new effects were scheduled during the current effects,
+            ? effectCascade.push(...currentEffects)   // we need to cascade them to prevent potential infinite loops;
+            : effectCascade.splice(0);                // otherwise, we can clear the cascade.
         });
       };
-      nextUpEffects.add(effect);
+      scheduledEffects.add(effect);
     });
   };
 };
