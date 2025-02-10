@@ -12,11 +12,11 @@ export const allRefs = new PhantomSet<Ref>();
 // Roots
 
 const $RootRef = Symbol('RootRef');
-export type RootRef<T = unknown> = Box<T> & WritableRefMethods<T> & TypeMarked<typeof $RootRef>;
+export type RootRef<T = unknown> = Box<T> & TypeMarked<typeof $RootRef>;
 
 export function RootRef<T>(value: NonFunction<T>) {
 
-  const ref = addRefMethods(typeMark($RootRef, Box(
+  const ref = typeMark($RootRef, Box(
     () => {
       detectEffect(ref);
       detectComputees(ref);
@@ -30,7 +30,7 @@ export function RootRef<T>(value: NonFunction<T>) {
       value = setValue;
       iteration(ref, inc);
     },
-  ))) as RootRef<T>;
+  )) as RootRef<T>;
 
   allRefs.add(ref);
   return ref;
@@ -66,13 +66,13 @@ function detectComputees(ref: RootRef) {
   });
 };
 
-export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & ReadonlyRefMethods<T> & TypeMarked<typeof $ReadonlyComputedRef>;
+export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & TypeMarked<typeof $ReadonlyComputedRef>;
 
 export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>) {
 
   let cachedValue = Undefined<T>();
 
-  const ref = addRefMethods(typeMark($ReadonlyComputedRef, Box(
+  const ref = typeMark($ReadonlyComputedRef, Box(
     () => {
       detectEffect(ref);
       if ( 
@@ -110,7 +110,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       return cachedValue;
 
     }
-  ))) as ReadonlyComputedRef<T>;
+  )) as ReadonlyComputedRef<T>;
 
   fixedSource && fixedComputeeSource(ref, [fixedSource] );
   allRefs.add(ref);
@@ -123,14 +123,14 @@ export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (va
 // Writable computeds
 
 const $WritableComputedRef = Symbol('WritableComputedRef');
-export type WritableComputedRef<T = unknown> = Box<T> & WritableRefMethods<T> & TypeMarked<typeof $WritableComputedRef>;
+export type WritableComputedRef<T = unknown> = Box<T> & TypeMarked<typeof $WritableComputedRef>;
 
 export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref<U>) {
 
-  const ref = addRefMethods(typeMark($WritableComputedRef, Box(
+  const ref = typeMark($WritableComputedRef, Box(
     ReadonlyComputedRef(getter, fixedSource),
     setter
-  ))) as WritableComputedRef<T>;
+  )) as WritableComputedRef<T>;
 
   allRefs.add(ref);
 
@@ -327,53 +327,12 @@ export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value
 
 export const effect = watch;
 
-// Methods
-
-type ReadonlyRefMethods<T> = {
-  to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
-  watch(callback: (value: T) => void): Effect;
+export function map<T, U>(ref: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
+export function map<T, U>(ref: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+export function map<T, U>(ref: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+  return backMapper
+    ? isWritableRef(ref)
+      ? Ref(ref, mapper, backMapper)
+      : $throw('Cannot use a backMapper with a readonly ref.')
+    : Ref(ref, mapper);
 };
-
-type WritableRefMethods<T> = Omit<ReadonlyRefMethods<T>, 'to'> & {
-  to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
-  to<U>(mapper: (value: T) => U, backMapper: (value: U) => T): WritableComputedRef<U>;
-};
-
-type RefMethods<T> = ReadonlyRefMethods<T> | WritableRefMethods<T>;
-
-function RefMethods<T>(r: ReadonlyComputedRef<T>): ReadonlyRefMethods<T>;
-function RefMethods<T>(r: WritableRef<T>): WritableRefMethods<T>;
-function RefMethods<T>(r: Ref<T>): RefMethods<T>;
-function RefMethods<T>(r: Ref<T>) {
-
-  function to<U>(mapper: (value: T) => U): ReadonlyComputedRef<U>;
-  function to<U>(mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-  function to<U>(mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
-    return backMapper
-      ? isWritableRef(r)
-        ? Ref(r, mapper, backMapper)
-        : $throw('Cannot use a backMapper with a readonly ref.')
-      : Ref(r, mapper);
-  };
-
-  return {
-    to,
-    watch: (callback: (value: T) => void) => watch(r, callback)
-  };
-};
-
-function addRefMethods<T>(ref: Box<T>) {
-  return Object.assign(ref, RefMethods(ref as Ref<T>));
-};
-
-// // tests
-
-// const number = RootRef(0);
-// const string = number.to(String);
-// $try(() => {
-//   // @ts-expect-error because `string` is a readonly ref, hence we can’t use a backMapper
-//   const upper = string.to(s => s.toUpperCase(), s => s.toLowerCase());
-// }, console.warn);
-// const twoWayString = number.to(String, Number);
-// const twoWayUpper = twoWayString.to(s => s.toUpperCase(), s => s.toLowerCase());
-// // ok because `twoWayString` is a writable ref

@@ -210,7 +210,7 @@
   var allRefs = new PhantomSet();
   var $RootRef = Symbol("RootRef");
   function RootRef(value) {
-    const ref2 = addRefMethods(typeMark($RootRef, Box(
+    const ref2 = typeMark($RootRef, Box(
       () => {
         detectEffect(ref2);
         detectComputees(ref2);
@@ -224,7 +224,7 @@
         value = setValue;
         iteration(ref2, inc);
       }
-    )));
+    ));
     allRefs.add(ref2);
     return ref2;
   }
@@ -245,7 +245,7 @@
   }
   function ReadonlyComputedRef(getter, fixedSource) {
     let cachedValue = Undefined();
-    const ref2 = addRefMethods(typeMark($ReadonlyComputedRef, Box(
+    const ref2 = typeMark($ReadonlyComputedRef, Box(
       () => {
         detectEffect(ref2);
         if (cachedValue === void 0 || $with(maxOf(computees_roots(ref2), iteration), (maxRootIteration) => {
@@ -281,7 +281,7 @@
         }
         return cachedValue;
       }
-    )));
+    ));
     fixedSource && fixedComputeeSource(ref2, [fixedSource]);
     allRefs.add(ref2);
     return ref2;
@@ -289,10 +289,10 @@
   var isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef);
   var $WritableComputedRef = Symbol("WritableComputedRef");
   function WritableComputedRef(getter, setter, fixedSource) {
-    const ref2 = addRefMethods(typeMark($WritableComputedRef, Box(
+    const ref2 = typeMark($WritableComputedRef, Box(
       ReadonlyComputedRef(getter, fixedSource),
       setter
-    )));
+    ));
     allRefs.add(ref2);
     return ref2;
   }
@@ -408,19 +408,6 @@
     ) : Effect(sourceOrCallback);
   }
   var effect = watch;
-  function RefMethods(r) {
-    function to(mapper, backMapper) {
-      return backMapper ? isWritableRef(r) ? Ref(r, mapper, backMapper) : $throw("Cannot use a backMapper with a readonly ref.") : Ref(r, mapper);
-    }
-    ;
-    return {
-      to,
-      watch: (callback) => watch(r, callback)
-    };
-  }
-  function addRefMethods(ref2) {
-    return Object.assign(ref2, RefMethods(ref2));
-  }
 
   // src/scripts/dev.ts
   Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs, allEffects });
