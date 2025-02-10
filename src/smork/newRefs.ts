@@ -1,6 +1,7 @@
-import { isFunction, maxOf } from "../lodashish";
-import { Defined, Func, infer, isDefined, NonFunction, NOT_SET, NotSet, Oneple, Undefined } from "../types";
-import { $throw, $with, Box, tap, inc, Metabox, nextTick, typeMark, typeMarkTester, TypeMarked, ReadonlyBox, Null, combinedTypeguard, CreateBoxArgs, mutated, $try } from "../utils";
+import { isFunction, isObject, maxOf } from "../lodashish";
+import { Singleton } from "../singletons";
+import { Defined, Func, IfReadonly, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Undefined } from "../types";
+import { $throw, $with, Box, combinedTypeguard, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
 import { PhantomSet, WeakBiMap } from "../weaks";
 
 let maxIteration = 0;
@@ -9,14 +10,67 @@ const iteration = Metabox((root: RootRef) => maxIteration++);
 export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 export const allRefs = new PhantomSet<Ref>();
 
-// Roots
+// #region Base
+
+type SubRefKey<T> = Extract<KeyWithValueNotOfType<Func, T>, string>;
+
+type ReadonlyBaseRef<T = unknown> = ReadonlyBox<T> & TypeMarked<$ReadonlyComputedRef> & {
+  readonly [K in SubRefKey<T>]: ReadonlyBaseRef<T[K]>
+};
+
+type WritableBaseRef<TMark extends $WritableRef, T = unknown> = Box<T> & TypeMarked<TMark> & {
+  readonly [K in SubRefKey<T>]:
+    IfReadonly<K, T,
+      ReadonlyBaseRef<T[K]>,
+      WritableBaseRef<$WritableComputedRef, T[K]>
+    >
+};
+
+function ReadonlyBaseRef<T>(getter: () => T) {
+  return new Proxy(TypeMarked($ReadonlyComputedRef, Box(getter)), {
+    get: proxyGetter(true)<T>,
+    set: () => { throw "Cannot set a value on a readonly ref."; }
+  }) as ReadonlyBaseRef<T>;
+};
+
+function proxyGetter<TReadonly extends boolean>(readonly: TReadonly) {
+  return function proxyGetter<T>(target: TReadonly extends true ? ReadonlyBox<T> : Box<T>, prop: string | symbol, proxy: object) {
+    const targetValue = target();
+    if ( !isObject(targetValue) || !isKeyOf(targetValue, prop) ) return targetValue[prop];
+    const value = targetValue[prop];
+    const getSubRef = () => readonly || isReadonlyKey(prop, targetValue)
+      ? ReadonlyBaseRef(() => value)
+      : WritableBaseRef($WritableComputedRef, () => value, value => target({ ...targetValue, [prop]: value } as Defined<T> ));
+    return (
+      isFunction(value)
+        ? value
+      : isObject(value)
+        ? Singleton.by(proxy, target, value)(getSubRef)
+      : getSubRef()
+    );
+  };
+}
+
+function WritableBaseRef<TMark extends $WritableRef, T>(typeMark: TMark, getter: () => T, setter: (value: T) => void) {
+  return new Proxy(Box(getter, setter), {
+    get: proxyGetter(false)<T>,
+    set: () => {
+      throw "Cannot set values by assigning to a ref directly. Use the setter function instead.";
+    }
+  }) as WritableBaseRef<TMark, T>;
+};
+
+// #endregion
+
+// #region Roots
 
 const $RootRef = Symbol('RootRef');
-export type RootRef<T = unknown> = Box<T> & TypeMarked<typeof $RootRef>;
+type $RootRef = typeof $RootRef;
+export type RootRef<T = unknown> = WritableBaseRef<$RootRef, T>;
 
 export function RootRef<T>(value: NonFunction<T>) {
 
-  const ref = typeMark($RootRef, Box(
+  const ref = WritableBaseRef($RootRef,
     () => {
       detectEffect(ref);
       detectComputees(ref);
@@ -30,7 +84,7 @@ export function RootRef<T>(value: NonFunction<T>) {
       value = setValue;
       iteration(ref, inc);
     },
-  )) as RootRef<T>;
+  ) as RootRef<T>;
 
   allRefs.add(ref);
   return ref;
@@ -38,7 +92,9 @@ export function RootRef<T>(value: NonFunction<T>) {
 
 export const isRootRef = typeMarkTester($RootRef) as (value: any) => value is RootRef;
 
-// Computeds
+// #endregion
+
+// #region Computeds
 
 export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
@@ -48,6 +104,7 @@ const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
 const fixedComputeeSource = Metabox((ref: ComputedRef) => Oneple(Null<Ref>()));
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
+type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
 function detectComputees(ref: RootRef) {
   computees.forEach(computee => {
@@ -66,13 +123,13 @@ function detectComputees(ref: RootRef) {
   });
 };
 
-export type ReadonlyComputedRef<T = unknown> = ReadonlyBox<T> & TypeMarked<typeof $ReadonlyComputedRef>;
+export type ReadonlyComputedRef<T = unknown> = ReadonlyBaseRef<T>;
 
 export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>) {
 
   let cachedValue = Undefined<T>();
 
-  const ref = typeMark($ReadonlyComputedRef, Box(
+  const ref = ReadonlyBaseRef(
     () => {
       detectEffect(ref);
       if ( 
@@ -110,7 +167,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       return cachedValue;
 
     }
-  )) as ReadonlyComputedRef<T>;
+  ) as ReadonlyComputedRef<T>;
 
   fixedSource && fixedComputeeSource(ref, [fixedSource] );
   allRefs.add(ref);
@@ -120,24 +177,30 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
 
 export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (value: any) => value is ReadonlyComputedRef;
 
-// Writable computeds
+// #endregion
+
+// #region Writable computeds
 
 const $WritableComputedRef = Symbol('WritableComputedRef');
-export type WritableComputedRef<T = unknown> = Box<T> & TypeMarked<typeof $WritableComputedRef>;
+type $WritableComputedRef = typeof $WritableComputedRef;
+type $WritableRef = $RootRef | $WritableComputedRef;
+export type WritableComputedRef<T = unknown> = WritableBaseRef<$WritableComputedRef, T>;
 
 export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref<U>) {
 
-  const ref = typeMark($WritableComputedRef, Box(
+  const ref = WritableBaseRef($WritableComputedRef,
     ReadonlyComputedRef(getter, fixedSource),
     setter
-  )) as WritableComputedRef<T>;
+  ) as WritableComputedRef<T>;
 
   allRefs.add(ref);
 
   return ref;
 };
 
-// Computed overalls
+// #endregion
+
+// #region Computed overalls
 
 export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as (value: any) => value is WritableComputedRef;
 
@@ -156,7 +219,9 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
     : ReadonlyComputedRef(getter);
 };
 
-// Effects
+// #endregion
+
+// #region Effects
 
 export const allEffects = new PhantomSet<Effect>();
 const effects_sources = WeakBiMap<Effect, Ref>();
@@ -176,11 +241,9 @@ enum EffectCommand {
 
 export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
 
-// export function Effect(callback: () => void): Effect;
-// export function Effect<T>(callback: (value: T, oldValue: T | undefined) => void, fixedSource: Ref<T>): Effect;
 export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
 
-  const effect = typeMark($Effect, (command?: EffectCommand) => {
+  const effect = TypeMarked($Effect, (command?: EffectCommand) => {
 
     if ( effectCascade.includes(effect) ) {
       console.warn('Self-cascading effect detected, skipping to prevent infinite loop.');
@@ -268,12 +331,14 @@ function scheduleEffects(ref: Ref) {
   };
 };
 
-// Shorthands
+// #endregion
 
-export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>): ComputedRef<U>;
-export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+// #region Shorthands
+
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>): ComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
   return backMapper
     ? WritableComputedRef(
       () => mapper(source()),
@@ -285,7 +350,7 @@ export function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, back
     : ReadonlyComputedRef(() => mapper(source()), source)
 };
 
-export type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
+type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
 
 export function Ref<T>(value: NonFunction<T>): RootRef<T>;
 export function Ref<T>(): RootRef<T | undefined>;
@@ -336,3 +401,14 @@ export function map<T, U>(ref: Ref<T>, mapper: (value: T) => U, backMapper?: (va
       : $throw('Cannot use a backMapper with a readonly ref.')
     : Ref(ref, mapper);
 };
+
+// #endregion
+
+// #region Examples
+
+const context = ref({ user: { name: 'John', age: 30 } });
+context() // { user: { name: 'John', age: 30 } }
+context.user() // { name: 'John', age: 30 }
+context.user.name() // 'John'
+context.user.name('Jane') // 'Jane'
+context() // { user: { name: 'Jane', age: 30 } }

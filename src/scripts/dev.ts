@@ -1,3 +1,3 @@
-import { ReadonlyComputedRef, Effect, RootRef, ref, effect, watch, Ref, allRefs, allEffects } from "../smork/newRefs";
+import { ref, effect, watch, allRefs, allEffects } from "../smork/newRefs";
 
-Object.assign(window, { RootRef, ReadonlyComputedRef, Effect, Ref, ref, effect, watch, allRefs, allEffects });
+Object.assign(window, { ref, effect, watch, allRefs, allEffects });

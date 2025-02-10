@@ -58,6 +58,8 @@ export function $throw(messageOrError?: string | Error) {
   throw messageOrError instanceof Error ? messageOrError : new Error(messageOrError);
 };
 
+type $Throw = typeof $throw;
+
 export async function uploadTextFile() {
   // Creates a file input element, clicks it, and waits for the user to select a file, then resolves with the file's contents
   const input = document.createElement('input');
@@ -254,7 +256,7 @@ export type ParametricBox<T, TWritable extends boolean> =
     ? Box<T> 
     : ReadonlyBox<T>;
 
-export type ReadonlyBox<T> = () => T;
+export type ReadonlyBox<T = unknown> = () => T;
 
 export type Box<T = unknown> = {
   (): T,
@@ -325,8 +327,7 @@ export type TypeMarked<TDescription extends string | symbol> = {
   readonly [TYPE_MARKER]: TDescription;
 };
 
-export function typeMark<TDescription extends string | symbol, T extends {}>(description: TDescription, value: T) {
-  // return Object.defineProperty(value, TYPE_MARKER, { value: description }) as T & TypeMarked<TDescription>;
+export function TypeMarked<TDescription extends string | symbol, T extends {}>(description: TDescription, value: T) {
   return mutated(value, { [TYPE_MARKER]: description });
 };
 

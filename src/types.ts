@@ -1,5 +1,5 @@
 import { isFunction } from "./lodashish";
-import { mutated } from "./utils";
+import { $throw, mutated } from "./utils";
 
 export type Primitive = string | number | boolean | null | undefined;
 
@@ -40,6 +40,10 @@ export type UnionToIntersection<U> =
 
 export type StringKey<T> = Extract<keyof T, string>;
 
+export function isKeyOf<T extends object>(obj: T, key: keyof any): key is keyof T {
+  return key in obj;
+};
+
 export type Func<TArgs extends any[] = any[], TReturn = any> = (...args: TArgs) => TReturn;
 
 export type NonFunction<T> = T extends Func 
@@ -49,6 +53,8 @@ export type NonFunction<T> = T extends Func
 export type KeyWithValueOfType<TType, TRecord> = {
   [K in keyof TRecord]: TRecord[K] extends TType ? K : never;
 }[keyof TRecord];
+
+export type KeyWithValueNotOfType<TType, TRecord> = Exclude<keyof TRecord, KeyWithValueOfType<TType, TRecord>>;
 
 export function asPartial<T extends Record<string, any>>(obj: T): Partial<T> {
   return obj;
@@ -106,4 +112,26 @@ export type OptionalIfNotInBoth<T, U> = {
   [K in keyof T as K extends keyof U ? never : K]?: T[K];
 } & {
   [K in keyof U as K extends keyof T ? never : K]?: U[K];
+};
+
+// export type IfReadonly<K extends keyof T, T, IfYes, IfNo> =
+//   IfEquals<{ readonly [P in K]: T[P] }, { [P in K]: T[P] }, IfYes, IfNo>;
+export type ReadonlyKey<T> = {
+  [K in keyof T]: IfEquals<{ readonly [P in K]: T[P] }, { [P in K]: T[P] }, K, never>;
+}[keyof T];
+
+export type IfReadonly<K extends keyof T, T, IfYes, IfNo> = K extends ReadonlyKey<T> ? IfYes : IfNo;
+
+export type IfEquals<X, Y, IfYes, IfNo> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? IfYes : IfNo;
+
+export function isReadonlyKey<T>(key: keyof T, obj: T): key is ReadonlyKey<T> {
+  return (
+    Object.getOwnPropertyDescriptor(obj, key) ?? $throw(`Property ${String(key)} not found on object`)
+  ).writable === false;
+}
+
+export function IfReadonly<K extends keyof T, T, IfYes, IfNo>(
+  obj: T, key: K, ifYes: () => IfYes, ifNo: () => IfNo
+) {
+  return isReadonlyKey(key, obj) ? ifYes() : ifNo();
 };

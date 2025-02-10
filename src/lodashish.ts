@@ -78,10 +78,14 @@ export function mapKeys<
   };
 };
 
-export function isFunction<T, F extends Func>(value: T | F): value is F;
 export function isFunction(value: any): value is Func;
+export function isFunction<T, F extends Func>(value: T | F): value is F;
 export function isFunction(value: any) {
   return typeof value === 'function';
+};
+
+export function isObject(value: any): value is object {
+  return value && typeof value === 'object';
 };
 
 export function identity<T>(value: T) {
