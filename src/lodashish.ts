@@ -1,4 +1,5 @@
-import { Func, StringKey } from "./types";
+import { Func, NonFunction, StringKey, Typeguard } from "./types";
+import { combinedTypeguard } from "./utils";
 
 export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
   return arr.find(createPredicate(filter));
@@ -84,9 +85,14 @@ export function isFunction(value: any) {
   return typeof value === 'function';
 };
 
-export function isObject(value: any): value is object {
+export function isObject<T, F extends Func>(value: T | F): value is T & object;
+export function isObject<T>(value: T): value is T & NonFunction<T & object>;
+export function isObject(value: any): value is object;
+export function isObject(value: any) {
   return value && typeof value === 'object';
 };
+
+export const isMutable = combinedTypeguard(isObject, isFunction) as Typeguard<object>;
 
 export function identity<T>(value: T) {
   return value;

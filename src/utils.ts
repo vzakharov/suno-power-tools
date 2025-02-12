@@ -1,4 +1,5 @@
-import { isFunction, mapKeys } from "./lodashish";
+import { isFunction, isMutable, isObject, mapKeys } from "./lodashish";
+import { Singleton } from "./singletons";
 import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
@@ -265,7 +266,20 @@ export type Box<T = unknown> = {
 
 export function Metadata<TSubject extends WeakKey, TMetadata extends Record<string, any>>(initializer: (subject: TSubject) => TMetadata) {
   const metadatas = new WeakMap<TSubject, TMetadata>();
-  return (subject: TSubject) => getOrSet(metadatas, subject, () => initializer(subject));
+
+  function maybeSingleton(subject: TSubject) {
+    return Array.isArray(subject) && subject.every(isMutable)
+      ? Singleton.by(...subject)(() => subject) 
+      : subject;
+  }
+
+  return (subject: TSubject) => 
+      getOrSet(
+        metadatas,
+        maybeSingleton(subject),
+        () => initializer(subject)
+      );
+
 };
 
 export type Metadata<TSubject extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof Metadata<TSubject, TInits>>;
@@ -308,10 +322,24 @@ export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject
 
 export function Metabox<TSubject extends WeakKey, TValue>(
   initializer: (subject: TSubject) => NonFunction<TValue>
-): Metabox<TSubject, TValue> {
-  return createMetabox((subject: TSubject) => [ initializer(subject) ]);
-  // TODO: Implement complex (getter/setter) Metaboxes
-};
+): Metabox<TSubject, TValue>;
+export function Metabox<TSubject extends WeakKey, TValue>(
+  getter: (subject: TSubject) => NonFunction<TValue>,
+  setter: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
+): Metabox<TSubject, TValue>;
+
+export function Metabox<TSubject extends WeakKey, TValue>(
+  getterOrInitializer: (subject: TSubject) => NonFunction<TValue>,
+  setter?: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
+) {
+  return createMetabox<TSubject, TValue, true>(
+    subject => [
+      getterOrInitializer(subject),
+      setter && ( value => setter(subject, value) )
+    ]
+  )
+}
+
 
 export function inc(value: number) {
   return value + 1;

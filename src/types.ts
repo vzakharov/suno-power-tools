@@ -3,6 +3,8 @@ import { $throw, mutated } from "./utils";
 
 export type Primitive = string | number | boolean | null | undefined;
 
+export type Typeguard<G extends T, T = any> = (value: T) => value is G;
+
 export const NOT_SET = Symbol('NOT_SET');
 export type NotSet = typeof NOT_SET;
 export function NotSet<T>() {
@@ -49,6 +51,13 @@ export type Func<TArgs extends any[] = any[], TReturn = any> = (...args: TArgs) 
 export type NonFunction<T> = T extends Func 
   ? TypingError<'Cannot be a function'>
   : T;
+
+export function NonFunction<T>(value: T) {
+  if (isFunction(value)) {
+    throw new TypingError('Cannot be a function');
+  };
+  return value as NonFunction<T>;
+};
 
 export type KeyWithValueOfType<TType, TRecord> = {
   [K in keyof TRecord]: TRecord[K] extends TType ? K : never;
