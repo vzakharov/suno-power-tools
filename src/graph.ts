@@ -52,22 +52,22 @@ export function WeakGraph<TSource extends object, TTarget extends object, TLink 
     Targets,
   };
 
-  function Connections(type: ConnectionType) {
+  function Connections(connectionType: ConnectionType) {
     type TNode = TSource | TTarget;
     const set = (
-      type === ConnectionType.Sources ? sourcesSet : targetsSet
+      connectionType === ConnectionType.Sources ? sourcesSet : targetsSet
     ) as Metabox<TNode, PhantomSet<TNode>>;
     return Metabox(
       (node: TNode) => set(node).snapshot.map(
         (other) => {
           const nodes = [ node, other ] as readonly [TSource, TTarget] | readonly [TTarget, TSource];
-          function areReversed(nodeTuple: typeof nodes, connectionType: ConnectionType): nodeTuple is readonly [ TTarget, TSource ] {
+          function areReversed(nodeTuple: typeof nodes): nodeTuple is readonly [ TTarget, TSource ] {
             return connectionType === ConnectionType.Sources;
           };
           return [
             nodes[0],
             links(
-              areReversed(nodes, type) ? Reverse(nodes) : nodes
+              areReversed(nodes) ? Reverse(nodes) : nodes
             ) ?? $throw('Link not found (this should never happen)')
           ]
         }
