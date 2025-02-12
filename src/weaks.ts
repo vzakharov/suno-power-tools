@@ -22,7 +22,7 @@ export class PhantomSet<T extends object> {
   }
 
   has(value: T) {
-    for (const v of this) {
+    for (const [v] of this.iterator()) {
       if (v === value) return true;
     }
     return false;
@@ -43,31 +43,13 @@ export class PhantomSet<T extends object> {
   }
 
   get size() {
-    return [...this].length;
+    return [...this.iterator()].length;
   }
 
-  forEach(callback: (value: T) => void): void
-  /**
-   * This overload allows the callback to return the `BREAK` symbol to break the loop and stop the iteration, similar to the `break` statement in a `for` loop.
-   */
-  forEach(callback: (value: T) => void | typeof BREAK): void
-  forEach(callback: (value: T) => void | typeof BREAK) {
-    for (const value of this) {
-      if (callback(value) === BREAK) break;
-    }
+  get snapshot(): readonly T[] {
+    return [...this.iterator()].map(([value]) => value)
   }
 
-  map<U>(callback: (value: T) => U) {
-    return [...this].map(callback);
-  }
-
-  [Symbol.iterator]() {
-    return (function* (this: PhantomSet<T>) {
-      for (const [value] of this.iterator()) {
-        yield value;
-      }
-    }).call(this);
-  }
 }
 
 export function WeakBiMap<T extends object, U extends object>() {
@@ -87,7 +69,7 @@ export function WeakBiMap<T extends object, U extends object>() {
   function updateRelations(node: T | U, relative?: U | T | null, remove?: null) {
     const relatives = getOrSet(relations, node, new PhantomSet());
     if (relative === null) {
-      relatives.forEach(relative => updateRelations(relative, node, null));
+      relatives.snapshot.forEach(relative => updateRelations(relative, node, null));
     } else if (relative)
       ([
         [relatives, relative],
@@ -96,7 +78,7 @@ export function WeakBiMap<T extends object, U extends object>() {
         ? relatives.delete(relative)
         : relatives.add(relative)
       );
-    return [...relatives] as const;
+    return relatives.snapshot;
   };
 
   return self;

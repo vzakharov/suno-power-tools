@@ -1,6 +1,6 @@
 import { isFunction, isMutable, isObject, mapKeys } from "./lodashish";
 import { Singleton } from "./singletons";
-import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey } from "./types";
+import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -204,42 +204,39 @@ export function getOrSet<T, U>(map: Map<T, U> | ( T extends WeakKey ? WeakMap<T,
 };
 
 export type CreateBoxArgs<T, TWritable extends boolean> = [
-  getterOrValue: T | (() => T),
-  setter?: TWritable extends true ? (value: Defined<T>) => void : never
+  getterOrValue: T | ((oldValue: Undefinable<T>) => T),
+  setter?: TWritable extends true ? (value: Defined<T>, oldValue: Undefinable<T>) => void : never
 ];
 
-export type ValueSetter<T> = Defined<T> | ((value: T) => Defined<T>);
+export type ValueSetter<T> = Defined<T> | ((value: T, oldValue: Undefinable<T>) => Defined<T>);
 
 export function createBox<T, TWritable extends boolean>(...[ getterOrValue, setter ]: CreateBoxArgs<T, TWritable>) {
 
-  if ( !isFunction(getterOrValue) ) {
-    let value = getterOrValue;
-    return createBoxWithGetter(() => value, setValue => value = setValue);
-  } else {
-    return createBoxWithGetter(getterOrValue, setter);
+  let oldValue = isFunction(getterOrValue) ? undefined as T : getterOrValue;
+
+  function getCurrentValue() {
+    return isFunction(getterOrValue) ? getterOrValue(oldValue) : oldValue;
   };
 
-  function createBoxWithGetter(getter: () => T, setter?: (value: Defined<T>) => void) {
 
-    return (
-      function box(setValue?: ValueSetter<T>) {
-        if ( setValue === undefined ) {
-          return getter();
-        } else {
-          if ( !setter ) {
-            throw new TypeError('Cannot set value on a read-only box');
-          };
-          if ( isFunction(setValue) ) {
-            return box(setValue(getter()));
-          } else {
-            setter(setValue);
-            return setValue;
-          };
+  return (
+    function box(setValue?: ValueSetter<T>) {
+      if ( setValue === undefined ) {
+        return oldValue = getCurrentValue();
+      } else {
+        if ( !setter ) {
+          throw new TypeError('Cannot set value on a read-only box');
         };
-      }
-    ) as ParametricBox<T, TWritable>;
-  };
-  
+        if ( isFunction(setValue) ) {
+          return box(setValue(getCurrentValue(), oldValue));
+        } else {
+          setter(setValue, oldValue);
+          return oldValue = setValue;
+        };
+      };
+    }
+  ) as ParametricBox<T, TWritable>;
+    
 };
 
 export type GetSetTuple<T> = [ getter: () => T, setter: (value: T) => void ]
@@ -261,7 +258,7 @@ export type ReadonlyBox<T = unknown> = () => T;
 
 export type Box<T = unknown> = {
   (): T,
-  (setValue: Defined<T> | ((value: T) => Defined<T>)): T,
+  (setValue: ValueSetter<T>): T,
 };
 
 export function Metadata<TSubject extends WeakKey, TMetadata extends Record<string, any>>(initializer: (subject: TSubject) => TMetadata) {
@@ -321,25 +318,24 @@ export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject
 };
 
 export function Metabox<TSubject extends WeakKey, TValue>(
-  initializer: (subject: TSubject) => NonFunction<TValue>
+  initializer: (subject: TSubject) => Defined<NonFunction<TValue>>
 ): Metabox<TSubject, TValue>;
 export function Metabox<TSubject extends WeakKey, TValue>(
-  getter: (subject: TSubject) => NonFunction<TValue>,
+  getter: Undefinable<(subject: TSubject) => Defined<NonFunction<TValue>>>,
   setter: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
 ): Metabox<TSubject, TValue>;
 
 export function Metabox<TSubject extends WeakKey, TValue>(
-  getterOrInitializer: (subject: TSubject) => NonFunction<TValue>,
+  getterOrInitializer: Undefinable<(subject: TSubject) => Defined<NonFunction<TValue>>>,
   setter?: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
 ) {
   return createMetabox<TSubject, TValue, true>(
     subject => [
-      getterOrInitializer(subject),
+      getterOrInitializer?.(subject) ?? undefined as NonFunction<TValue>,
       setter && ( value => setter(subject, value) )
     ]
   )
-}
-
+};
 
 export function inc(value: number) {
   return value + 1;
@@ -383,4 +379,12 @@ export function $try<T>(fn: () => T, fallback?: Inferable<T | undefined, Error>)
   } catch ( e: any ) {
     return fallback ? infer(fallback, e) : $throw(e);
   }
+};
+
+export function itselfIf<TValue, TGuarded extends TValue, TElse>(
+  value: TValue,
+  guard: (value: TValue) => value is TGuarded,
+  otherwise: Inferable<TElse, TValue>
+) {
+  return guard(value) ? value : infer(otherwise, value);
 };

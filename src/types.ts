@@ -12,6 +12,13 @@ export function NotSet<T>() {
 };
 export type MaybeNotSet<T> = T | NotSet;
 
+export type NotNull<T> = Exclude<T, null>;
+export function isNotNull<T>(value: T | null): value is T;
+export function isNotNull<T>(value: T): value is NotNull<T>;
+export function isNotNull<T>(value: T | null) {
+  return value !== null;
+};
+
 export type Defined<T> = Exclude<T, undefined>;
 export function isDefined<T>(value: T): value is Defined<T> {
   return value !== undefined;
@@ -143,4 +150,13 @@ export function IfReadonly<K extends keyof T, T, IfYes, IfNo>(
   obj: T, key: K, ifYes: () => IfYes, ifNo: () => IfNo
 ) {
   return isReadonlyKey(key, obj) ? ifYes() : ifNo();
+};
+
+export type Reverse<T extends readonly any[]> = 
+  T extends readonly [infer First, ...infer Rest] 
+    ? readonly [...Reverse<Rest>, First]
+    : [];
+
+export function Reverse<T extends readonly any[]>(tuple: T) {
+  return [...tuple].reverse() as Reverse<T>;
 };
