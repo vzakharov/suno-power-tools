@@ -1,5 +1,5 @@
-import { isDefined, isNotNull, NonFunction, Reverse } from "./types";
-import { $throw, itselfIf, Metabox } from "./utils"
+import { NonFunction, Reverse } from "./types";
+import { $throw, Metabox } from "./utils";
 import { PhantomSet } from "./weaks";
 
 type Connection<TNode extends object, TLink extends {}> = [ node: TNode, link: TLink ]
@@ -52,26 +52,40 @@ export function WeakGraph<TSource extends object, TTarget extends object, TLink 
     Targets,
   };
 
-  function Connections(connectionType: ConnectionType) {
+  function Connections<CT extends ConnectionType>(connectionType: CT) {
     type TNode = TSource | TTarget;
     const set = (
       connectionType === ConnectionType.Sources ? sourcesSet : targetsSet
     ) as Metabox<TNode, PhantomSet<TNode>>;
+
+    type NodeTuple = readonly [TSource, TTarget] | readonly [TTarget, TSource];
+    function areReversed(nodeTuple: NodeTuple): nodeTuple is readonly [ TTarget, TSource ] {
+      return connectionType === ConnectionType.Sources;
+    };
+
+    function aligned(node: TNode, other: TNode) {
+      const nodes = [ node, other ] as NodeTuple;
+      return areReversed(nodes) ? Reverse(nodes) : nodes;
+    };
+
     return Metabox(
+
       (node: TNode) => set(node).snapshot.map(
-        (other) => {
-          const nodes = [ node, other ] as readonly [TSource, TTarget] | readonly [TTarget, TSource];
-          function areReversed(nodeTuple: typeof nodes): nodeTuple is readonly [ TTarget, TSource ] {
-            return connectionType === ConnectionType.Sources;
-          };
-          return [
-            nodes[0],
-            links(
-              areReversed(nodes) ? Reverse(nodes) : nodes
-            ) ?? $throw('Link not found (this should never happen)')
-          ]
-        }
+        other => [
+          node as CT extends ConnectionType.Sources ? TSource : TTarget,
+          links(aligned(node, other)) ?? $throw('Link not found (this should never happen)')
+        ] as const
       ),
+      
+      (node, connections) => {
+        set(node).snapshot.forEach(other =>
+          links(aligned(node, other), null)
+        );
+        connections.forEach(([other, link]) =>
+          links(aligned(node, other), link)
+        );
+        
+      }
     );
   };
 
@@ -81,13 +95,15 @@ export function WeakGraph<TSource extends object, TTarget extends object, TLink 
     (
       source: TSource, target: TTarget, link?: TLink | null | typeof $GET
     ) => {
+      const pair = <const>[source, target];
       return link === $GET
-        ? links([source, target])
-        : link === null
-          ? links([source, target], link)
-          : link !== undefined
-            ? links([source, target], link)
-            : links([source, target], initLink(source, target));
+        ? links(pair)
+        : links(pair, 
+          link === null 
+          || link !== undefined 
+            ? link 
+            : initLink(source, target)
+        );
     }
   ];
   
