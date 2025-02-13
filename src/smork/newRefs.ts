@@ -81,7 +81,7 @@ export function RootRef<T>(value: NonFunction<T>) {
       if ( value === setValue ) return;
       valueChanged(ref, true);
       isDefined(value) && oldValue(ref, value);
-      [ ref, ...computees(ref).map(first) ].forEach(scheduleEffects);
+      [ ref, ...computees(ref) ].forEach(scheduleEffects);
       value = setValue;
       iteration(ref, inc);
     },
@@ -135,7 +135,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       detectEffect(ref);
       if ( 
         cachedValue === undefined
-        || $with(maxOf(roots(ref).map(first), iteration), maxRootIteration => {
+        || $with(maxOf(roots(ref), iteration), maxRootIteration => {
           if ( maxRootIteration > lastMaxRootIteration(ref) ) {
             lastMaxRootIteration(ref, maxRootIteration);
             return true;
@@ -159,7 +159,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       } else {
         // Even if we don't recompute, we must still make sure that the computees' roots are up to date
         currentComputees.forEach(computee => {
-          roots(computee).forEach(([ root ]) => {
+          roots(computee).forEach(root => {
             setComputee(root, computee);
           });
         });
@@ -270,9 +270,9 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
     };
 
     if ( fixedSource ) {
-      effectSources(effect, [[ fixedSource, true ]]);
+      effectSources(effect, [ fixedSource ]);
     } else {
-      effectSources(effect).forEach(([ source ]) =>
+      effectSources(effect).forEach(source =>
         valueChanged(source, null) // Reset the valueChanged
       );
       effectSources(effect, []);
@@ -290,7 +290,7 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
   });
 
   fixedSource
-    ? effectSources(effect, [[ fixedSource, true ]])
+    ? effectSources(effect, [ fixedSource ])
     : effect();
 
   allEffects.add(effect);
@@ -316,7 +316,7 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
-    refEffects(ref).forEach(([ effect ]) => {
+    refEffects(ref).forEach(effect => {
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           const currentEffects = [...scheduledEffects];

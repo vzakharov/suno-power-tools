@@ -50,20 +50,22 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
         )
   );
 
-  enum ConnectionType {
+  enum LinkType {
     Sources,
     Targets,
   };
 
-  function Connections<CT extends ConnectionType>(connectionType: CT) {
-    type TNode = TSource | TTarget;
+  function NodeHandler(connectionType: LinkType.Sources): Metabox<TTarget, readonly TSource[]>;
+  function NodeHandler(connectionType: LinkType.Targets): Metabox<TSource, readonly TTarget[]>;
+  function NodeHandler(connectionType: LinkType) {
+    type Node = TSource | TTarget;
     const set = (
-      connectionType === ConnectionType.Sources ? sourcesSet : targetsSet
-    ) as Metabox<TNode, PhantomSet<TNode>>;
+      connectionType === LinkType.Sources ? sourcesSet : targetsSet
+    ) as Metabox<Node, PhantomSet<Node>>;
 
-    function aligned(node: TNode, other: TNode) {
+    function align(node: Node, other: Node) {
       return (
-        connectionType === ConnectionType.Sources
+        connectionType === LinkType.Sources
           ? [ node, other ]
           : [ other, node ]
       ) as [TSource, TTarget];
@@ -71,21 +73,16 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
 
     return Metabox(
 
-      (node: TNode) => set(node).snapshot.map(
-        other => [
-          node as CT extends ConnectionType.Sources ? TSource : TTarget,
-          links(aligned(node, other)) ?? $throw('Link not found (this should never happen)')
-        ] as const
-      ),
+      (node: Node) => set(node).snapshot,
       
-      (node, connections) => {
+      (node, setLinks) => {
         set(node).snapshot.forEach(other =>
-          links(aligned(node, other), null)
+          links(align(node, other), null)
         );
-        connections.forEach(([other, link]) =>
-          links(aligned(node, other), link)
-        );
-        
+        setLinks.forEach(other => {
+          const aligned = align(node, other);
+          links(aligned, initLink(...aligned));
+        });
       }
     );
   };
@@ -106,12 +103,18 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
               : link
           )
     );
+
+  };
+
+  function getLink(source: TSource, target: TTarget) {
+    return links([source, target]);
   };
 
   const graph = [ 
-    Connections(ConnectionType.Sources),
-    Connections(ConnectionType.Targets), 
-    setTarget
+    NodeHandler(LinkType.Sources),
+    NodeHandler(LinkType.Targets), 
+    setTarget,
+    getLink
   ] as const;
 
   return graph;
