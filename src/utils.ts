@@ -1,6 +1,6 @@
 import { isFunction, isMutable, isObject, mapKeys } from "./lodashish";
 import { Singleton } from "./singletons";
-import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Undefinable } from "./types";
+import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Typeguard, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -345,23 +345,23 @@ export function dec(value: number) {
   return value - 1;
 };
 
-const TYPE_MARKER = Symbol('typeMarker');
-
-export type TypeMarked<TDescription extends string | symbol> = {
-  readonly [TYPE_MARKER]: TDescription;
+export type TypeMarked<Marker extends symbol> = {
+  readonly [M in Marker]: true;
 };
 
-export function TypeMarked<TDescription extends string | symbol, T extends {}>(description: TDescription, value: T) {
-  return mutated(value, { [TYPE_MARKER]: description });
+export function TypeMarked<Marker extends symbol, T extends {}>(marker: Marker, value: T) {
+  return mutated(value, { [marker]: true }) as T & TypeMarked<Marker>;
 };
 
-export function typeMarkTester<TDescription extends string | symbol>(description: TDescription) {
-
-  return function test(value: any): value is TypeMarked<TDescription> {
+export function typeMarkTester<Marker extends symbol>(marker: Marker): Typeguard<TypeMarked<Marker>>;
+export function typeMarkTester<T extends TypeMarked<any>>(marker: T extends TypeMarked<infer M> ? M : never): Typeguard<T>;
+export function typeMarkTester<Marker extends symbol>(marker: Marker) {
+  
+  return function test(value: any): value is TypeMarked<Marker> {
     return value 
       && ['object', 'function'].includes(typeof value)
-      && TYPE_MARKER in value 
-      && value[TYPE_MARKER] === description;
+      && marker in value 
+      && value[marker] === true;
   };
   
 };

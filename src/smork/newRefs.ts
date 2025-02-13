@@ -1,12 +1,12 @@
 import { WeakGraph } from "../graph";
-import { isFunction, isObject, maxOf } from "../lodashish";
+import { filter, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
-import { Defined, Func, IfReadonly, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, first, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
+import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Typeguard, Undefined } from "../types";
+import { $throw, $with, Box, combinedTypeguard, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
-const iteration = Metabox((root: RootRef) => maxIteration++);
+const iteration = Metabox(() => maxIteration++);
 
 export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 export const allRefs = new PhantomSet<Ref>();
@@ -73,7 +73,6 @@ export function RootRef<T>(value: NonFunction<T>) {
 
   const ref = WritableBaseRef($RootRef,
     () => {
-      detectEffect(ref);
       detectComputees(ref);
       return value
     },
@@ -91,7 +90,7 @@ export function RootRef<T>(value: NonFunction<T>) {
   return ref;
 };
 
-export const isRootRef = typeMarkTester($RootRef) as (value: any) => value is RootRef;
+export const isRootRef = typeMarkTester($RootRef) as Typeguard<RootRef>;
 
 // #endregion
 
@@ -100,14 +99,14 @@ export const isRootRef = typeMarkTester($RootRef) as (value: any) => value is Ro
 export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
 const currentComputees = new Set<ComputedRef>();
-const [ roots, computees, setComputee ] = WeakGraph<RootRef, ComputedRef>();
-const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
-const fixedComputeeSource = Metabox((ref: ComputedRef) => Oneple(Null<Ref>()));
+const [ sources, computees, setComputee ] = WeakGraph<Ref, ComputedRef>();
+const lastMaxSourceIteration = Metabox(() => 0);
+const fixedComputeeSource = Metabox(() => Oneple(Null<Ref>()));
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
-function detectComputees(ref: RootRef) {
+function detectComputees(ref: Ref) {
   currentComputees.forEach(computee => {
     const [ source ] = fixedComputeeSource(computee) ?? [];
     if (
@@ -132,17 +131,17 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
 
   const ref = ReadonlyBaseRef(
     () => {
-      detectEffect(ref);
+      detectComputees(ref);
       if ( 
         cachedValue === undefined
-        || $with(maxOf(roots(ref), iteration), maxRootIteration => {
-          if ( maxRootIteration > lastMaxRootIteration(ref) ) {
-            lastMaxRootIteration(ref, maxRootIteration);
+        || $with(maxOf(sources(ref), iteration), maxRootIteration => {
+          if ( maxRootIteration > lastMaxSourceIteration(ref) ) {
+            lastMaxSourceIteration(ref, maxRootIteration);
             return true;
           };
         })
       ) {
-        roots(ref, []);
+        sources(ref, []);
         currentComputees.add(ref);
         try {
           cachedValue = tap(getter(), newValue =>
@@ -159,7 +158,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       } else {
         // Even if we don't recompute, we must still make sure that the computees' roots are up to date
         currentComputees.forEach(computee => {
-          roots(computee).forEach(root => {
+          sources(computee).forEach(root => {
             setComputee(root, computee);
           });
         });
@@ -176,7 +175,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
   return ref;
 };
 
-export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as (value: any) => value is ReadonlyComputedRef;
+export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as Typeguard<ReadonlyComputedRef>;
 
 // #endregion
 
@@ -203,13 +202,13 @@ export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) =>
 
 // #region Computed overalls
 
-export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as (value: any) => value is WritableComputedRef;
+export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as Typeguard<WritableComputedRef>;
 
-export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef) as (value: any) => value is ComputedRef;
-export const isRef = combinedTypeguard(isRootRef, isComputedRef) as (value: any) => value is Ref;
+export const isComputedRef = combinedTypeguard(isReadonlyComputedRef, isWritableComputedRef) as Typeguard<ComputedRef>;
+export const isRef = combinedTypeguard(isRootRef, isComputedRef) as Typeguard<Ref>;
 
 export type WritableRef<T = unknown> = WritableComputedRef<T> | RootRef<T>;
-export const isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef) as (value: any) => value is WritableRef;
+export const isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef) as Typeguard<WritableRef>;
 
 export function ComputedRef<T>(getter: () => T): ReadonlyComputedRef<T>;
 export function ComputedRef<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
@@ -225,84 +224,31 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 // #region Effects
 
 export const allEffects = new PhantomSet<Effect>();
-const [ effectSources, refEffects, setEffect ] = WeakGraph<Ref, Effect>();
 const $Effect = Symbol('Effect');
 
 const scheduledEffects = new Set<Effect>();
-const effectCascade: Effect[] = [];
+const cascadingEffects: Effect[] = [];
 let trackableEffect = Null<Effect>();
-const valueChanged = Metabox((ref: Ref) => Null<boolean>());
-const oldValue = Metabox((ref: Ref) => Undefined<unknown>());
-const pausedEffects = new WeakSet<Effect>();
-const destroyedEffects = new WeakSet<Effect>();
+const valueChanged = Metabox(() => Null<boolean>());
+const oldValue = Metabox(() => Undefined<unknown>());
 
-enum EffectCommand {
-  PAUSE, RESUME, DESTROY = -1
+enum EffectState {
+  PAUSED, ACTIVE, DESTROYED = -1
 };
 
-export type Effect = TypeMarked<typeof $Effect> & ((command?: EffectCommand) => void);
+export type Effect<T = unknown> = TypeMarked<typeof $Effect> & ReadonlyComputedRef<T | undefined>;
 
-export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
+const effectState = Metabox(() => EffectState.ACTIVE);
 
-  const effect = TypeMarked($Effect, (command?: EffectCommand) => {
+export function Effect<T>(callback: () => T, fixedSource?: Ref): Effect<T | undefined> {
 
-    if ( effectCascade.includes(effect) ) {
-      console.warn('Self-cascading effect detected, skipping to prevent infinite loop.');
-      return;
-    };
-
-    if ( destroyedEffects.has(effect) )
-      throw "This effect has been destroyed and cannot be used anymore.";
-
-    if ( command === EffectCommand.PAUSE ) {
-      pausedEffects.add(effect);
-      return;
-    } else if ( command === EffectCommand.RESUME ) {
-      pausedEffects.delete(effect);
-    } else if ( command === EffectCommand.DESTROY ) {
-      effectSources(effect, []);
-      destroyedEffects.add(effect);
-      return;
-    };
-
-    if ( pausedEffects.has(effect) ) {
-      return;
-    };
-
-    if ( fixedSource ) {
-      effectSources(effect, [ fixedSource ]);
-    } else {
-      effectSources(effect).forEach(source =>
-        valueChanged(source, null) // Reset the valueChanged
-      );
-      effectSources(effect, []);
-      if ( trackableEffect )
-        throw "Effects cannot be nested.";
-      trackableEffect = effect;
-    };
-
-    try {
-      callback();
-    } finally {
-      trackableEffect = null;
-    };
-
-  });
-
-  fixedSource
-    ? effectSources(effect, [ fixedSource ])
-    : effect();
+  const effect = TypeMarked($Effect, ReadonlyComputedRef(callback, fixedSource));
 
   allEffects.add(effect);
   return effect;
-
 };
 
-export const isEffect = typeMarkTester($Effect);
-
-function detectEffect(ref: Ref) {
-  trackableEffect && setEffect(ref, trackableEffect);
-};
+export const isEffect = typeMarkTester($Effect) as Typeguard<Effect>;
 
 function scheduleEffects(ref: Ref) {
   if ( 
@@ -316,17 +262,31 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
-    refEffects(ref).forEach(effect => {
+    filter(computees(ref), isEffect).forEach(effect => {
+
+      switch (effectState(effect)) {
+        case EffectState.DESTROYED:
+          sources(effect, []);
+        case EffectState.PAUSED:
+          return;
+      };
+
+      if (cascadingEffects.includes(effect)) {
+        console.warn('Self-cascading effect detected, skipping to prevent infinite loop:', effect);
+        return;
+      };
+  
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           const currentEffects = [...scheduledEffects];
           scheduledEffects.clear();
-          currentEffects.forEach(effect => effect());
+          currentEffects.forEach(infer);
           scheduledEffects.size                       // If new effects were scheduled during the current effects,
-            ? effectCascade.push(...currentEffects)   // we need to cascade them to prevent potential infinite loops;
-            : effectCascade.splice(0);                // otherwise, we can clear the cascade.
+            ? cascadingEffects.push(...currentEffects)   // we need to cascade them to prevent potential infinite loops;
+            : cascadingEffects.splice(0);                // otherwise, we can clear the cascade.
         });
       };
+
       scheduledEffects.add(effect);
     });
   };
@@ -378,9 +338,9 @@ export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
   return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
 };
 
-export function watch(callback: () => void): Effect;
-export function watch<T>(source: Ref<T>, callback: (value: T, oldValue: T | undefined ) => void): Effect;
-export function watch<T>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T, oldValue: T | undefined ) => void) {
+export function watch<E>(callback: () => E): Effect<E>;
+export function watch<T, E>(source: Ref<T>, callback: (value: T, oldValue: T | undefined ) => E): Effect<E>;
+export function watch<T, E>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T, oldValue: T | undefined ) => E) {
   return isRef(sourceOrCallback)
     ? Effect(
       () => (
@@ -413,3 +373,9 @@ context.user() // { name: 'John', age: 30 }
 context.user.name() // 'John'
 context.user.name('Jane') // 'Jane'
 context() // { user: { name: 'Jane', age: 30 } }
+const simpleEffect = effect(() => console.log('User name changed to', context.user.name()));
+// Effect that has a value
+const api = { updateUser: (name: string) => Promise.resolve(true) };
+const updateOnBackend = effect(() =>
+  api.updateUser(context.user.name())
+); // This effect returns a promise that we can use to track the status of the update
