@@ -11,7 +11,12 @@ export type WeakGraph<TSource extends object, TTarget extends object, TLink exte
   sources: Metabox<TTarget, readonly Connection<TSource, NonFunction<TLink>>[]>,
   targets: Metabox<TSource, readonly Connection<TTarget, NonFunction<TLink>>[]>,
   
-  link: (source: TSource, target: TTarget, link?: TLink | null | typeof $GET) => void,
+  setTarget: {
+    (source: TSource, target: TTarget): void;
+    (source: TSource, target: TTarget, link: TLink): void;
+    (source: TSource, target: TTarget, remove: null): void;
+    (source: TSource, target: TTarget, get: typeof $GET): TLink;
+  }
 
 ];
 
@@ -93,17 +98,14 @@ export function WeakGraph<TSource extends object, TTarget extends object, TLink 
     Connections(ConnectionType.Sources),
     Connections(ConnectionType.Targets), 
     (
-      source: TSource, target: TTarget, link?: TLink | null | typeof $GET
+      source: TSource, target: TTarget, link: TLink | null | typeof $GET
     ) => {
       const pair = <const>[source, target];
-      return link === $GET
-        ? links(pair)
-        : links(pair, 
-          link === null 
-          || link !== undefined 
-            ? link 
-            : initLink(source, target)
-        );
+      return (
+        link === $GET ? links(pair) :
+        link !== null ? links(pair, initLink(source, target)) :
+                        links(pair, link)
+      )
     }
   ];
   

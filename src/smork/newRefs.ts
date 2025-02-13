@@ -1,8 +1,9 @@
+import { WeakGraph } from "../graph";
 import { isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
-import { PhantomSet, WeakBiMap } from "../weaks";
+import { $throw, $with, Box, combinedTypeguard, first, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
+import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
 const iteration = Metabox((root: RootRef) => maxIteration++);
@@ -80,7 +81,7 @@ export function RootRef<T>(value: NonFunction<T>) {
       if ( value === setValue ) return;
       valueChanged(ref, true);
       isDefined(value) && oldValue(ref, value);
-      [ ref, ...computees_roots(ref) ].forEach(scheduleEffects);
+      [ ref, ...computees(ref).map(first) ].forEach(scheduleEffects);
       value = setValue;
       iteration(ref, inc);
     },
@@ -98,8 +99,8 @@ export const isRootRef = typeMarkTester($RootRef) as (value: any) => value is Ro
 
 export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
-const computees = new Set<ComputedRef>();
-const computees_roots = WeakBiMap<RootRef, ComputedRef>();
+const currentComputees = new Set<ComputedRef>();
+const [ roots, computees, setComputee ] = WeakGraph<RootRef, ComputedRef>();
 const lastMaxRootIteration = Metabox((ref: ComputedRef) => 0);
 const fixedComputeeSource = Metabox((ref: ComputedRef) => Oneple(Null<Ref>()));
 
@@ -107,18 +108,18 @@ const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
 function detectComputees(ref: RootRef) {
-  computees.forEach(computee => {
+  currentComputees.forEach(computee => {
     const [ source ] = fixedComputeeSource(computee) ?? [];
     if (
       !source 
-      || isRootRef(source) ? source === ref : computees.has(source)
+      || isRootRef(source) ? source === ref : currentComputees.has(source)
       /* 
       In other words, we are checking if any of the fixed sources:
       - are the current root ref, or
       - are among the computees that are currently being computed, i.e. that depend on the current root ref
       */
     ) {
-      computees_roots(computee, ref);
+      setComputee(ref, computee);
     };
   });
 };
@@ -134,15 +135,15 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
       detectEffect(ref);
       if ( 
         cachedValue === undefined
-        || $with(maxOf(computees_roots(ref), iteration), maxRootIteration => {
+        || $with(maxOf(roots(ref).map(first), iteration), maxRootIteration => {
           if ( maxRootIteration > lastMaxRootIteration(ref) ) {
             lastMaxRootIteration(ref, maxRootIteration);
             return true;
           };
         })
       ) {
-        computees_roots(ref, null);
-        computees.add(ref);
+        roots(ref, []);
+        currentComputees.add(ref);
         try {
           cachedValue = tap(getter(), newValue =>
             valueChanged(
@@ -153,13 +154,13 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>)
             )
           );
         } finally {
-          computees.delete(ref);
+          currentComputees.delete(ref);
         };
       } else {
         // Even if we don't recompute, we must still make sure that the computees' roots are up to date
-        computees.forEach(computee => {
-          computees_roots(ref).forEach(root => {
-            computees_roots(computee, root);
+        currentComputees.forEach(computee => {
+          roots(computee).forEach(([ root ]) => {
+            setComputee(root, computee);
           });
         });
       }
@@ -224,7 +225,7 @@ export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
 // #region Effects
 
 export const allEffects = new PhantomSet<Effect>();
-const effects_sources = WeakBiMap<Effect, Ref>();
+const [ effectSources, refEffects, setEffect ] = WeakGraph<Ref, Effect>();
 const $Effect = Symbol('Effect');
 
 const scheduledEffects = new Set<Effect>();
@@ -259,7 +260,7 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
     } else if ( command === EffectCommand.RESUME ) {
       pausedEffects.delete(effect);
     } else if ( command === EffectCommand.DESTROY ) {
-      effects_sources(effect, null);
+      effectSources(effect, []);
       destroyedEffects.add(effect);
       return;
     };
@@ -269,12 +270,12 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
     };
 
     if ( fixedSource ) {
-      effects_sources(effect, fixedSource);
+      effectSources(effect, [[ fixedSource, true ]]);
     } else {
-      effects_sources(effect).forEach(source =>
+      effectSources(effect).forEach(([ source ]) =>
         valueChanged(source, null) // Reset the valueChanged
       );
-      effects_sources(effect, null);
+      effectSources(effect, []);
       if ( trackableEffect )
         throw "Effects cannot be nested.";
       trackableEffect = effect;
@@ -289,7 +290,7 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
   });
 
   fixedSource
-    ? effects_sources(effect, fixedSource)
+    ? effectSources(effect, [[ fixedSource, true ]])
     : effect();
 
   allEffects.add(effect);
@@ -300,7 +301,7 @@ export function Effect<T>(callback: () => void, fixedSource?: Ref<T>) {
 export const isEffect = typeMarkTester($Effect);
 
 function detectEffect(ref: Ref) {
-  trackableEffect && effects_sources(trackableEffect, ref)
+  trackableEffect && setEffect(ref, trackableEffect);
 };
 
 function scheduleEffects(ref: Ref) {
@@ -315,7 +316,7 @@ function scheduleEffects(ref: Ref) {
         : changed
     )
   ) {
-    effects_sources(ref).forEach(effect => {
+    refEffects(ref).forEach(([ effect ]) => {
       if ( !scheduledEffects.size ) {
         nextTick(() => {
           const currentEffects = [...scheduledEffects];

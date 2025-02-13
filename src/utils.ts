@@ -388,3 +388,13 @@ export function itselfIf<TValue, TGuarded extends TValue, TElse>(
 ) {
   return guard(value) ? value : infer(otherwise, value);
 };
+
+export type First<TTuple extends any[]> = TTuple extends [infer T, ...any[]] ? T : never;
+export function first<TTuple extends any[]>(tuple: TTuple): First<TTuple> {
+  return tuple[0];
+};
+
+export type Last<TTuple extends any[]> = TTuple extends [...any[], infer T] ? T : never;
+export function last<TTuple extends any[]>(tuple: TTuple): Last<TTuple> {
+  return tuple[tuple.length - 1];
+};
