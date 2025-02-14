@@ -1,4 +1,4 @@
-import { forEach, uniqueId } from "../lodashish";
+import { forEachValue, uniqueId } from "../lodashish";
 import { infer, Inferable } from "../types";
 import { $with, debug, getOrSet } from "../utils";
 import { Undefined } from "../types";
@@ -38,7 +38,7 @@ export function tag<TTag extends Tag>(tagName: TTag) {
     const element = document.createElement(tagName) as TElement;
     DEV_MODE && allElements.add(element);
     props && 
-      forEach(
+      forEachValue(
         props as AllProps,
         (value, key) => {
           typeof value === 'function'

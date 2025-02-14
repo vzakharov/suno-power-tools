@@ -1,5 +1,5 @@
 import { isFunction } from "./lodashish";
-import { $throw, mutated } from "./utils";
+import { $throw } from "./utils";
 
 export type Primitive = string | number | boolean | null | undefined;
 

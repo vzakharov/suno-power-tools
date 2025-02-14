@@ -1,4 +1,3 @@
-import { div } from "./smork/dom";
 import { Func } from "./types";
 import { getOrSet, mutated } from "./utils";
 
@@ -14,7 +13,7 @@ function createSingleton<T>(
   for (const key of keys.slice(0, -1)) {
     map = getOrSet(map, key, () => new WeakMap());
   };
-  return getOrSet(map, keys.at(-1) ?? SINGLETON_MAP, initializer) as T;
+  return getOrSet(map, keys.at(-1) ?? initializer, initializer) as T;
 };
 
 export const Singleton = mutated(
@@ -33,17 +32,17 @@ export function SingletonFactory<
 };
 export type SingletonFactory<TParams extends object[], TInstance> = ReturnType<typeof SingletonFactory<TParams, TInstance>>;
 
-// e.g.
-type Product = { name: string; price: number };
-type User = { name: string };
-const ProductCard = SingletonFactory(
-  (product: Product, user: User) => div(
-    { class: 'product-card' }, [
-      div({ class: 'product-card__name' }, [ product.name ]),
-      div({ class: 'product-card__price' }, [ String(product.price) ]),
-      div({ class: 'product-card__user' }, [ user.name ]),
-    ]
-  )
-)
-// I.e., if ProductCard is called with the same product and user, it will return the same element instead of creating a new one
-// (This won't exactly work because it won't be reactive, but this is just an illustration of the concept)
+// // e.g.
+// type Product = { name: string; price: number };
+// type User = { name: string };
+// const ProductCard = SingletonFactory(
+//   (product: Product, user: User) => div(
+//     { class: 'product-card' }, [
+//       div({ class: 'product-card__name' }, [ product.name ]),
+//       div({ class: 'product-card__price' }, [ String(product.price) ]),
+//       div({ class: 'product-card__user' }, [ user.name ]),
+//     ]
+//   )
+// )
+// // I.e., if ProductCard is called with the same product and user, it will return the same element instead of creating a new one
+// // (This won't exactly work because it won't be reactive, but this is just an illustration of the concept)

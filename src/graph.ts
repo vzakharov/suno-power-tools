@@ -4,10 +4,9 @@ import { PhantomSet } from "./weaks";
 
 export const $GET = Symbol('GET');
 
-enum WeakGraphOutput {
-  SOURCES,
-  TARGETS,
-  SET_TARGET,
+enum LinkType {
+  Sources,
+  Targets,
 };
 
 export type WeakGraph<TSource extends object, TTarget extends object, TLink extends {}> = 
@@ -50,22 +49,17 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
         )
   );
 
-  enum LinkType {
-    Sources,
-    Targets,
-  };
-
-  function NodeHandler(connectionType: LinkType.Sources): Metabox<TTarget, readonly TSource[]>;
-  function NodeHandler(connectionType: LinkType.Targets): Metabox<TSource, readonly TTarget[]>;
-  function NodeHandler(connectionType: LinkType) {
+  function NodeHandler(linkType: LinkType.Sources): Metabox<TTarget, readonly TSource[]>;
+  function NodeHandler(linkType: LinkType.Targets): Metabox<TSource, readonly TTarget[]>;
+  function NodeHandler(linkType: LinkType) {
     type Node = TSource | TTarget;
     const set = (
-      connectionType === LinkType.Sources ? sourcesSet : targetsSet
+      linkType === LinkType.Sources ? sourcesSet : targetsSet
     ) as Metabox<Node, PhantomSet<Node>>;
 
     function align(node: Node, other: Node) {
       return (
-        connectionType === LinkType.Sources
+        linkType === LinkType.Sources
           ? [ node, other ]
           : [ other, node ]
       ) as [TSource, TTarget];

@@ -23,6 +23,7 @@ export function Nullable<T>(value?: T) {
 export function EmptyArray<T>() {
   return [] as T[];
 };
+export type EmptyArray<T> = T[];
 
 export function $with<TArgs extends any[], TResult>(...arg: [...arg: TArgs, callback: (...arg: TArgs) => TResult]) {
   return ( arg.pop() as (...args: TArgs) => TResult )(...arg as unknown as TArgs);

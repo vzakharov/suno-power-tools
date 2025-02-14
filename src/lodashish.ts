@@ -14,6 +14,14 @@ export function filter<T extends {}, U extends Partial<T> | T>(arr: readonly T[]
   return arr.filter(createPredicate(filter));
 };
 
+export function map<T, U>(items: Iterable<T>, callback: (item: T, index: number) => U) {
+  return [...items].map(callback);
+};
+
+export function forEach<T>(...args: Parameters<typeof map<T, void>>) {
+  map(...args);
+};
+
 export function createPredicate<T extends {}, U extends Partial<T>>(filter: U) {
   return function(item: T): item is T & U {
     return Object.entries(filter).every(([key, value]) => item[key] === value);
@@ -38,7 +46,7 @@ export function mapValues<
   };
 };
 
-export function forEach<T extends Record<string, any>>(
+export function forEachValue<T extends Record<string, any>>(
   obj: T,
   callback: (value: T[StringKey<T>], key: StringKey<T>) => void
 ) {

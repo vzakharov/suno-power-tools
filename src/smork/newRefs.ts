@@ -1,8 +1,8 @@
 import { WeakGraph } from "../graph";
-import { filter, isFunction, isObject, maxOf } from "../lodashish";
+import { filter, forEach, forEachValue, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Typeguard, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
+import { $throw, $with, Box, combinedTypeguard, EmptyArray, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
@@ -11,37 +11,43 @@ const iteration = Metabox(() => maxIteration++);
 export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 export const allRefs = new PhantomSet<Ref>();
 
-// #region Base
+// #region DeepRefs
 
 type SubRefKey<T> = Extract<KeyWithValueNotOfType<Func, T>, string>;
 
-type ReadonlyBaseRef<T = unknown> = ReadonlyBox<T> & TypeMarked<$ReadonlyComputedRef> & {
-  readonly [K in SubRefKey<T>]: ReadonlyBaseRef<T[K]>
+type ReadonlyDeepRef<T = unknown> = ReadonlyBox<T> & TypeMarked<$ReadonlyComputedRef> & {
+  readonly [K in SubRefKey<T>]: ReadonlyDeepRef<T[K]>
 };
 
-type WritableBaseRef<TMark extends $WritableRef, T = unknown> = Box<T> & TypeMarked<TMark> & {
+type WritableDeepRef<TMark extends $WritableRef, T = unknown> = Box<T> & TypeMarked<TMark> & {
   readonly [K in SubRefKey<T>]:
     IfReadonly<K, T,
-      ReadonlyBaseRef<T[K]>,
-      WritableBaseRef<$WritableComputedRef, T[K]>
+      ReadonlyDeepRef<T[K]>,
+      WritableDeepRef<$WritableComputedRef, T[K]>
     >
 };
 
-function ReadonlyBaseRef<T>(getter: () => T) {
+enum AccessMode {
+  READONLY, WRITABLE
+}
+
+function ReadonlyDeepRef<T>(getter: () => T) {
   return new Proxy(TypeMarked($ReadonlyComputedRef, Box(getter)), {
-    get: proxyGetter(true)<T>,
+    get: deepGetter(AccessMode.READONLY)<T>,
     set: () => { throw "Cannot set a value on a readonly ref."; }
-  }) as ReadonlyBaseRef<T>;
+  }) as ReadonlyDeepRef<T>;
 };
 
-function proxyGetter<TReadonly extends boolean>(readonly: TReadonly) {
-  return function proxyGetter<T>(target: TReadonly extends true ? ReadonlyBox<T> : Box<T>, prop: string | symbol, proxy: object) {
+function deepGetter<TAccessMode extends AccessMode>(accessMode: TAccessMode) {
+
+  return function getDeep<T>(target: TAccessMode extends AccessMode.READONLY ? ReadonlyBox<T> : Box<T>, prop: string | symbol, proxy: object) {
+
     const targetValue = target();
     if ( !isObject(targetValue) || !isKeyOf(targetValue, prop) ) return targetValue[prop];
     const value = targetValue[prop];
-    const getSubRef = () => readonly || isReadonlyKey(prop, targetValue)
-      ? ReadonlyBaseRef(() => value)
-      : WritableBaseRef($WritableComputedRef, () => value, value => target({ ...targetValue, [prop]: value } as Defined<T> ));
+    const getSubRef = () => accessMode === AccessMode.READONLY || isReadonlyKey(prop, targetValue)
+      ? ReadonlyDeepRef(() => value)
+      : WritableDeepRef($WritableComputedRef, () => value, value => target({ ...targetValue, [prop]: value } as Defined<T> ));
     return (
       isFunction(value)
         ? value
@@ -50,15 +56,16 @@ function proxyGetter<TReadonly extends boolean>(readonly: TReadonly) {
       : getSubRef()
     );
   };
+
 }
 
-function WritableBaseRef<TMark extends $WritableRef, T>(typeMark: TMark, getter: () => T, setter: (value: T) => void) {
+function WritableDeepRef<TMark extends $WritableRef, T>(typeMark: TMark, getter: () => T, setter: (value: T) => void) {
   return new Proxy(Box(getter, setter), {
-    get: proxyGetter(false)<T>,
+    get: deepGetter(AccessMode.WRITABLE)<T>,
     set: () => {
       throw "Cannot set values by assigning to a ref directly. Use the setter function instead.";
     }
-  }) as WritableBaseRef<TMark, T>;
+  }) as WritableDeepRef<TMark, T>;
 };
 
 // #endregion
@@ -67,13 +74,13 @@ function WritableBaseRef<TMark extends $WritableRef, T>(typeMark: TMark, getter:
 
 const $RootRef = Symbol('RootRef');
 type $RootRef = typeof $RootRef;
-export type RootRef<T = unknown> = WritableBaseRef<$RootRef, T>;
+export type RootRef<T = unknown> = WritableDeepRef<$RootRef, T>;
 
 export function RootRef<T>(value: NonFunction<T>) {
 
-  const ref = WritableBaseRef($RootRef,
+  const ref = WritableDeepRef($RootRef,
     () => {
-      detectComputees(ref);
+      trackComputee(ref);
       return value
     },
     setValue => {
@@ -98,81 +105,88 @@ export const isRootRef = typeMarkTester($RootRef) as Typeguard<RootRef>;
 
 export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
-const currentComputees = new Set<ComputedRef>();
-const [ sources, computees, setComputee ] = WeakGraph<Ref, ComputedRef>();
-const lastMaxSourceIteration = Metabox(() => 0);
-const fixedComputeeSource = Metabox(() => Oneple(Null<Ref>()));
+// let currentComputee = Null<ComputedRef>();
+const computeeStack: ComputedRef[] = [];
+const [ sources, computees, linkComputee ] = WeakGraph<Ref, ComputedRef>();
+const maxSourceIteration = Metabox((ref: ComputedRef) => 0);
+// const fixedComputeeSources = Metabox((ref: ComputedRef) => EmptyArray<Ref>());
+const staticComputees = new WeakSet<ComputedRef>();
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
-function detectComputees(ref: Ref) {
-  currentComputees.forEach(computee => {
-    const [ source ] = fixedComputeeSource(computee) ?? [];
-    if (
-      !source 
-      || isRootRef(source) ? source === ref : currentComputees.has(source)
-      /* 
-      In other words, we are checking if any of the fixed sources:
-      - are the current root ref, or
-      - are among the computees that are currently being computed, i.e. that depend on the current root ref
-      */
-    ) {
-      setComputee(ref, computee);
-    };
-  });
+function trackComputee(ref: Ref) {
+  const currentComputee = computeeStack.at(-1);
+  if ( !currentComputee ) return;
+  if ( 
+    !staticComputees.has(currentComputee) 
+    || sources(currentComputee).includes(ref)
+    // i.e. if the computee is dynamic or the current ref is among its fixed sources
+  ) {
+    linkComputee(ref, currentComputee);
+  };
+  isRootRef(ref)
+    && forEach(computeeStack, computee => 
+      isEffect(computee) && setEffect(ref, computee)
+    );
 };
 
-export type ReadonlyComputedRef<T = unknown> = ReadonlyBaseRef<T>;
+export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
 
-export function ReadonlyComputedRef<T, U>(getter: () => T, fixedSource?: Ref<U>) {
+export function ReadonlyComputedRef<T, U>(getter: () => T, staticSource?: Ref<U>) {
 
   let cachedValue = Undefined<T>();
 
-  const ref = ReadonlyBaseRef(
+  const self = ReadonlyDeepRef(
     () => {
-      detectComputees(ref);
+      trackComputee(self);
       if ( 
         cachedValue === undefined
-        || $with(maxOf(sources(ref), iteration), maxRootIteration => {
-          if ( maxRootIteration > lastMaxSourceIteration(ref) ) {
-            lastMaxSourceIteration(ref, maxRootIteration);
+        || $with(maxOf(sources(self), iteration), sourceIteration => {
+          if ( sourceIteration > maxSourceIteration(self) ) {
+            maxSourceIteration(self, sourceIteration);
             return true;
           };
         })
       ) {
-        sources(ref, []);
-        currentComputees.add(ref);
+        !staticSource && sources(self, []); // we don't want to clear a static source
+        if ( computeeStack.includes(self) ) {
+          console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
+          return cachedValue;
+        };
+        computeeStack.push(self);
         try {
           cachedValue = tap(getter(), newValue =>
             valueChanged(
-              ref, 
+              self, 
               tap(cachedValue !== newValue, changed =>
-                changed && isDefined(cachedValue) && oldValue(ref, cachedValue)
+                changed && isDefined(cachedValue) && oldValue(self, cachedValue)
               )
             )
           );
         } finally {
-          currentComputees.delete(ref);
+          const popped = computeeStack.pop();
+          if ( popped !== self ) {
+            console.warn('Mismatched computee stack, expected', self, 'but got', popped, 'trying to fix...');
+            const index = computeeStack.indexOf(self);
+            if ( index === -1 ) {
+              throw 'Could not find the expected computee in the stack, aborting.';
+            }
+            computeeStack.splice(index);
+            console.warn('Fixed computee stack:', computeeStack);
+          };
         };
-      } else {
-        // Even if we don't recompute, we must still make sure that the computees' roots are up to date
-        currentComputees.forEach(computee => {
-          sources(computee).forEach(root => {
-            setComputee(root, computee);
-          });
-        });
-      }
+      };
 
       return cachedValue;
 
     }
   ) as ReadonlyComputedRef<T>;
 
-  fixedSource && fixedComputeeSource(ref, [fixedSource] );
-  allRefs.add(ref);
+  staticSource && sources(self, [ staticSource ]) && staticComputees.add(self);
+  allRefs.add(self);
 
-  return ref;
+  return self;
 };
 
 export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as Typeguard<ReadonlyComputedRef>;
@@ -184,11 +198,11 @@ export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as Typ
 const $WritableComputedRef = Symbol('WritableComputedRef');
 type $WritableComputedRef = typeof $WritableComputedRef;
 type $WritableRef = $RootRef | $WritableComputedRef;
-export type WritableComputedRef<T = unknown> = WritableBaseRef<$WritableComputedRef, T>;
+export type WritableComputedRef<T = unknown> = WritableDeepRef<$WritableComputedRef, T>;
 
 export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref<U>) {
 
-  const ref = WritableBaseRef($WritableComputedRef,
+  const ref = WritableDeepRef($WritableComputedRef,
     ReadonlyComputedRef(getter, fixedSource),
     setter
   ) as WritableComputedRef<T>;
@@ -200,7 +214,7 @@ export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) =>
 
 // #endregion
 
-// #region Computed overalls
+// #region Combined computed helpers etc.
 
 export const isWritableComputedRef = typeMarkTester($WritableComputedRef) as Typeguard<WritableComputedRef>;
 
@@ -228,9 +242,9 @@ const $Effect = Symbol('Effect');
 
 const scheduledEffects = new Set<Effect>();
 const cascadingEffects: Effect[] = [];
-let trackableEffect = Null<Effect>();
 const valueChanged = Metabox(() => Null<boolean>());
 const oldValue = Metabox(() => Undefined<unknown>());
+const [ rootEffects, effectRoots, setEffect ] = WeakGraph<RootRef, Effect>();
 
 enum EffectState {
   PAUSED, ACTIVE, DESTROYED = -1
@@ -373,9 +387,6 @@ context.user() // { name: 'John', age: 30 }
 context.user.name() // 'John'
 context.user.name('Jane') // 'Jane'
 context() // { user: { name: 'Jane', age: 30 } }
-const simpleEffect = effect(() => console.log('User name changed to', context.user.name()));
 // Effect that has a value
-const api = { updateUser: (name: string) => Promise.resolve(true) };
-const updateOnBackend = effect(() =>
-  api.updateUser(context.user.name())
-); // This effect returns a promise that we can use to track the status of the update
+const api = { updateUser: () => Promise.resolve(true) };
+ // This effect returns a promise that we can use to track the status of the update
