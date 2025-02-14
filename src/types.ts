@@ -55,6 +55,10 @@ export function isKeyOf<T extends object>(obj: T, key: keyof any): key is keyof 
 
 export type Func<TArgs extends any[] = any[], TReturn = any> = (...args: TArgs) => TReturn;
 
+export function Func<TArgs extends any[], TReturn>(func: Func<TArgs, TReturn>) {
+  return func;
+};
+
 export type NonFunction<T> = T extends Func 
   ? TypingError<'Cannot be a function'>
   : T;

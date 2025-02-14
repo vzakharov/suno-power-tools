@@ -1,12 +1,17 @@
 import { NonFunction, Reverse } from "./types";
-import { $throw, Metabox } from "./utils";
+import { $throw, Metabox, tap } from "./utils";
 import { PhantomSet } from "./weaks";
 
 export const $GET = Symbol('GET');
 
 enum LinkType {
-  Sources,
-  Targets,
+  SOURCES,
+  TARGETS,
+};
+
+export enum LinkExistence {
+  OPTIONAL,
+  REQUIRED,
 };
 
 export type WeakGraph<TSource extends object, TTarget extends object, TLink extends {}> = 
@@ -14,12 +19,12 @@ export type WeakGraph<TSource extends object, TTarget extends object, TLink exte
 
 export function WeakGraph<TNode extends object>(): WeakGraph<TNode, TNode, true>;
 export function WeakGraph<TSource extends object, TTarget extends object>(): WeakGraph<TSource, TTarget, true>;
-export function WeakGraph<TNode extends object, TLink extends {}>(
-  initLink: (source: TNode, target: TNode) => TLink
-): WeakGraph<TNode, TNode, NonFunction<TLink>>;
 export function WeakGraph<TSource extends object, TTarget extends object, TLink extends {}>(
   initLink: (source: TSource, target: TTarget) => TLink
 ): WeakGraph<TSource, TTarget, NonFunction<TLink>>;
+export function WeakGraph<TNode extends object, TLink extends {}>(
+  initLink: (source: TNode, target: TNode) => TLink
+): WeakGraph<TNode, TNode, NonFunction<TLink>>;
 export function WeakGraph<TSource extends object, TTarget extends object, TLink extends {}>(
   initLink = (source: TSource, target: TTarget) => true as TLink
 ) {
@@ -49,17 +54,17 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
         )
   );
 
-  function NodeHandler(linkType: LinkType.Sources): Metabox<TTarget, readonly TSource[]>;
-  function NodeHandler(linkType: LinkType.Targets): Metabox<TSource, readonly TTarget[]>;
+  function NodeHandler(linkType: LinkType.SOURCES): Metabox<TTarget, readonly TSource[]>;
+  function NodeHandler(linkType: LinkType.TARGETS): Metabox<TSource, readonly TTarget[]>;
   function NodeHandler(linkType: LinkType) {
     type Node = TSource | TTarget;
     const set = (
-      linkType === LinkType.Sources ? sourcesSet : targetsSet
+      linkType === LinkType.SOURCES ? sourcesSet : targetsSet
     ) as Metabox<Node, PhantomSet<Node>>;
 
     function align(node: Node, other: Node) {
       return (
-        linkType === LinkType.Sources
+        linkType === LinkType.SOURCES
           ? [ node, other ]
           : [ other, node ]
       ) as [TSource, TTarget];
@@ -84,29 +89,29 @@ function createWeakGraph<TSource extends object, TTarget extends object, TLink e
   function setTarget(source: TSource, target: TTarget): void;
   function setTarget(source: TSource, target: TTarget, link: TLink): void;
   function setTarget(source: TSource, target: TTarget, remove: null): void;
-  function setTarget(source: TSource, target: TTarget, get: typeof $GET): TLink;
-  function setTarget(source: TSource, target: TTarget, link?: TLink | null | typeof $GET) {
+  function setTarget(source: TSource, target: TTarget, link?: TLink | null) {
 
-    const pair = <const>[source, target];
-    return (
-      link === $GET 
-        ? links(pair) 
-        : links(pair, 
-            link === undefined
-              ? initLink(source, target)
-              : link
-          )
+    return links([source, target], 
+      link === undefined
+        ? initLink(source, target)
+        : link
     );
 
   };
 
-  function getLink(source: TSource, target: TTarget) {
-    return links([source, target]);
+  function getLink(source: TSource, target: TTarget): TLink | null;
+  function getLink(source: TSource, target: TTarget, existence: LinkExistence.REQUIRED): TLink;
+  function getLink(source: TSource, target: TTarget, existence = LinkExistence.OPTIONAL) {
+    return tap(links([source, target]), link =>
+      existence === LinkExistence.REQUIRED 
+        && link === null
+        && $throw(`Link not found between ${source} and ${target}`)
+    );
   };
 
   const graph = [ 
-    NodeHandler(LinkType.Sources),
-    NodeHandler(LinkType.Targets), 
+    NodeHandler(LinkType.SOURCES),
+    NodeHandler(LinkType.TARGETS), 
     setTarget,
     getLink
   ] as const;

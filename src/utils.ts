@@ -1,6 +1,6 @@
 import { isFunction, isMutable, isObject, mapKeys } from "./lodashish";
 import { Singleton } from "./singletons";
-import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Typeguard, Undefinable } from "./types";
+import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Typeguard, TypingError, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -24,6 +24,17 @@ export function EmptyArray<T>() {
   return [] as T[];
 };
 export type EmptyArray<T> = T[];
+
+// export function EmptyTuple<TLength extends number>() {
+export function EmptyTuple<TTuple extends readonly any[]>(): {
+  [K in keyof TTuple]?: undefined extends TTuple[K] ? TTuple[K] : TypingError<'Cannot create an empty tuple for a tuple expecting defined values'>;
+};
+export function EmptyTuple<TLength extends number>(): TupleOfLength<TLength>;
+export function EmptyTuple() {
+  return [];
+};
+
+export type EmptyTuple<TLength extends number> = TupleOfLength<TLength, undefined>;
 
 export function $with<TArgs extends any[], TResult>(...arg: [...arg: TArgs, callback: (...arg: TArgs) => TResult]) {
   return ( arg.pop() as (...args: TArgs) => TResult )(...arg as unknown as TArgs);
@@ -338,12 +349,30 @@ export function Metabox<TSubject extends WeakKey, TValue>(
   )
 };
 
-export function inc(value: number) {
-  return value + 1;
+export type TupleOfLength<T extends number, U = any, R extends U[] = []> = 
+  R['length'] extends T ? R : TupleOfLength<T, U, [...R, U]>;
+
+export type Inc<N extends number, D extends number = 1> = 
+  N extends infer I ? I extends number 
+    ? [...TupleOfLength<I>, ...TupleOfLength<D>]['length'] 
+    : never : never;
+
+export function inc<N extends number>(value: N): Inc<N>;
+export function inc<N extends number, D extends number>(value: N, delta: D): Inc<N, D>;
+export function inc(value: number, delta = 1) {
+  return value + delta;
 };
 
-export function dec(value: number) {
-  return value - 1;
+export type Dec<N extends number, D extends number = 1> = 
+  N extends infer I ? I extends number
+    ? TupleOfLength<I> extends [...TupleOfLength<D>, ...infer Rest]
+      ? Rest['length']
+      : never : never : never;
+
+export function dec<N extends number>(value: N): Dec<N>;
+export function dec<N extends number, D extends number>(value: N, delta: D): Dec<N, D>;
+export function dec(value: number, delta = 1) {
+  return value - delta;
 };
 
 export type TypeMarked<Marker extends symbol> = {

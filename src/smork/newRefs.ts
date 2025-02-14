@@ -1,8 +1,8 @@
-import { WeakGraph } from "../graph";
-import { filter, forEach, forEachValue, isFunction, isObject, maxOf } from "../lodashish";
+import { LinkExistence, WeakGraph } from "../graph";
+import { forEach, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
-import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Oneple, Typeguard, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, EmptyArray, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
+import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
+import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
@@ -78,23 +78,24 @@ export type RootRef<T = unknown> = WritableDeepRef<$RootRef, T>;
 
 export function RootRef<T>(value: NonFunction<T>) {
 
-  const ref = WritableDeepRef($RootRef,
+  const self = WritableDeepRef($RootRef,
     () => {
-      trackComputee(ref);
+      trackComputee(self, value);
       return value
     },
     setValue => {
       if ( value === setValue ) return;
-      valueChanged(ref, true);
-      isDefined(value) && oldValue(ref, value);
-      [ ref, ...computees(ref) ].forEach(scheduleEffects);
+      valueChanged(self, true);
+      isDefined(value) && oldValue(self, value);
+      // [ ref, ...computees(ref) ].forEach(scheduleEffects);
+      scheduleEffects(self);
       value = setValue;
-      iteration(ref, inc);
+      iteration(self, inc);
     },
   ) as RootRef<T>;
 
-  allRefs.add(ref);
-  return ref;
+  allRefs.add(self);
+  return self;
 };
 
 export const isRootRef = typeMarkTester($RootRef) as Typeguard<RootRef>;
@@ -105,17 +106,21 @@ export const isRootRef = typeMarkTester($RootRef) as Typeguard<RootRef>;
 
 export type ComputedRef<T = unknown> = ReadonlyComputedRef<T> | WritableComputedRef<T>;
 
+enum ComputeeLink {
+  lastUsedValue
+}
+
 // let currentComputee = Null<ComputedRef>();
 const computeeStack: ComputedRef[] = [];
-const [ sources, computees, linkComputee ] = WeakGraph<Ref, ComputedRef>();
-const maxSourceIteration = Metabox((ref: ComputedRef) => 0);
+const [ sources, computees, linkComputee, getComputeeLink ] = WeakGraph<Ref, ComputedRef, [ lastUsedValue?: unknown ]>(EmptyTuple);
+const lastMaxSourceIteration = Metabox((ref: ComputedRef) => 0);
 // const fixedComputeeSources = Metabox((ref: ComputedRef) => EmptyArray<Ref>());
 const staticComputees = new WeakSet<ComputedRef>();
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
-function trackComputee(ref: Ref) {
+function trackComputee<T>(ref: Ref<T>, value: Undefinable<NonFunction<T>>) {
   const currentComputee = computeeStack.at(-1);
   if ( !currentComputee ) return;
   if ( 
@@ -123,7 +128,9 @@ function trackComputee(ref: Ref) {
     || sources(currentComputee).includes(ref)
     // i.e. if the computee is dynamic or the current ref is among its fixed sources
   ) {
-    linkComputee(ref, currentComputee);
+    linkComputee(ref, currentComputee, [ value ]);
+    // TODO: figure out a way to use generics in the WeakGraph, as ref/value are currently Ref<unknown> and unknown, while they should be Ref<T> and T
+    // (Probably won't be possible until higher-kinded types are available in TypeScript)
   };
   isRootRef(ref)
     && forEach(computeeStack, computee => 
@@ -133,53 +140,15 @@ function trackComputee(ref: Ref) {
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
 
-export function ReadonlyComputedRef<T, U>(getter: () => T, staticSource?: Ref<U>) {
+export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSource?: Ref<U>) {
 
-  let cachedValue = Undefined<T>();
+  let cachedValue = Undefined<NonFunction<T>>();
 
   const self = ReadonlyDeepRef(
     () => {
-      trackComputee(self);
-      if ( 
-        cachedValue === undefined
-        || $with(maxOf(sources(self), iteration), sourceIteration => {
-          if ( sourceIteration > maxSourceIteration(self) ) {
-            maxSourceIteration(self, sourceIteration);
-            return true;
-          };
-        })
-      ) {
-        !staticSource && sources(self, []); // we don't want to clear a static source
-        if ( computeeStack.includes(self) ) {
-          console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
-          return cachedValue;
-        };
-        computeeStack.push(self);
-        try {
-          cachedValue = tap(getter(), newValue =>
-            valueChanged(
-              self, 
-              tap(cachedValue !== newValue, changed =>
-                changed && isDefined(cachedValue) && oldValue(self, cachedValue)
-              )
-            )
-          );
-        } finally {
-          const popped = computeeStack.pop();
-          if ( popped !== self ) {
-            console.warn('Mismatched computee stack, expected', self, 'but got', popped, 'trying to fix...');
-            const index = computeeStack.indexOf(self);
-            if ( index === -1 ) {
-              throw 'Could not find the expected computee in the stack, aborting.';
-            }
-            computeeStack.splice(index);
-            console.warn('Fixed computee stack:', computeeStack);
-          };
-        };
-      };
-
+      updateCachedValue();
+      trackComputee(self, cachedValue);
       return cachedValue;
-
     }
   ) as ReadonlyComputedRef<T>;
 
@@ -187,6 +156,54 @@ export function ReadonlyComputedRef<T, U>(getter: () => T, staticSource?: Ref<U>
   allRefs.add(self);
 
   return self;
+
+  function updateCachedValue() {
+
+    const currentSources = sources(self);
+
+    if ( 
+      cachedValue !== undefined
+      && $with(maxOf(currentSources, iteration), maxSourceIteration => {
+        if ( maxSourceIteration <= lastMaxSourceIteration(self) ) return true;
+        lastMaxSourceIteration(self, maxSourceIteration);
+      })
+    ) return;
+    
+    if ( currentSources.every(source =>
+      getComputeeLink(source, self, LinkExistence.REQUIRED)[ComputeeLink.lastUsedValue] === source()
+    ) )
+      return;
+      
+    if ( computeeStack.includes(self) ) {
+      console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
+      return;
+    };
+
+    !staticSource && sources(self, []); // we don't want to clear a static source
+    
+    computeeStack.push(self);
+    try {
+      cachedValue = tap(getter(), newValue => valueChanged(
+        self,
+        tap(cachedValue !== newValue, changed => changed && isDefined(cachedValue) && oldValue(self, cachedValue)
+        )
+      )
+      );
+    } finally {
+      const popped = computeeStack.pop();
+      if (popped !== self) {
+        console.warn('Mismatched computee stack, expected', self, 'but got', popped, 'trying to fix...');
+        const index = computeeStack.indexOf(self);
+        if (index === -1) {
+          throw 'Could not find the expected computee in the stack, aborting.';
+        }
+        computeeStack.splice(index);
+        console.warn('Fixed computee stack:', computeeStack);
+      };
+    };
+
+  };
+    
 };
 
 export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as Typeguard<ReadonlyComputedRef>;
@@ -200,7 +217,7 @@ type $WritableComputedRef = typeof $WritableComputedRef;
 type $WritableRef = $RootRef | $WritableComputedRef;
 export type WritableComputedRef<T = unknown> = WritableDeepRef<$WritableComputedRef, T>;
 
-export function WritableComputedRef<T, U>(getter: () => T, setter: (value: T) => void, fixedSource?: Ref<U>) {
+export function WritableComputedRef<T, U>(getter: () => NonFunction<T>, setter: (value: T) => void, fixedSource?: Ref<U>) {
 
   const ref = WritableDeepRef($WritableComputedRef,
     ReadonlyComputedRef(getter, fixedSource),
@@ -224,10 +241,10 @@ export const isRef = combinedTypeguard(isRootRef, isComputedRef) as Typeguard<Re
 export type WritableRef<T = unknown> = WritableComputedRef<T> | RootRef<T>;
 export const isWritableRef = combinedTypeguard(isRootRef, isWritableComputedRef) as Typeguard<WritableRef>;
 
-export function ComputedRef<T>(getter: () => T): ReadonlyComputedRef<T>;
-export function ComputedRef<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
-export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void): ComputedRef<T>;
-export function ComputedRef<T>(getter: () => T, setter?: (value: T) => void) {
+export function ComputedRef<T>(getter: () => NonFunction<T>): ReadonlyComputedRef<T>;
+export function ComputedRef<T>(getter: () => NonFunction<T>, setter: (value: T) => void): WritableComputedRef<T>;
+export function ComputedRef<T>(getter: () => NonFunction<T>, setter?: (value: T) => void): ComputedRef<T>;
+export function ComputedRef<T>(getter: () => NonFunction<T>, setter?: (value: T) => void) {
   return setter
     ? WritableComputedRef(getter, setter)
     : ReadonlyComputedRef(getter);
@@ -244,7 +261,7 @@ const scheduledEffects = new Set<Effect>();
 const cascadingEffects: Effect[] = [];
 const valueChanged = Metabox(() => Null<boolean>());
 const oldValue = Metabox(() => Undefined<unknown>());
-const [ rootEffects, effectRoots, setEffect ] = WeakGraph<RootRef, Effect>();
+const [ effectRoots, rootEffects, setEffect ] = WeakGraph<RootRef, Effect>();
 
 enum EffectState {
   PAUSED, ACTIVE, DESTROYED = -1
@@ -254,7 +271,7 @@ export type Effect<T = unknown> = TypeMarked<typeof $Effect> & ReadonlyComputedR
 
 const effectState = Metabox(() => EffectState.ACTIVE);
 
-export function Effect<T>(callback: () => T, fixedSource?: Ref): Effect<T | undefined> {
+export function Effect<T>(callback: () => NonFunction<T>, fixedSource?: Ref): Effect<T | undefined> {
 
   const effect = TypeMarked($Effect, ReadonlyComputedRef(callback, fixedSource));
 
@@ -264,56 +281,44 @@ export function Effect<T>(callback: () => T, fixedSource?: Ref): Effect<T | unde
 
 export const isEffect = typeMarkTester($Effect) as Typeguard<Effect>;
 
-function scheduleEffects(ref: Ref) {
-  if ( 
-    isRootRef(ref) 
-    || $with(valueChanged(ref), changed =>
-      changed === null
-        ? (
-          ref(), // This will update the valueChanged
-          valueChanged(ref) ?? $throw('valueChanged not updated')
-        )
-        : changed
-    )
-  ) {
-    filter(computees(ref), isEffect).forEach(effect => {
+function scheduleEffects(root: RootRef) {
+  forEach(rootEffects(root), effect => {
 
-      switch (effectState(effect)) {
-        case EffectState.DESTROYED:
-          sources(effect, []);
-        case EffectState.PAUSED:
-          return;
-      };
-
-      if (cascadingEffects.includes(effect)) {
-        console.warn('Self-cascading effect detected, skipping to prevent infinite loop:', effect);
+    switch (effectState(effect)) {
+      case EffectState.DESTROYED:
+        sources(effect, []);
+      case EffectState.PAUSED:
         return;
-      };
-  
-      if ( !scheduledEffects.size ) {
-        nextTick(() => {
-          const currentEffects = [...scheduledEffects];
-          scheduledEffects.clear();
-          currentEffects.forEach(infer);
-          scheduledEffects.size                       // If new effects were scheduled during the current effects,
-            ? cascadingEffects.push(...currentEffects)   // we need to cascade them to prevent potential infinite loops;
-            : cascadingEffects.splice(0);                // otherwise, we can clear the cascade.
-        });
-      };
+    };
 
-      scheduledEffects.add(effect);
-    });
-  };
+    if (cascadingEffects.includes(effect)) {
+      console.warn('Self-cascading effect detected, skipping to prevent infinite loop:', effect);
+      return;
+    };
+
+    if ( !scheduledEffects.size ) {
+      nextTick(() => {
+        const currentEffects = [...scheduledEffects];
+        scheduledEffects.clear();
+        forEach(currentEffects, infer);
+        scheduledEffects.size                       // If new effects were scheduled during the current effects,
+          ? cascadingEffects.push(...currentEffects)   // we need to cascade them to prevent potential infinite loops;
+          : cascadingEffects.splice(0);                // otherwise, we can clear the cascade.
+      });
+    };
+
+    scheduledEffects.add(effect);
+  });
 };
 
 // #endregion
 
 // #region Shorthands
 
-function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>): ComputedRef<U>;
-function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => NonFunction<U>): ReadonlyComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => NonFunction<U>, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => NonFunction<U>, backMapper?: (value: U) => Defined<T>): ComputedRef<U>;
+function DependentRef<T, U>(source: Ref<T>, mapper: (value: T) => NonFunction<U>, backMapper?: (value: U) => Defined<T>) {
   return backMapper
     ? WritableComputedRef(
       () => mapper(source()),
@@ -329,12 +334,16 @@ type DependentRef<T, U> = ReturnType<typeof DependentRef<T, U>>;
 
 export function Ref<T>(value: NonFunction<T>): RootRef<T>;
 export function Ref<T>(): RootRef<T | undefined>;
-export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-export function Ref<T>(getter: () => T): ReadonlyComputedRef<T>;
-export function Ref<T>(getter: () => T, setter: (value: T) => void): WritableComputedRef<T>;
+export function Ref<T, U>(source: Ref<T>, mapper: (value: T) => NonFunction<U>): ReadonlyComputedRef<U>;
+export function Ref<T, U>(source: WritableRef<T>, mapper: (value: T) => NonFunction<U>, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+export function Ref<T>(getter: () => NonFunction<T>): ReadonlyComputedRef<T>;
+export function Ref<T>(getter: () => NonFunction<T>, setter: (value: T) => void): WritableComputedRef<T>;
 
-export function Ref<T, U>(getterValueOrSource?: NonFunction<T> | (() => T) | Ref<T>, setterOrMapper?: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+export function Ref<T, U>(
+  getterValueOrSource?: NonFunction<T> | (() => NonFunction<T>) | Ref<T>,
+  setterOrMapper?: (value: T) => NonFunction<U>,
+  backMapper?: (value: U) => Defined<T>
+) {
   return isRef(getterValueOrSource)
     ? DependentRef(
       getterValueOrSource, 
@@ -348,13 +357,13 @@ export function Ref<T, U>(getterValueOrSource?: NonFunction<T> | (() => T) | Ref
 
 export const ref = Ref;
 
-export function toref<T>(source: NonFunction<T> | Ref<T> | (() => T)): Ref<T> {
+export function toref<T>(source: NonFunction<T> | Ref<T> | (() => NonFunction<T>)): Ref<T> {
   return isRef(source) ? source : isFunction(source) ? ReadonlyComputedRef(source) : RootRef(source);
 };
 
-export function watch<E>(callback: () => E): Effect<E>;
+export function watch<E>(callback: () => NonFunction<E>): Effect<E>;
 export function watch<T, E>(source: Ref<T>, callback: (value: T, oldValue: T | undefined ) => E): Effect<E>;
-export function watch<T, E>(sourceOrCallback: Ref<T> | (() => T), callback?: (value: T, oldValue: T | undefined ) => E) {
+export function watch<T, E>(sourceOrCallback: Ref<T> | (() => NonFunction<E>), callback?: (value: T, oldValue: T | undefined ) => NonFunction<E>) {
   return isRef(sourceOrCallback)
     ? Effect(
       () => (
@@ -367,9 +376,9 @@ export function watch<T, E>(sourceOrCallback: Ref<T> | (() => T), callback?: (va
 
 export const effect = watch;
 
-export function map<T, U>(ref: Ref<T>, mapper: (value: T) => U): ReadonlyComputedRef<U>;
-export function map<T, U>(ref: WritableRef<T>, mapper: (value: T) => U, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
-export function map<T, U>(ref: Ref<T>, mapper: (value: T) => U, backMapper?: (value: U) => Defined<T>) {
+export function map<T, U>(ref: Ref<T>, mapper: (value: T) => NonFunction<U>): ReadonlyComputedRef<U>;
+export function map<T, U>(ref: WritableRef<T>, mapper: (value: T) => NonFunction<U>, backMapper: (value: U) => Defined<T>): WritableComputedRef<U>;
+export function map<T, U>(ref: Ref<T>, mapper: (value: T) => NonFunction<U>, backMapper?: (value: U) => Defined<T>) {
   return backMapper
     ? isWritableRef(ref)
       ? Ref(ref, mapper, backMapper)
