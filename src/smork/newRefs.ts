@@ -1,4 +1,4 @@
-import { LinkExistence, WeakGraph } from "../graph";
+import { WeakGraph } from "../graph";
 import { forEach, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
@@ -112,7 +112,8 @@ enum ComputeeLink {
 
 // let currentComputee = Null<ComputedRef>();
 const computeeStack: ComputedRef[] = [];
-const [ sources, computees, linkComputee, getComputeeLink ] = WeakGraph<Ref, ComputedRef, [ lastUsedValue?: unknown ]>(EmptyTuple);
+const [ sources, computees ] = WeakGraph<Ref, ComputedRef>();
+const lastUsedValue = Metabox(([ ref, computee ]: [ Ref, ComputedRef ]) => Undefined<unknown>());
 const lastMaxSourceIteration = Metabox((ref: ComputedRef) => 0);
 // const fixedComputeeSources = Metabox((ref: ComputedRef) => EmptyArray<Ref>());
 const staticComputees = new WeakSet<ComputedRef>();
@@ -125,16 +126,17 @@ function trackComputee<T>(ref: Ref<T>, value: Undefinable<NonFunction<T>>) {
   if ( !currentComputee ) return;
   if ( 
     !staticComputees.has(currentComputee) 
-    || sources(currentComputee).includes(ref)
+    || sources(currentComputee).has(ref)
     // i.e. if the computee is dynamic or the current ref is among its fixed sources
   ) {
-    linkComputee(ref, currentComputee, [ value ]);
+    sources(currentComputee).add(ref);
     // TODO: figure out a way to use generics in the WeakGraph, as ref/value are currently Ref<unknown> and unknown, while they should be Ref<T> and T
     // (Probably won't be possible until higher-kinded types are available in TypeScript)
   };
   isRootRef(ref)
     && forEach(computeeStack, computee => 
-      isEffect(computee) && setEffect(ref, computee)
+      isEffect(computee)
+      && rootEffects(ref).add(computee)
     );
 };
 
@@ -152,14 +154,16 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
     }
   ) as ReadonlyComputedRef<T>;
 
-  staticSource && sources(self, [ staticSource ]) && staticComputees.add(self);
+  staticSource 
+    && sources(self).has(staticSource)
+    && staticComputees.add(self);
   allRefs.add(self);
 
   return self;
 
   function updateCachedValue() {
 
-    const currentSources = sources(self);
+    const currentSources = sources(self).snapshot;
 
     if ( 
       cachedValue !== undefined
@@ -170,7 +174,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
     ) return;
     
     if ( currentSources.every(source =>
-      getComputeeLink(source, self, LinkExistence.REQUIRED)[ComputeeLink.lastUsedValue] === source()
+      lastUsedValue([ source, self ]) === source()
     ) )
       return;
       
@@ -179,7 +183,8 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
       return;
     };
 
-    !staticSource && sources(self, []); // we don't want to clear a static source
+    !staticSource               // we don't want to clear a static source
+      && sources(self).clear(); 
     
     computeeStack.push(self);
     try {
@@ -261,7 +266,7 @@ const scheduledEffects = new Set<Effect>();
 const cascadingEffects: Effect[] = [];
 const valueChanged = Metabox(() => Null<boolean>());
 const oldValue = Metabox(() => Undefined<unknown>());
-const [ effectRoots, rootEffects, setEffect ] = WeakGraph<RootRef, Effect>();
+const [ effectRoots, rootEffects ] = WeakGraph<RootRef, Effect>();
 
 enum EffectState {
   PAUSED, ACTIVE, DESTROYED = -1
@@ -282,11 +287,11 @@ export function Effect<T>(callback: () => NonFunction<T>, fixedSource?: Ref): Ef
 export const isEffect = typeMarkTester($Effect) as Typeguard<Effect>;
 
 function scheduleEffects(root: RootRef) {
-  forEach(rootEffects(root), effect => {
+  forEach(rootEffects(root).snapshot, effect => {
 
     switch (effectState(effect)) {
       case EffectState.DESTROYED:
-        sources(effect, []);
+        sources(effect).clear();
       case EffectState.PAUSED:
         return;
     };
