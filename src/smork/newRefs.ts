@@ -1,5 +1,5 @@
 import { WeakGraph } from "../graph";
-import { forEach, isFunction, isObject, maxOf } from "../lodashish";
+import { every, filter, forEach, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
 import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
@@ -113,7 +113,8 @@ enum ComputeeLink {
 // let currentComputee = Null<ComputedRef>();
 const computeeStack: ComputedRef[] = [];
 const [ sources, computees ] = WeakGraph<Ref, ComputedRef>();
-const lastUsedValue = Metabox(([ ref, computee ]: [ Ref, ComputedRef ]) => Undefined<unknown>());
+const [ roots, descendants ] = WeakGraph<RootRef, ComputedRef>();
+// const lastUsedValue = Metabox(([ ref, computee ]: [ Ref, ComputedRef ]) => Undefined<unknown>());
 const lastMaxSourceIteration = Metabox((ref: ComputedRef) => 0);
 // const fixedComputeeSources = Metabox((ref: ComputedRef) => EmptyArray<Ref>());
 const staticComputees = new WeakSet<ComputedRef>();
@@ -135,8 +136,8 @@ function trackComputee<T>(ref: Ref<T>, value: Undefinable<NonFunction<T>>) {
   };
   isRootRef(ref)
     && forEach(computeeStack, computee => 
-      isEffect(computee)
-      && rootEffects(ref).add(computee)
+      // isEffect(computee)
+      descendants(ref).add(computee)
     );
 };
 
@@ -145,6 +146,9 @@ export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
 export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSource?: Ref<U>) {
 
   let cachedValue = Undefined<NonFunction<T>>();
+  const lastUsedValue = Metabox((source: Ref) => Undefined<unknown>());
+  const oldSourceValue = Metabox((source: Ref) => Undefined<unknown>());
+  const lastUsedIteration = Metabox((source: Ref) => -1);
 
   const self = ReadonlyDeepRef(
     () => {
@@ -161,33 +165,36 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
 
   return self;
 
+  function unchanged(source: Ref<unknown>) {
+    if (lastUsedIteration(source) === iteration(source)) return true;
+    const oldValue = lastUsedValue(source);
+    const value = source();
+    // (Note that this will also recompute the source if needed, so if and when it's called once again in the computed getter, it won't need to be recomputed again)
+    lastUsedValue(source, value);
+    lastUsedIteration(source, iteration(source));
+    return oldValue === value;
+  }
+
   function updateCachedValue() {
 
     const currentSources = sources(self).snapshot;
 
-    if ( 
-      cachedValue !== undefined
-      && $with(maxOf(currentSources, iteration), maxSourceIteration => {
-        if ( maxSourceIteration <= lastMaxSourceIteration(self) ) return true;
-        lastMaxSourceIteration(self, maxSourceIteration);
-      })
-    ) return;
-    
-    if ( currentSources.every(source =>
-      lastUsedValue([ source, self ]) === source()
-    ) )
-      return;
-      
-    if ( computeeStack.includes(self) ) {
-      console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
-      return;
-    };
-
-    !staticSource               // we don't want to clear a static source
-      && sources(self).clear(); 
-    
     computeeStack.push(self);
     try {
+
+      if (
+        cachedValue !== undefined
+        && every(currentSources, unchanged) 
+      ) return;
+        
+      if ( computeeStack.includes(self) ) {
+        console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
+        return;
+      };
+
+      !staticSource               // we don't want to clear a static source
+        && sources(self).clear(); 
+    
       cachedValue = tap(getter(), newValue => valueChanged(
         self,
         tap(cachedValue !== newValue, changed => changed && isDefined(cachedValue) && oldValue(self, cachedValue)
@@ -266,7 +273,6 @@ const scheduledEffects = new Set<Effect>();
 const cascadingEffects: Effect[] = [];
 const valueChanged = Metabox(() => Null<boolean>());
 const oldValue = Metabox(() => Undefined<unknown>());
-const [ effectRoots, rootEffects ] = WeakGraph<RootRef, Effect>();
 
 enum EffectState {
   PAUSED, ACTIVE, DESTROYED = -1
@@ -287,11 +293,12 @@ export function Effect<T>(callback: () => NonFunction<T>, fixedSource?: Ref): Ef
 export const isEffect = typeMarkTester($Effect) as Typeguard<Effect>;
 
 function scheduleEffects(root: RootRef) {
-  forEach(rootEffects(root).snapshot, effect => {
+  forEach(filter(descendants(root).snapshot, isEffect), effect => {
 
     switch (effectState(effect)) {
       case EffectState.DESTROYED:
         sources(effect).clear();
+        roots(effect).clear();
       case EffectState.PAUSED:
         return;
     };
@@ -313,6 +320,7 @@ function scheduleEffects(root: RootRef) {
     };
 
     scheduledEffects.add(effect);
+
   });
 };
 

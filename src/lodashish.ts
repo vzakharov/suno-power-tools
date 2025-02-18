@@ -22,6 +22,10 @@ export function forEach<T>(...args: Parameters<typeof map<T, void>>) {
   map(...args);
 };
 
+export function every<T>(items: Iterable<T>, callback: (item: T, index: number) => boolean) {
+  return [...items].every(callback);
+};
+
 export function createPredicate<T extends {}, U extends Partial<T>>(filter: U) {
   return function(item: T): item is T & U {
     return Object.entries(filter).every(([key, value]) => item[key] === value);
