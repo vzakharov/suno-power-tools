@@ -1,6 +1,7 @@
 import { isFunction, isMutable, isObject, mapKeys } from "./lodashish";
 import { Singleton } from "./singletons";
-import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, Typeguard, TypingError, Undefinable } from "./types";
+import { isTypeMarked, TypeMarked, typeMarkTester } from "./typemarks";
+import { Defined, Func, infer, Inferable, isDefined, NonFunction, StringKey, TypingError, Undefinable } from "./types";
 
 export function ensure<T>(value: T | null | undefined): T {
   if ( value === null || value === undefined ) {
@@ -222,6 +223,12 @@ export type CreateBoxArgs<T, TWritable extends boolean> = [
 
 export type ValueSetter<T> = Defined<T> | ((value: T, oldValue: Undefinable<T>) => Defined<T>);
 
+export const $Readonly = Symbol('Readonly');
+
+export const $Box = Symbol('Box');
+export type $Box = TypeMarked<typeof $Box>;
+export const isBox = typeMarkTester<Box>($Box);
+
 export function createBox<T, TWritable extends boolean>(...[ getterOrValue, setter ]: CreateBoxArgs<T, TWritable>) {
 
   let oldValue = isFunction(getterOrValue) ? undefined as T : getterOrValue;
@@ -230,9 +237,7 @@ export function createBox<T, TWritable extends boolean>(...[ getterOrValue, sett
     return isFunction(getterOrValue) ? getterOrValue(oldValue) : oldValue;
   };
 
-
-  return (
-    function box(setValue?: ValueSetter<T>) {
+  return TypeMarked($Box, function box(setValue?: ValueSetter<T>) {
       if ( setValue === undefined ) {
         return oldValue = getCurrentValue();
       } else {
@@ -247,7 +252,7 @@ export function createBox<T, TWritable extends boolean>(...[ getterOrValue, sett
         };
       };
     }
-  ) as ParametricBox<T, TWritable>;
+  );
     
 };
 
@@ -266,9 +271,9 @@ export type ParametricBox<T, TWritable extends boolean> =
     ? Box<T> 
     : ReadonlyBox<T>;
 
-export type ReadonlyBox<T = unknown> = () => T;
+export type ReadonlyBox<T = unknown> = $Box & (() => T);
 
-export type Box<T = unknown> = {
+export type Box<T = unknown> = $Box & {
   (): T,
   (setValue: ValueSetter<T>): T,
 };
@@ -293,6 +298,10 @@ export function Metadata<TSubject extends WeakKey, TMetadata extends Record<stri
 
 export type Metadata<TSubject extends WeakKey, TInits extends Record<string, any>> = ReturnType<typeof Metadata<TSubject, TInits>>;
 
+export const $Metabox = Symbol('Metabox');
+export type $Metabox = TypeMarked<typeof $Metabox>;
+export const isMetabox = typeMarkTester<Metabox>($Metabox);
+
 export function createMetabox<
   TSubject extends WeakKey,
   TValue,
@@ -312,20 +321,15 @@ export function createMetabox<
     return isDefined(setValue) ? metadata(subject)(setValue) : metadata(subject)();
   };
 
-  return metabox as ParametricMetabox<TSubject, TValue, TWritable>;
+  return TypeMarked($Metabox, metabox);
 
 };
-
-export type ParametricMetabox<TSubject extends WeakKey, TValue, TWritable extends boolean> =
-  TWritable extends true
-    ? Metabox<TSubject, TValue>
-    : ReadonlyMetabox<TSubject, TValue>;
 
 export interface ReadonlyMetabox<TSubject extends WeakKey, TValue> {
   <T extends TValue>(subject: TSubject): T;
 };
 
-export type Metabox<TSubject extends WeakKey, TValue> = ReadonlyMetabox<TSubject, TValue> & {
+export type Metabox<TSubject extends WeakKey = object, TValue = unknown> = $Metabox & ReadonlyMetabox<TSubject, TValue> & {
   <T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
 };
 
@@ -347,6 +351,14 @@ export function Metabox<TSubject extends WeakKey, TValue>(
       setter && ( value => setter(subject, value) )
     ]
   )
+};
+
+export function readonly<T>(box: Box<NonFunction<T>>): ReadonlyBox<T>;
+export function readonly<TSubject extends WeakKey, TValue>(metabox: Metabox<TSubject, NonFunction<TValue>>): ReadonlyMetabox<TSubject, TValue>;
+export function readonly<T>(target: Box<NonFunction<T>> | Metabox<any, NonFunction<T>>) {
+  return isMetabox(target)
+    ? createMetabox((subject: any) => [ target(subject), undefined ])
+    : createBox(() => target());
 };
 
 export type TupleOfLength<T extends number, U = any, R extends U[] = []> = 
@@ -373,27 +385,6 @@ export function dec<N extends number>(value: N): Dec<N>;
 export function dec<N extends number, D extends number>(value: N, delta: D): Dec<N, D>;
 export function dec(value: number, delta = 1) {
   return value - delta;
-};
-
-export type TypeMarked<Marker extends symbol> = {
-  readonly [M in Marker]: true;
-};
-
-export function TypeMarked<Marker extends symbol, T extends {}>(marker: Marker, value: T) {
-  return mutated(value, { [marker]: true }) as T & TypeMarked<Marker>;
-};
-
-export function typeMarkTester<Marker extends symbol>(marker: Marker): Typeguard<TypeMarked<Marker>>;
-export function typeMarkTester<T extends TypeMarked<any>>(marker: T extends TypeMarked<infer M> ? M : never): Typeguard<T>;
-export function typeMarkTester<Marker extends symbol>(marker: Marker) {
-  
-  return function test(value: any): value is TypeMarked<Marker> {
-    return value 
-      && ['object', 'function'].includes(typeof value)
-      && marker in value 
-      && value[marker] === true;
-  };
-  
 };
 
 export function combinedTypeguard<T, G1 extends T, G2 extends T>(guard1: (value: T) => value is G1, guard2: (value: T) => value is G2) {

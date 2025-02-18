@@ -2,7 +2,9 @@ import { WeakGraph } from "../graph";
 import { every, filter, forEach, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, ReadonlyBox, tap, TypeMarked, typeMarkTester } from "../utils";
+import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, ReadonlyBox, ReadonlyMetabox, tap } from "../utils";
+import { typeMarkTester } from "../typemarks";
+import { TypeMarked } from "../typemarks";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
@@ -85,9 +87,6 @@ export function RootRef<T>(value: NonFunction<T>) {
     },
     setValue => {
       if ( value === setValue ) return;
-      valueChanged(self, true);
-      isDefined(value) && oldValue(self, value);
-      // [ ref, ...computees(ref) ].forEach(scheduleEffects);
       scheduleEffects(self);
       value = setValue;
       iteration(self, inc);
@@ -144,7 +143,12 @@ function trackComputee<T>(ref: Ref<T>) {
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
 
-export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSource?: Ref<U>) {
+export function ReadonlyComputedRef<T>(
+  getter: (
+    oldValues: ReadonlyMetabox<Ref, unknown>,
+  ) => NonFunction<T>,
+  staticSource?: Ref
+) {
 
   let cachedValue = Undefined<NonFunction<T>>();
   const lastUsedValue = Metabox((source: Ref) => Undefined<unknown>());
@@ -199,12 +203,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
       !staticSource               // we don't want to clear a static source
         && sources(self).clear(); 
     
-      cachedValue = tap(getter(), newValue => valueChanged(
-        self,
-        tap(cachedValue !== newValue, changed => changed && isDefined(cachedValue) && oldValue(self, cachedValue)
-        )
-      )
-      );
+      cachedValue = getter(oldSourceValue)
     } finally {
       validateComputeeStack();
     };
@@ -279,8 +278,6 @@ const $Effect = Symbol('Effect');
 
 const scheduledEffects = new Set<Effect>();
 const cascadingEffects: Effect[] = [];
-const valueChanged = Metabox(() => Null<boolean>());
-const oldValue = Metabox(() => Undefined<unknown>());
 
 enum EffectState {
   PAUSED, ACTIVE, DESTROYED = -1
@@ -290,9 +287,9 @@ export type Effect<T = unknown> = TypeMarked<typeof $Effect> & ReadonlyComputedR
 
 const effectState = Metabox(() => EffectState.ACTIVE);
 
-export function Effect<T>(callback: () => NonFunction<T>, fixedSource?: Ref): Effect<T | undefined> {
+export function Effect<T>(...args: Parameters<typeof ReadonlyComputedRef<T>>): Effect<T | undefined> {
 
-  const effect = TypeMarked($Effect, ReadonlyComputedRef(callback, fixedSource));
+  const effect = TypeMarked($Effect, ReadonlyComputedRef(...args))
 
   allEffects.add(effect);
   return effect;
@@ -387,9 +384,9 @@ export function watch<T, E>(source: Ref<T>, callback: (value: T, oldValue: T | u
 export function watch<T, E>(sourceOrCallback: Ref<T> | (() => NonFunction<E>), callback?: (value: T, oldValue: T | undefined ) => NonFunction<E>) {
   return isRef(sourceOrCallback)
     ? Effect(
-      () => (
+      oldValues => (
         callback ?? $throw('A callback must be provided when the first argument is a ref.')
-      )(sourceOrCallback(), oldValue(sourceOrCallback)),
+      )(sourceOrCallback(), oldValues(sourceOrCallback)),
       sourceOrCallback
     )
     : Effect(sourceOrCallback);
