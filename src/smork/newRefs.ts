@@ -181,7 +181,13 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
 
     const currentSources = sources(self).snapshot;
 
+    if ( computeeStack.includes(self) ) {
+      console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
+      return;
+    };
+
     computeeStack.push(self);
+    
     try {
 
       if (
@@ -189,11 +195,6 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
         && every(currentSources, unchanged) 
       ) return;
         
-      if ( computeeStack.includes(self) ) {
-        console.warn('Circular dependency detected: stack', computeeStack, 'includes', self, 'returning cached value:', cachedValue);
-        return;
-      };
-
       !staticSource               // we don't want to clear a static source
         && sources(self).clear(); 
     
