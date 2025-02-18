@@ -302,59 +302,76 @@ export const $Metabox = Symbol('Metabox');
 export type $Metabox = TypeMarked<typeof $Metabox>;
 export const isMetabox = typeMarkTester<Metabox>($Metabox);
 
+type SetterArgs<TSubjects extends WeakKey[], TValue> = [
+  ...subjects: TSubjects,
+  value: Defined<NonFunction<TValue>>
+];
+
 export function createMetabox<
-  TSubject extends WeakKey,
+  TSubjects extends WeakKey[],
   TValue,
   TWritable extends boolean,
 >(
-  initializer: (subject: TSubject) => CreateBoxArgs<NonFunction<TValue>, TWritable>
+  initializer: (subjects: TSubjects) => CreateBoxArgs<NonFunction<TValue>, TWritable>
 ) {
 
-  const metadata = Metadata<TSubject, ParametricBox<NonFunction<TValue>, TWritable>>(subject => {
-    const [ getter, setter ] = initializer(subject);
+  const metadata = Metadata<TSubjects, ParametricBox<NonFunction<TValue>, TWritable>>(subjects => {
+    const [ getter, setter ] = initializer(subjects);
     return createBox(getter, setter);
   });
   
-  function metabox<T extends TValue>(subject: TSubject): T;
-  function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<NonFunction<T>>): T;
-  function metabox(subject: TSubject, setValue?: ValueSetter<NonFunction<TValue>>) {
-    return isDefined(setValue) ? metadata(subject)(setValue) : metadata(subject)();
+  // function metabox<T extends TValue>(subject: TSubject): T;
+  // function metabox<T extends TValue>(subject: TSubject, setValue: ValueSetter<NonFunction<T>>): T;
+  // function metabox(subject: TSubject, setValue?: ValueSetter<NonFunction<TValue>>) {
+  //   return isDefined(setValue) ? metadata(subject)(setValue) : metadata(subject)();
+  // };
+  function metabox<T extends TValue>(subjects: TSubjects): T;
+  function metabox<T extends TValue>(subject: OnlyOne<TSubjects>): T;
+  function metabox<T extends TValue>(subjects: TSubjects, setValue: ValueSetter<NonFunction<T>>): T;
+  function metabox<T extends TValue>(subject: OnlyOne<TSubjects>, setValue: ValueSetter<NonFunction<T>>): T;
+  function metabox(target: TSubjects | OnlyOne<TSubjects>, setValue?: ValueSetter<NonFunction<TValue>>) {
+    const subjects = Array.isArray(target)
+        ? target
+        : onlyOne(target);
+    return isDefined(setValue) ? metadata(subjects)(setValue) : metadata(subjects)();
   };
 
   return TypeMarked($Metabox, metabox);
 
 };
 
-export interface ReadonlyMetabox<TSubject extends WeakKey, TValue> {
-  <T extends TValue>(subject: TSubject): T;
+export type ReadonlyMetabox<TSubjects extends WeakKey[], TValue> = $Metabox & {
+  <T extends TValue>(subjects: TSubjects): T;
+  <T extends TValue>(subject: OnlyOne<TSubjects>): T;
 };
 
-export type Metabox<TSubject extends WeakKey = object, TValue = unknown> = $Metabox & ReadonlyMetabox<TSubject, TValue> & {
-  <T extends TValue>(subject: TSubject, setValue: ValueSetter<T>): T;
+export type Metabox<TSubjects extends WeakKey[] = object[], TValue = unknown> = ReadonlyMetabox<TSubjects, TValue> & {
+  <T extends TValue>(subjects: TSubjects, setValue: ValueSetter<T>): T;
+  <T extends TValue>(subject: OnlyOne<TSubjects>, setValue: ValueSetter<T>): T;
 };
 
-export function Metabox<TSubject extends WeakKey, TValue>(
-  initializer: (subject: TSubject) => Defined<NonFunction<TValue>>
-): Metabox<TSubject, TValue>;
-export function Metabox<TSubject extends WeakKey, TValue>(
-  getter: Undefinable<(subject: TSubject) => Defined<NonFunction<TValue>>>,
-  setter: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
-): Metabox<TSubject, TValue>;
+export function Metabox<TSubjects extends WeakKey[], TValue>(
+  initializer: (...subjects: TSubjects) => Defined<NonFunction<TValue>>
+): Metabox<TSubjects, TValue>;
+export function Metabox<TSubjects extends WeakKey[], TValue>(
+  getter: Undefinable<(...subjects: TSubjects) => Defined<NonFunction<TValue>>>,
+  setter: (...args: SetterArgs<TSubjects, TValue>) => void
+): Metabox<TSubjects, TValue>;
 
-export function Metabox<TSubject extends WeakKey, TValue>(
-  getterOrInitializer: Undefinable<(subject: TSubject) => Defined<NonFunction<TValue>>>,
-  setter?: (subject: TSubject, value: Defined<NonFunction<TValue>>) => void
+export function Metabox<TSubjects extends WeakKey[], TValue>(
+  getterOrInitializer: Undefinable<(...subjects: TSubjects) => Defined<NonFunction<TValue>>>,
+  setter?: (...args: SetterArgs<TSubjects, TValue>) => void
 ) {
-  return createMetabox<TSubject, TValue, true>(
-    subject => [
-      getterOrInitializer?.(subject) ?? undefined as NonFunction<TValue>,
-      setter && ( value => setter(subject, value) )
+  return createMetabox<TSubjects, TValue, true>(
+    subjects => [
+      getterOrInitializer?.(...subjects) ?? undefined as NonFunction<TValue>,
+      setter && ( value => setter(...subjects, value) )
     ]
-  )
+  );
 };
 
 export function readonly<T>(box: Box<NonFunction<T>>): ReadonlyBox<T>;
-export function readonly<TSubject extends WeakKey, TValue>(metabox: Metabox<TSubject, NonFunction<TValue>>): ReadonlyMetabox<TSubject, TValue>;
+export function readonly<TSubjects extends WeakKey[], TValue>(metabox: Metabox<TSubjects, NonFunction<TValue>>): ReadonlyMetabox<TSubjects, TValue>;
 export function readonly<T>(target: Box<NonFunction<T>> | Metabox<any, NonFunction<T>>) {
   return isMetabox(target)
     ? createMetabox((subject: any) => [ target(subject), undefined ])
@@ -419,3 +436,12 @@ export type Last<TTuple extends readonly any[]> = TTuple extends readonly [...an
 export function last<TTuple extends readonly any[]>(tuple: TTuple): Last<TTuple> {
   return tuple[tuple.length - 1];
 };
+
+export type OnlyOne<TTuple extends readonly any[]> = 
+  TTuple extends readonly [infer T] 
+    ? T 
+    : TypingError<'Expected a tuple with exactly one element'>;
+
+export function onlyOne<TTuple extends readonly any[]>(item: OnlyOne<TTuple>) {
+  return [item] as unknown as TTuple;
+}

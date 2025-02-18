@@ -2,13 +2,13 @@ import { WeakGraph } from "../graph";
 import { every, filter, forEach, isFunction, isObject, maxOf } from "../lodashish";
 import { Singleton } from "../singletons";
 import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, ReadonlyBox, ReadonlyMetabox, tap } from "../utils";
+import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, readonly, ReadonlyBox, ReadonlyMetabox, tap } from "../utils";
 import { typeMarkTester } from "../typemarks";
 import { TypeMarked } from "../typemarks";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
-const iteration = Metabox(() => maxIteration++);
+const iteration = Metabox((ref: Ref) => maxIteration++);
 
 export type Ref<T = unknown> = RootRef<T> | ComputedRef<T>
 export const allRefs = new PhantomSet<Ref>();
@@ -109,13 +109,9 @@ enum ComputeeLink {
   lastUsedValue
 }
 
-// let currentComputee = Null<ComputedRef>();
 const computeeStack: ComputedRef[] = [];
 const [ sources, computees ] = WeakGraph<Ref, ComputedRef>();
 const [ roots, descendants ] = WeakGraph<RootRef, ComputedRef>();
-// const lastUsedValue = Metabox(([ ref, computee ]: [ Ref, ComputedRef ]) => Undefined<unknown>());
-const lastMaxSourceIteration = Metabox((ref: ComputedRef) => 0);
-// const fixedComputeeSources = Metabox((ref: ComputedRef) => EmptyArray<Ref>());
 const staticComputees = new WeakSet<ComputedRef>();
 
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
@@ -132,20 +128,23 @@ function trackComputee<T>(ref: Ref<T>) {
     sources(currentComputee).add(ref);
     // TODO: figure out a way to use generics in the WeakGraph, as ref/value are currently Ref<unknown> and unknown, while they should be Ref<T> and T
     // (Probably won't be possible until higher-kinded types are available in TypeScript)
+
+    forEach(
+      isRootRef(ref)
+        ? [ref]
+        : roots(ref).snapshot,
+      root => roots(currentComputee).add(root)
+    );
+
   };
-  forEach(
-    isRootRef(ref)
-      ? [ref]
-      : roots(ref).snapshot,
-    root => roots(currentComputee).add(root)
-  )
 };
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
 
 export function ReadonlyComputedRef<T>(
   getter: (
-    oldValues: ReadonlyMetabox<Ref, unknown>,
+    oldValues: Metabox<[Ref], unknown>,
+    self: ReadonlyComputedRef<T>,
   ) => NonFunction<T>,
   staticSource?: Ref
 ) {
@@ -171,15 +170,8 @@ export function ReadonlyComputedRef<T>(
   return self;
 
   function unchanged(source: Ref<unknown>) {
-    if ( lastUsedIteration(source) === iteration(source) ) return true;
-    const oldValue = lastUsedValue(source);
-    const value = source();
-    // (Note that this will also recompute the source if needed, so if and when it's called once again in the computed getter, it won't need to be recomputed again)
-    lastUsedIteration(source, iteration(source));
-    if ( oldValue === value ) return true;
-    oldSourceValue(source, oldValue);
-    lastUsedValue(source, value);
-    return false;
+    return lastUsedIteration(source) === iteration(source)
+      || lastUsedValue(source) === source() 
   }
 
   function updateCachedValue() {
@@ -203,7 +195,18 @@ export function ReadonlyComputedRef<T>(
       !staticSource               // we don't want to clear a static source
         && sources(self).clear(); 
     
-      cachedValue = getter(oldSourceValue)
+      cachedValue = getter(readonly(oldSourceValue), self)
+
+      forEach(sources(self).snapshot, source => {
+        lastUsedIteration(source, iteration(source));
+        $with(lastUsedValue(source), lastUsedValue =>
+          lastUsedValue && oldSourceValue(source, lastUsedValue)
+        );
+        lastUsedValue(source, source());
+      });
+
+      iteration(self, inc);
+      
     } finally {
       validateComputeeStack();
     };
@@ -285,7 +288,7 @@ enum EffectState {
 
 export type Effect<T = unknown> = TypeMarked<typeof $Effect> & ReadonlyComputedRef<T | undefined>;
 
-const effectState = Metabox(() => EffectState.ACTIVE);
+const effectState = Metabox((effect: Effect) => EffectState.ACTIVE);
 
 export function Effect<T>(...args: Parameters<typeof ReadonlyComputedRef<T>>): Effect<T | undefined> {
 
