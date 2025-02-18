@@ -80,7 +80,7 @@ export function RootRef<T>(value: NonFunction<T>) {
 
   const self = WritableDeepRef($RootRef,
     () => {
-      trackComputee(self, value);
+      trackComputee(self);
       return value
     },
     setValue => {
@@ -122,7 +122,7 @@ const staticComputees = new WeakSet<ComputedRef>();
 const $ReadonlyComputedRef = Symbol('ReadonlyComputedRef');
 type $ReadonlyComputedRef = typeof $ReadonlyComputedRef;
 
-function trackComputee<T>(ref: Ref<T>, value: Undefinable<NonFunction<T>>) {
+function trackComputee<T>(ref: Ref<T>) {
   const currentComputee = computeeStack.at(-1);
   if ( !currentComputee ) return;
   if ( 
@@ -134,11 +134,12 @@ function trackComputee<T>(ref: Ref<T>, value: Undefinable<NonFunction<T>>) {
     // TODO: figure out a way to use generics in the WeakGraph, as ref/value are currently Ref<unknown> and unknown, while they should be Ref<T> and T
     // (Probably won't be possible until higher-kinded types are available in TypeScript)
   };
-  isRootRef(ref)
-    && forEach(computeeStack, computee => 
-      // isEffect(computee)
-      descendants(ref).add(computee)
-    );
+  forEach(
+    isRootRef(ref)
+      ? [ref]
+      : roots(ref).snapshot,
+    root => roots(currentComputee).add(root)
+  )
 };
 
 export type ReadonlyComputedRef<T = unknown> = ReadonlyDeepRef<T>;
@@ -153,7 +154,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
   const self = ReadonlyDeepRef(
     () => {
       updateCachedValue();
-      trackComputee(self, cachedValue);
+      trackComputee(self);
       return cachedValue;
     }
   ) as ReadonlyComputedRef<T>;
