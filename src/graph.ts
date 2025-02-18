@@ -1,4 +1,4 @@
-import { Metabox } from "./utils";
+import { Metabox } from "./boxes";
 import { PhantomSet } from "./weaks";
 
 class CoupledSet<TNode extends object, TOther extends object> extends PhantomSet<TNode> {
@@ -24,14 +24,14 @@ class CoupledSet<TNode extends object, TOther extends object> extends PhantomSet
 
 export function WeakGraph<TSource extends object, TTarget extends object>(): WeakGraph<TSource, TTarget> {
   
-  const sources: Metabox<TTarget, PhantomSet<TSource>> = Metabox((target: TTarget) => new CoupledSet<TSource, TTarget>(target, targets));
-  const targets: Metabox<TSource, PhantomSet<TTarget>> = Metabox((source: TSource) => new CoupledSet<TTarget, TSource>(source, sources));
+  const sources: Metabox<[TTarget], PhantomSet<TSource>> = Metabox((target: TTarget) => new CoupledSet<TSource, TTarget>(target, targets));
+  const targets: Metabox<[TSource], PhantomSet<TTarget>> = Metabox((source: TSource) => new CoupledSet<TTarget, TSource>(source, sources));
 
   return [ sources, targets ] as const;
 
 };
   
 export type WeakGraph<TSource extends object, TTarget extends object> = [
-  sources: Metabox<TTarget, PhantomSet<TSource>>,
-  targets: Metabox<TSource, PhantomSet<TTarget>>
+  sources: Metabox<[TTarget], PhantomSet<TSource>>,
+  targets: Metabox<[TSource], PhantomSet<TTarget>>
 ]

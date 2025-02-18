@@ -8,10 +8,14 @@ export function find<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
 // export function filter<T extends {}, U extends Partial<T>>(arr: T[], filter: U) {
 //   return arr.filter(createPredicate(filter));
 // };
-export function filter<T extends {}, U extends Partial<T>>(arr: readonly T[], filter: U): (T & U)[];
 export function filter<T extends {}, U extends T>(arr: readonly T[], typeguard: Typeguard<U, T>): U[];
-export function filter<T extends {}, U extends Partial<T> | T>(arr: readonly T[], filter: U) {
-  return arr.filter(createPredicate(filter));
+export function filter<T extends {}, U extends Partial<T>>(arr: readonly T[], filter: U): (T & U)[];
+export function filter<T extends {}, U extends T>(arr: readonly T[], typeguardOrFilter: U | Typeguard<U, T>) {
+  return arr.filter(
+    isFunction(typeguardOrFilter) 
+      ? typeguardOrFilter 
+      : createPredicate(typeguardOrFilter)
+  );
 };
 
 export function map<T, U>(items: Iterable<T>, callback: (item: T, index: number) => U) {

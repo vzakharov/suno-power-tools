@@ -1,10 +1,10 @@
+import { Box, Metabox, readonly, ReadonlyBox } from "../boxes";
 import { WeakGraph } from "../graph";
-import { every, filter, forEach, isFunction, isObject, maxOf } from "../lodashish";
+import { every, filter, forEach, isFunction, isObject } from "../lodashish";
 import { Singleton } from "../singletons";
-import { Defined, Func, IfReadonly, infer, isDefined, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefinable, Undefined } from "../types";
-import { $throw, $with, Box, combinedTypeguard, EmptyTuple, inc, Metabox, nextTick, Null, readonly, ReadonlyBox, ReadonlyMetabox, tap } from "../utils";
-import { typeMarkTester } from "../typemarks";
-import { TypeMarked } from "../typemarks";
+import { TypeMarked, typeMarkTester } from "../typemarks";
+import { Defined, Func, IfReadonly, infer, isKeyOf, isReadonlyKey, KeyWithValueNotOfType, NonFunction, Typeguard, Undefined } from "../types";
+import { $throw, $with, combinedTypeguard, inc, nextTick } from "../utils";
 import { PhantomSet } from "../weaks";
 
 let maxIteration = 0;
@@ -197,7 +197,7 @@ export function ReadonlyComputedRef<T>(
     
       cachedValue = getter(readonly(oldSourceValue), self)
 
-      forEach(sources(self).snapshot, source => {
+      forEach(currentSources, source => {
         lastUsedIteration(source, iteration(source));
         $with(lastUsedValue(source), lastUsedValue =>
           lastUsedValue && oldSourceValue(source, lastUsedValue)
@@ -206,7 +206,7 @@ export function ReadonlyComputedRef<T>(
       });
 
       iteration(self, inc);
-      
+
     } finally {
       validateComputeeStack();
     };
