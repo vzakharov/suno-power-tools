@@ -187,7 +187,7 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
     };
 
     computeeStack.push(self);
-    
+
     try {
 
       if (
@@ -205,20 +205,24 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
       )
       );
     } finally {
-      const popped = computeeStack.pop();
-      if (popped !== self) {
-        console.warn('Mismatched computee stack, expected', self, 'but got', popped, 'trying to fix...');
-        const index = computeeStack.indexOf(self);
-        if (index === -1) {
-          throw 'Could not find the expected computee in the stack, aborting.';
-        }
-        computeeStack.splice(index);
-        console.warn('Fixed computee stack:', computeeStack);
-      };
+      validateComputeeStack();
     };
 
   };
-    
+
+  function validateComputeeStack() {
+    const popped = computeeStack.pop();
+    if (popped !== self) {
+      console.warn('Mismatched computee stack, expected', self, 'but got', popped, 'trying to fix...');
+      const index = computeeStack.indexOf(self);
+      if (index === -1) {
+        throw 'Could not find the expected computee in the stack, aborting.';
+      }
+      computeeStack.splice(index);
+      console.warn('Fixed computee stack:', computeeStack);
+    };
+  };
+  
 };
 
 export const isReadonlyComputedRef = typeMarkTester($ReadonlyComputedRef) as Typeguard<ReadonlyComputedRef>;
