@@ -166,13 +166,15 @@ export function ReadonlyComputedRef<T, U>(getter: () => NonFunction<T>, staticSo
   return self;
 
   function unchanged(source: Ref<unknown>) {
-    if (lastUsedIteration(source) === iteration(source)) return true;
+    if ( lastUsedIteration(source) === iteration(source) ) return true;
     const oldValue = lastUsedValue(source);
     const value = source();
     // (Note that this will also recompute the source if needed, so if and when it's called once again in the computed getter, it won't need to be recomputed again)
-    lastUsedValue(source, value);
     lastUsedIteration(source, iteration(source));
-    return oldValue === value;
+    if ( oldValue === value ) return true;
+    oldSourceValue(source, oldValue);
+    lastUsedValue(source, value);
+    return false;
   }
 
   function updateCachedValue() {
